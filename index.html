@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="description" content="DOORBUSTER — Black Friday at the mall. Race a shopping cart, sweep the shelves on the move, build a wobbling tower of loot and crash into a checkout before the store closes.">
+<title>DOORBUSTER</title>
+<link rel="icon" href="data:,">
+<!--
+  DOORBUSTER — index.html
+  Purpose: the page shell: one canvas, one interface layer, all interface CSS, and the entry module.
+  Loads: src/main.js (ES module), which loads three.js r185 (global THREE) through src/platform.js:
+         the Mindblown-hosted bundle on the platform, lib/three.min.js anywhere else.
+-->
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #1E1B2E; }
+  body { font-family: "Arial Black", "Segoe UI Black", "Helvetica Neue", Impact, system-ui, sans-serif;
+    -webkit-user-select: none; user-select: none; touch-action: none; }
+  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  #ui { position: fixed; inset: 0; pointer-events: none; }
+  /* debug panel (?debug=1) */
+  .dbg { position: absolute; left: 8px; top: 8px; width: 330px; max-height: 96%; overflow: auto; pointer-events: auto;
+    background: rgba(30, 27, 46, 0.86); color: #FFF6EA; font: 11px/1.35 ui-monospace, Menlo, Consolas, monospace;
+    padding: 8px; border-radius: 10px; }
+  .dbg-read { margin: 0 0 6px; white-space: pre-wrap; }
+  .dbg-row { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+  .dbg-btn { font: inherit; color: #1E1B2E; background: #FFD23F; border: 0; border-radius: 6px; padding: 3px 7px; cursor: pointer; }
+  .dbg-line { display: grid; grid-template-columns: 96px 1fr 44px; gap: 6px; align-items: center; }
+  .dbg-line input { width: 100%; margin: 0; }
+  .dbg-val { text-align: right; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="ui"></div>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
