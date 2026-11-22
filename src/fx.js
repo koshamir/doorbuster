@@ -15,7 +15,7 @@ const FX_CAP = 700, FX_STRIDE = 16;
 // per particle: x y z  vx vy vz  life ttl  size0 size1  rot spin  grav drag  shape colorIndex
 const fxData = new Float32Array(FX_CAP * FX_STRIDE);
 let fxCount = 0, fxMesh = null, fxPos = null, fxParam = null, fxColor = null, fxSeed = 12345;
-export const TIER_COLORS = [PAL.white, PAL.sky, PAL.sale, PAL.danger];   // drift charge: none, tier 1, 2, 3 (never the player's pink)
+export const TIER_COLORS = PAL.tiers;
 const FX_COLORS = [PAL.white, PAL.sale, PAL.orange, PAL.player, PAL.danger, PAL.steel, PAL.list, PAL.hot, PAL.sky, PAL.mint, PAL.outline];
 const FX_RGB = FX_COLORS.map(rgb);
 

@@ -1,64 +1,185 @@
 // DOORBUSTER — scene.js
 // Purpose: builds the visuals of one level from the simulation world and, every frame, copies the
 //          simulation state onto them: carts and their animation, the towers of goods and how they
-//          sway, goods flying into carts, goods on shelves and on the floor. Reads the simulation,
-//          never writes it.
+//          sway, goods flying into carts, goods on shelves and on the floor, pieces that break or fly,
+//          shadows and the hero's ring. Reads the simulation, never writes it.
 // Exports: buildScene, syncScene, sceneEvent, disposeScene
 // Depends on: config.js, gfx.js, models.js and the global THREE (inside functions only).
 
-import { TUNE, CFG, PAL, GOODS, clamp, lerp, wrapAngle } from './config.js';
-import { gfx, toonMaterial } from './gfx.js';
-import { makeBuilder, place, addBox, addCyl, toGeometry, cartGeometry, bumperGeometry, beanGeometry, goodGeometry } from './models.js';
+import { TUNE, CFG, PAL, GOODS, rgb, clamp, lerp, wrapAngle } from './config.js';
+import { gfx, toonMaterial, flatMaterial, ringMaterial } from './gfx.js';
+import { makeBuilder, place, addBox, addCyl, addBall, toGeometry, cartGeometry, bumperGeometry, beanGeometry, goodGeometry,
+  addShelf, addPiece, pieceGeometry } from './models.js';
 
 const GOOD_CAP = 220;        // instances per kind of goods
+const SHADOW_CAP = 320;      // contact shadows (static ones first, then the moving blobs)
+const GLOW_CAP = 48;         // coloured discs on the floor: list items, hot items, spilled goods
 const TOWER_SCALE = 0.85;    // goods shrink a little when they land in a cart
 const FLY_TIME = 0.2;        // seconds for a swept item to arc into the cart
 const BASKET_Y = 0.48;       // height of the basket floor
+const LOOSE = { pyramid: 1, gifts: 1, stand: 1, podium: 1, table: 1, boxes: 1, mannequin: 1 };   // pieces with their own mesh
 const towX = new Float32Array(200), towY = new Float32Array(200), towZ = new Float32Array(200), towYaw = new Float32Array(200);
+
+// The floor's tile map: store colour, painted decals and where the floor ends (see FLOOR_FS in gfx.js).
+function floorMap(world) {
+  const { cols, rows, def } = world, data = new Uint8Array(cols * rows * 4);
+  for (let i = 0; i < cols * rows; i++) {
+    const zone = (def.zones || [])[world.zone[i]] || {};
+    data[i * 4] = Math.round((zone.color || 0) / 8 * 255);
+    data[i * 4 + 1] = world.laneOf[i] >= 0 ? Math.round(5 / 8 * 255) : 0;
+    data[i * 4 + 3] = world.floor[i] ? 255 : 0;
+  }
+  // Chevrons along the route: walk the navigation field from the start and paint every third tile.
+  let c = Math.floor(world.start.x / CFG.TILE), r = Math.floor(world.start.z / CFG.TILE);
+  for (let n = 0; n < 600; n++) {
+    let best = world.nav[r * cols + c], bc = c, br = r, dir = 0;
+    for (const [dc, dr, d] of [[1, 0, 1], [0, 1, 2], [-1, 0, 3], [0, -1, 4]]) {
+      const v = world.nav[(r + dr) * cols + c + dc];
+      if (v < best - 1e-3) { best = v; bc = c + dc; br = r + dr; dir = d; }
+    }
+    if (!dir) break;
+    if (n % 3 === 1 && world.plan[r][c] === '.') data[(r * cols + c) * 4 + 1] = Math.round(dir / 8 * 255);
+    c = bc; r = br;
+  }
+  const tex = new THREE.DataTexture(data, cols, rows, THREE.RGBAFormat);
+  tex.magFilter = tex.minFilter = THREE.NearestFilter;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+// A hanging banner with a store's name, drawn on a canvas (the only text in the 3D world).
+function banner(text, color) {
+  const cv = document.createElement('canvas');
+  cv.width = 512; cv.height = 96;
+  const g = cv.getContext('2d'), hex = (v) => '#' + v.toString(16).padStart(6, '0');
+  g.fillStyle = hex(PAL.night); g.fillRect(0, 0, 512, 96);
+  g.fillStyle = hex(color); g.fillRect(0, 0, 512, 10); g.fillRect(0, 86, 512, 10);
+  g.font = '900 56px "Arial Black", Impact, system-ui, sans-serif';
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillStyle = hex(PAL.sale); g.fillText(text, 256, 50, 480);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  // two quads back to back, each with the text the right way round
+  const geo = new THREE.BufferGeometry(), w = 3.2, h = 0.6;
+  geo.setAttribute('position', new THREE.Float32BufferAttribute([-w, -h, 0, w, -h, 0, w, h, 0, -w, -h, 0, w, h, 0, -w, h, 0,
+    w, -h, 0, -w, -h, 0, -w, h, 0, w, -h, 0, -w, h, 0, w, h, 0], 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1], 2));
+  return new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: tex }));
+}
 
 // Builds everything for sim.world and returns the "view" that syncScene updates.
 export function buildScene(sim) {
-  const world = sim.world, M = gfx.mats;
-  const view = { root: new THREE.Group(), goods: [], counts: new Int32Array(GOODS.length), carts: [], own: [],
-    flights: new Map(), time: 0, frame: 0, towerH: 0 };
+  const world = sim.world, M = gfx.mats, zones = world.def.zones || [];
+  const accentOf = (i) => PAL.zones[((zones[world.zone[i]] || {}).color || 0) % 4];
+  const view = { root: new THREE.Group(), goods: [], counts: new Int32Array(GOODS.length), carts: [], pieces: [], own: [],
+    flights: new Map(), time: 0, frame: 0, towerH: 0, shadows: null, fixed: 0, shadowN: 0, glows: null, glowN: 0, ring: null, ringMat: null };
   gfx.scene.add(view.root);
 
-  // Floor: one quad under the whole plan; the shader draws the tiles.
+  // Floor: one quad under the whole plan; the shader draws tiles, store tints, arrows and edge shadows.
+  const map = floorMap(world);
+  view.own.push(map);
+  M.floor.uniforms.uMap.value = map;
+  M.floor.uniforms.uMapSize.value.set(world.cols, world.rows);
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(world.w, world.h), M.floor);
   floor.rotation.x = -Math.PI / 2;
   floor.position.set(world.w / 2, 0, world.h / 2);
   view.root.add(floor);
 
-  // Walls: merged boxes, no outline (ART.md 6: walls and floor stay quiet).
+  // Walls: merged boxes with dark tops, so the rooms read as cut out of a block.
   const wb = makeBuilder();
   for (const w of world.walls) {
     place(wb, w.x, 0, w.z);
     addBox(wb, w.hx * 2, CFG.WALL_H, w.hz * 2, PAL.wall, { bevel: 0, top: PAL.walltop });
   }
-  view.root.add(new THREE.Mesh(toGeometry(wb), [M.toon]));
+  view.root.add(new THREE.Mesh(toGeometry(wb), [M.toon, M.lineThin]));
 
-  // Furniture: shelves and single-tile pieces in one static mesh with a thin outline.
+  // Contact shadows: one instanced octagon; the static ones are written once, moving blobs every frame.
+  const sb = makeBuilder();
+  addCyl(sb, 1, 1, 0.001, PAL.shadow, { seg: 8 });
+  view.shadows = new THREE.InstancedMesh(toGeometry(sb), view.own[view.own.push(flatMaterial(0.2)) - 1], SHADOW_CAP);
+  view.shadows.frustumCulled = false;
+  view.shadows.renderOrder = 1;
+  view.root.add(view.shadows);
+  const gb = makeBuilder();
+  addCyl(gb, 1, 1, 0.001, PAL.white, { seg: 12 });
+  view.glows = new THREE.InstancedMesh(toGeometry(gb), view.own[view.own.push(flatMaterial(0.5)) - 1], GLOW_CAP);
+  view.glows.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(GLOW_CAP * 3), 3);
+  view.glows.frustumCulled = false;
+  view.glows.renderOrder = 1;
+  view.root.add(view.glows);
+
+  // Furniture: shelves and the pieces that never change, in one static mesh with a thin outline.
   const fb = makeBuilder();
   for (const s of world.shelves) {
-    const w = s.hx * 2, d = s.hz * 2;
-    place(fb, s.x, 0, s.z); addBox(fb, w, 0.5, d, PAL.white, { bevel: 0.08 });
-    const back = s.sides[0] && s.sides[1] ? 0 : (s.sides[0] ? 1 : -1) * ((s.horiz ? d : w) / 2 - 0.12);
-    place(fb, s.x + (s.horiz ? 0 : back), 0.5, s.z + (s.horiz ? back : 0));
-    addBox(fb, s.horiz ? w - 0.1 : 0.2, 1.3, s.horiz ? 0.2 : d - 0.1, PAL.steel, { bevel: 0.1 });
-    place(fb, s.x, 1.15, s.z); addBox(fb, w, 0.08, d, PAL.white, { bevel: 0.3 });
+    addShelf(fb, s, accentOf(Math.floor(s.z / CFG.TILE) * world.cols + Math.floor(s.x / CFG.TILE)));
+    putShadow(view, s.x, s.z, s.hx + 0.22, s.hz + 0.22, 0);
   }
+  const beam = makeBuilder();
+  addCyl(beam, 0.5, 0.75, 4.5, PAL.hot, { seg: 10 });
+  const beamGeo = toGeometry(beam), beamMat = flatMaterial(0.14, true);
+  view.own.push(beamMat);
+  const geos = {};
   for (const p of world.pieces) {
-    place(fb, p.x, 0, p.z);
-    if (p.type === 'counter') addBox(fb, 1.4, 1.0, 2.0, PAL.steel, { bevel: 0.1, top: PAL.night });
-    else if (p.type === 'display') addCyl(fb, 0.9, 0.9, 1.0, PAL.white, { seg: 14, top: PAL.sale });
-    else if (p.solid.r) addCyl(fb, p.solid.r, p.solid.r * 0.9, 0.9, PAL.coral, { seg: 12, top: PAL.white });
-    else addBox(fb, p.solid.hx * 2, 1.0, p.solid.hz * 2, PAL.sky, { bevel: 0.1 });
+    const rad = p.solid.r || Math.max(p.solid.hx, p.solid.hz);
+    putShadow(view, p.x, p.z, (p.solid.r || p.solid.hx) + 0.15, (p.solid.r || p.solid.hz) + 0.15, 0);
+    if (!LOOSE[p.type]) { addPiece(fb, p.type, p.x, p.z, accentOf(p.r * world.cols + p.c)); continue; }
+    const mesh = new THREE.Mesh(geos[p.type] || (geos[p.type] = pieceGeometry(p.type)), [M.toon, M.lineThin]);
+    mesh.position.set(p.x, 0, p.z);
+    view.root.add(mesh);
+    const item = { p, mesh, beam: null, vx: 0, vy: 0, vz: 0, fly: 0, rad };
+    if (p.type === 'podium') { item.beam = new THREE.Mesh(beamGeo, beamMat); item.beam.position.set(p.x, 0.3, p.z); view.root.add(item.beam); }
+    view.pieces.push(item);
   }
+  view.fixed = view.shadowN;
   view.root.add(new THREE.Mesh(toGeometry(fb), [M.toon, M.lineThin]));
+
+  // Holiday garlands: a coloured bulb on the top edge of the walls wherever floor meets wall.
+  const bulbs = [];
+  for (let r = 1; r < world.rows - 1; r++) for (let c = 1; c < world.cols - 1; c++) {
+    if (!world.floor[r * world.cols + c]) continue;
+    for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      if (!world.floor[(r + dr) * world.cols + c + dc]) bulbs.push((c + 0.5 + dc * 0.56) * CFG.TILE, (r + 0.5 + dr * 0.56) * CFG.TILE);
+    }
+  }
+  const lb = makeBuilder();
+  addBall(lb, 0.16, 0.16, 0.16, PAL.white, { seg: 5, rings: 3 });
+  const lights = new THREE.InstancedMesh(toGeometry(lb), [M.toon], bulbs.length / 2);
+  const mat4 = new THREE.Matrix4(), tint = new THREE.Color();
+  const GARLAND = [PAL.danger, PAL.sale, PAL.list, PAL.player, PAL.sky];
+  for (let i = 0; i < bulbs.length / 2; i++) {
+    lights.setMatrixAt(i, mat4.makeTranslation(bulbs[i * 2], CFG.WALL_H + 0.1, bulbs[i * 2 + 1]));
+    const c = rgb(GARLAND[i % 5]);
+    lights.setColorAt(i, tint.setRGB(c[0], c[1], c[2]));     // raw values: the shaders treat colours as sRGB
+  }
+  lights.frustumCulled = false;
+  view.root.add(lights);
+
+  // The level's name hangs over the way ahead of the start; each store has a banner over its way in.
+  const sx = Math.sin(world.start.h), sz = Math.cos(world.start.h);
+  const first = banner(world.def.name, PAL.player);
+  first.position.set(world.start.x + sx * 11, 3.3, world.start.z + sz * 11);
+  first.rotation.order = 'YXZ';
+  first.rotation.y = world.start.h + Math.PI; first.rotation.x = -0.45;
+  view.own.push(first.material.map, first.material);
+  view.root.add(first);
+  zones.forEach((zn) => {
+    if (!zn.rect) return;
+    const [c0, r0, c1, r1] = zn.rect, tall = r1 - r0 > c1 - c0, mid = tall ? (c0 + c1 + 1) / 2 : (r0 + r1 + 1) / 2;
+    const navAt = (c, r) => world.nav[Math.floor(r) * world.cols + Math.floor(c)];
+    const lowEnd = tall ? navAt(mid, r0 + 1) > navAt(mid, r1 - 1) : navAt(c0 + 1, mid) > navAt(c1 - 1, mid);   // the way in is at the low index
+    const at = lowEnd ? (tall ? r0 : c0) + 4 : (tall ? r1 : c1) - 3, face = lowEnd ? -1 : 1;
+    const b = banner(zn.name, PAL.zones[(zn.color || 0) % 4]);
+    b.position.set((tall ? mid : at) * CFG.TILE, 3.5, (tall ? at : mid) * CFG.TILE);
+    b.rotation.order = 'YXZ';
+    b.rotation.y = tall ? (face > 0 ? 0 : Math.PI) : (face > 0 ? Math.PI / 2 : -Math.PI / 2);
+    b.rotation.x = -0.45;                               // tipped back toward the high camera
+    view.own.push(b.material.map, b.material);
+    view.root.add(b);
+  });
 
   // Goods: one instanced mesh per kind serves shelves, the floor, the air and the towers.
   for (let i = 0; i < GOODS.length; i++) {
-    const mesh = new THREE.InstancedMesh(goodGeometry(i), [M.toon, M.lineThin], GOOD_CAP);
+    const mesh = new THREE.InstancedMesh(goodGeometry(i), [M.toon, GOODS[i].size === 'H' ? M.lineBold : M.lineThin], GOOD_CAP);
     mesh.count = 0;
     mesh.frustumCulled = false;
     view.root.add(mesh);
@@ -70,7 +191,7 @@ export function buildScene(sim) {
     const g = new THREE.Group(), tilt = new THREE.Group();
     const glow = toonMaterial();
     view.own.push(glow);
-    const bean = new THREE.Mesh(beanGeometry(k.def.color), [M.toonRim, M.lineBold]);
+    const bean = new THREE.Mesh(beanGeometry(k.char, k.def.color), [M.toonRim, M.lineBold]);
     bean.position.z = -1.3;
     tilt.add(new THREE.Mesh(cartGeometry(k.def.color), [M.toonRim, M.lineBold]));
     tilt.add(new THREE.Mesh(bumperGeometry(), [glow, M.lineBold]));
@@ -79,6 +200,17 @@ export function buildScene(sim) {
     view.carts.push({ k, g, tilt, bean, glow, roll: 0, pitch: 0, squash: 0, stretch: 0, bob: 0, lastSpd: 0,
       swayX: 0, swayXv: 0, swayZ: 0, swayZv: 0, pending: 0 });
   }
+
+  // The hero's ring: a flat quad on the floor under the player's cart.
+  const rg = new THREE.BufferGeometry();
+  rg.setAttribute('position', new THREE.Float32BufferAttribute([-1, 0, -1, 1, 0, -1, 1, 0, 1, -1, 0, -1, 1, 0, 1, -1, 0, 1], 3));
+  view.ringMat = ringMaterial();
+  view.own.push(view.ringMat);
+  view.ring = new THREE.Mesh(rg, view.ringMat);
+  view.ring.scale.set(1.5, 1, 1.5);
+  view.ring.frustumCulled = false;
+  view.ring.renderOrder = 2;
+  view.root.add(view.ring);
   return view;
 }
 
@@ -100,6 +232,29 @@ function putGood(view, kind, x, y, z, ry, s, rx, rz) {
   m[o + 3] = 0; m[o + 7] = 0; m[o + 11] = 0;
   m[o + 12] = x; m[o + 13] = y; m[o + 14] = z; m[o + 15] = 1;
   view.counts[kind] = n + 1;
+}
+
+// Writes one contact shadow: an octagon of half sizes (rx, rz) turned by ry, just above the floor.
+function putShadow(view, x, z, rx, rz, ry) {
+  const n = view.shadowN;
+  if (n >= SHADOW_CAP) return;
+  const m = view.shadows.instanceMatrix.array, o = n * 16, c = Math.cos(ry), s = Math.sin(ry);
+  m[o] = c * rx; m[o + 1] = 0; m[o + 2] = -s * rx; m[o + 3] = 0;
+  m[o + 4] = 0; m[o + 5] = 1; m[o + 6] = 0; m[o + 7] = 0;
+  m[o + 8] = s * rz; m[o + 9] = 0; m[o + 10] = c * rz; m[o + 11] = 0;
+  m[o + 12] = x; m[o + 13] = 0.02; m[o + 14] = z; m[o + 15] = 1;
+  view.shadowN = n + 1;
+}
+
+// Writes one coloured floor disc of radius r (list items, hot items).
+function putGlow(view, x, z, r, color) {
+  const n = view.glowN;
+  if (n >= GLOW_CAP) return;
+  const m = view.glows.instanceMatrix.array, o = n * 16, c = rgb(color);
+  m.fill(0, o, o + 16);
+  m[o] = r; m[o + 5] = 1; m[o + 10] = r; m[o + 12] = x; m[o + 13] = 0.025; m[o + 14] = z; m[o + 15] = 1;
+  view.glows.instanceColor.array.set(c, n * 3);
+  view.glowN = n + 1;
 }
 
 // Packs a tower into the basket: two lanes of small goods side by side, bigger goods across both,
@@ -127,7 +282,7 @@ function layoutTower(tower) {
 }
 
 // The cart body leans out of turns, pitches with acceleration, squashes on impact; the shopper bobs
-// and leans the other way; the bumper glows when the dash is ready; the tower sways like a spring.
+// and leans the other way; bumper and handle glow when the dash is ready; the tower sways like a spring.
 function syncCart(view, c, alpha, dt) {
   const k = c.k, ease = 1 - Math.exp(-dt * 10), speed = Math.abs(k.spd);
   const x = lerp(k.px, k.x, alpha), z = lerp(k.pz, k.z, alpha), h = k.ph + wrapAngle(k.h - k.ph) * alpha;
@@ -149,6 +304,9 @@ function syncCart(view, c, alpha, dt) {
   c.bean.rotation.set(0.1 * clamp(k.spd / TUNE.maxspeed, -1, 1.6) + (k.dashT > 0 ? 0.25 : 0), k.steer * 0.25, -c.roll * 1.4);
   const ready = k.dashCd <= 0, gl = ready ? 0.05 + 0.16 * (0.5 + 0.5 * Math.sin(view.time * 7)) : -0.45;
   c.glow.uniforms.uGlow.value.set(gl, gl, ready ? gl * 0.4 : gl);
+  const sh = Math.sin(h), ch0 = Math.cos(h);
+  putShadow(view, x, z, 0.72, 0.95, h);
+  putShadow(view, x - sh * 1.3, z - ch0 * 1.3, 0.42, 0.42, 0);
 
   // The tower: a damped spring driven by cornering and braking; a fuller cart wobbles more.
   const fill = Math.min(1.6, k.load / TUNE.loadfull);
@@ -160,13 +318,13 @@ function syncCart(view, c, alpha, dt) {
   c.swayZ = clamp(c.swayZ + c.swayZv * dt, -0.4, 0.4);
   const height = layoutTower(k.tower);
   if (k.player) view.towerH = height;
-  const ch = Math.cos(h + yawShow), sh = Math.sin(h + yawShow);
+  const ch = Math.cos(h + yawShow), shy = Math.sin(h + yawShow);
   c.pending = 0;
   for (let i = 0; i < k.tower.length && i < 200; i++) {
     const e = k.tower[i], ty = towY[i];
     // cart space -> world: shear with height (the lean), then rotate by the heading
     const lx = towX[i] + c.swayX * ty * 0.9, lz = towZ[i] + c.swayZ * ty * 0.9;
-    let wx = x + lx * ch + lz * sh, wy = BASKET_Y + ty * (1 - sq * 0.3), wz = z - lx * sh + lz * ch, scale = TOWER_SCALE;
+    let wx = x + lx * ch + lz * shy, wy = BASKET_Y + ty * (1 - sq * 0.3), wz = z - lx * shy + lz * ch, scale = TOWER_SCALE;
     const f = view.flights.get(e);
     if (f) {
       // On its way from the shelf: wait for its turn, then arc into place.
@@ -183,9 +341,11 @@ function syncCart(view, c, alpha, dt) {
 }
 
 export function syncScene(view, sim, alpha, dt) {
-  const world = sim.world;
+  const world = sim.world, p = sim.player;
   view.time += dt; view.frame++;
   view.counts.fill(0);
+  view.shadowN = view.fixed;
+  view.glowN = 0;
   for (const it of world.items) {
     if (!it.taken) putGood(view, it.good, it.x, 0.5, it.z, Math.atan2(it.nx, it.nz), 1, 0, 0);
   }
@@ -198,7 +358,27 @@ export function syncScene(view, sim, alpha, dt) {
       const u = age / 0.45;
       putGood(view, d.good, lerp(d.ox, d.x, u), 1.0 + Math.sin(u * Math.PI) * 1.4 - u * 0.86, lerp(d.oz, d.z, u), u * 9 + d.x, 0.9, u * 7, u * 5);
     } else {
-      putGood(view, d.good, d.x, bob, d.z, view.time * 1.6 + d.x * 1.7, d.list ? 1.25 : 0.95, 0, 0.18);
+      putGood(view, d.good, d.x, bob + (d.list ? 0.25 : 0), d.z, view.time * 1.6 + d.x * 1.7, d.list ? 1.3 : 0.95, 0, 0.18);
+      if (d.list) putGlow(view, d.x, d.z, 0.85 + 0.12 * Math.sin(view.time * 5), PAL.list);   // list items stand on a teal disc
+      else putShadow(view, d.x, d.z, 0.3, 0.3, 0);
+    }
+  }
+  // Pieces: hidden once smashed; light ones fly off when knocked; a podium shows its hot item in a beam.
+  for (const it of view.pieces) {
+    const on = it.p.solid.on;
+    if (it.fly > 0) {
+      it.fly -= dt; it.vy -= 16 * dt;
+      it.mesh.position.x += it.vx * dt; it.mesh.position.z += it.vz * dt;
+      it.mesh.position.y = Math.max(0, it.mesh.position.y + it.vy * dt);
+      it.mesh.rotation.x += dt * 9; it.mesh.rotation.z += dt * 6;
+      it.mesh.visible = it.fly > 0;
+    } else it.mesh.visible = on || it.p.type === 'podium';
+    if (it.beam) {
+      it.beam.visible = on;
+      if (on) {
+        putGood(view, it.p.good, it.p.x, 0.36 + 0.06 * Math.sin(view.time * 3), it.p.z, view.time * 1.2, 1, 0, 0);
+        putGlow(view, it.p.x, it.p.z, 1.5 + 0.1 * Math.sin(view.time * 4), PAL.hot);
+      }
     }
   }
   for (const c of view.carts) syncCart(view, c, alpha, dt);
@@ -208,10 +388,28 @@ export function syncScene(view, sim, alpha, dt) {
     mesh.count = view.counts[i];
     mesh.instanceMatrix.needsUpdate = true;
   }
+  view.shadows.count = view.shadowN;
+  view.shadows.instanceMatrix.needsUpdate = true;
+  view.glows.count = view.glowN;
+  view.glows.instanceMatrix.needsUpdate = true;
+  view.glows.instanceColor.needsUpdate = true;
+  // The hero's ring follows the player; while drifting, an arc inside it fills toward the next tier.
+  view.ring.position.set(lerp(p.px, p.x, alpha), 0.03, lerp(p.pz, p.z, alpha));
+  view.ring.rotation.y = p.h;
+  const u = view.ringMat.uniforms, tiers = CFG.driftTiers, t0 = p.tier > 0 ? tiers[p.tier - 1] : 0;
+  const col = rgb(PAL.tiers[Math.min(3, p.tier + (p.tier < 3 ? 1 : 0))]);
+  u.uCharge.value.set(col[0], col[1], col[2]);
+  u.uFill.value = !p.drift ? 0 : p.tier >= 3 ? 1 : (p.driftT - t0) / (tiers[p.tier] - t0);
+  u.uPulse.value = p.drift && p.tier >= 3 ? 0.5 + 0.5 * Math.sin(view.time * 18) : 0;
 }
 
 // Visual reactions of scene objects to simulation events.
 export function sceneEvent(view, e) {
+  if (e.type === 'knock') {
+    // A light prop is thrown the way the cart was going.
+    for (const it of view.pieces) if (it.p.solid === e.ref) { it.fly = 1.1; it.vx = e.cart.vx * 0.7; it.vz = e.cart.vz * 0.7; it.vy = 6; }
+    return;
+  }
   for (const c of view.carts) {
     if (c.k !== e.cart && c.k !== e.ref) continue;
     if (e.type === 'crash') { c.squash = 1; c.swayXv += 3; c.swayZv -= 4; }

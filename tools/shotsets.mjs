@@ -57,6 +57,18 @@ export const SETS = {
     { name: 'phone', query: l1 + '&autoplay=confident', viewport: [390, 844], shots: [6] },
     { name: 'realtime', query: l1 + '&autoplay=expert', realtime: 8 },
   ],
+  m3: [
+    { name: 'title', query: l1, plain: 1.2 },
+    { name: 'run', query: l1 + '&autoplay=expert', shots: [-1.2, 1, 5, 9, 13, 17, 21, 25, 29, 33, 37], squint: true, until: 'receipt' },
+    { name: 'sweep', query: l1 + '&autoplay=expert', strip: { from: 2.0, frames: 8, dt: 0.0667 } },
+    { name: 'tower', query: l1 + '&fill=40', script: [[0, 'gas', true], [1.6, 'right', true], [1.9, 'right', false], [2.3, 'left', true], [2.7, 'left', false]], shots: [2.2], strip: { from: 1.6, frames: 8, dt: 0.1 } },
+    { name: 'spill', query: l1 + '&fill=26', script: [[0, 'gas', true], [1.0, 'left', true], [1.95, 'left', false]], strip: { around: 'crash', before: 0.2, frames: 8, dt: 0.0833 } },
+    { name: 'drift', room: yard, script: DRIFT, shots: [2.4, 3.2], strip: { from: 2.0, frames: 8, dt: 0.1 } },
+    { name: 'beginner', query: l1 + '&autoplay=beginner', shots: [8, 20, 32, 44], squint: true },
+    { name: 'small', query: l1 + '&autoplay=confident', viewport: [800, 450], shots: [9] },
+    { name: 'phone', query: l1 + '&autoplay=confident', viewport: [390, 844], shots: [9] },
+    { name: 'realtime', query: l1 + '&autoplay=expert', realtime: 10 },
+  ],
   // The single-file build: run with --root dist
   dist: [
     { name: 'dist_bot', query: l1 + '&autoplay=expert', shots: [4], until: 'receipt', wait: 500 },

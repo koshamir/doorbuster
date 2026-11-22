@@ -27,6 +27,31 @@ const browser = await chromium.launch({
 const problems = [];          // console errors, page errors, failed or external requests
 const summary = [];
 
+// Share of a frame's pixels that are the player's pink (#FF4FA3 lit or shaded), and the share of all
+// strongly coloured pixels that are pink: does the hero own the frame? (ART.md 9, squint test.)
+async function pinkShare(file) {
+  const page = await browser.newPage();
+  const res = await page.evaluate(async (src) => {
+    const img = new Image();
+    img.src = src;
+    await img.decode();
+    const cv = document.createElement('canvas');
+    cv.width = img.width; cv.height = img.height;
+    const g = cv.getContext('2d');
+    g.drawImage(img, 0, 0);
+    const d = g.getImageData(0, 0, cv.width, cv.height).data;
+    let pink = 0, vivid = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      const r = d[i], gr = d[i + 1], b = d[i + 2], mx = Math.max(r, gr, b), mn = Math.min(r, gr, b);
+      if (mx - mn > 90) vivid++;
+      if (r > 140 && r - gr > 80 && b > gr + 25 && r >= b) pink++;
+    }
+    return { pink: pink / (d.length / 4), ofVivid: pink / Math.max(1, vivid) };
+  }, 'data:image/png;base64,' + readFileSync(file).toString('base64'));
+  await page.close();
+  return { pinkPct: +(res.pink * 100).toFixed(2), ofVividPct: +(res.ofVivid * 100).toFixed(1) };
+}
+
 // Lays images out in a grid on a blank page and screenshots it (frame strips, squint views).
 async function sheet(files, cols, cellW, outFile) {
   const page = await browser.newPage({ viewport: { width: cols * cellW, height: 100 } });
@@ -146,6 +171,7 @@ for (const sc of scenarios) {
     if (sc.squint && sc.shots && sc.shots.length) {
       const last = join(outDir, `${sc.name}_${String(sc.shots[sc.shots.length - 1]).replace('.', 'p')}.png`);
       await sheet([last], 1, 320, join(outDir, sc.name + '_squint.png'));
+      row.pink = await pinkShare(last);
     }
     const info = await page.evaluate(() => {
       const d = window.__db, gl = d.gfx.renderer.getContext(), ext = gl.getExtension('WEBGL_debug_renderer_info');

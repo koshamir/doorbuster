@@ -92,7 +92,8 @@ export function buildWorld(def, rng) {
     const pool = POOLS[zdef.pool || 'market'];
     if (PIECES[k]) {
       const p = PIECES[k];
-      const piece = { type: p.type, x, z, c, r, alive: true, t: 0, solid: null };
+      const piece = { type: p.type, x, z, c, r, alive: true, t: 0, solid: null,
+        good: p.type === 'podium' ? GOOD[['tv', 'bear', 'console', 'robovac'][rng.int(4)]] : -1 };   // the hot item on a podium
       // Counters next to each other along z read as one long counter; keep each tile's own box.
       piece.solid = addSolid(world, { x, z, r: p.r || 0, hx: p.hx || 0, hz: p.hz || 0, type: p.type,
         on: !p.off, low: !!p.low, soft: !!p.soft, dash: !!p.dash, piece });

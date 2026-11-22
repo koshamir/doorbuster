@@ -89,6 +89,8 @@ export const PAL = {
   crowd: [0xB8C0CC, 0xC9BBCF, 0xBFD3C1],
   red: 0xE84855, orange: 0xFF9F1C, blue: 0x3A86FF, green: 0x8AC926, teal: 0x2EC4B6,
   purple: 0x9B5DE5, sky: 0x7CC6FE, coral: 0xFF8A7A, mint: 0x8EE3C8, brown: 0xC98A5B, skin: 0xFFD9B8,
+  leaf: 0x4FA83D, shadow: 0x3A2B52,
+  tiers: [0xFFFFFF, 0x7CC6FE, 0xFFD23F, 0xFF3B4E],   // drift charge: none, tier 1, 2, 3 (never the player's pink)
 };
 export function rgb(hex) {
   return [(hex >> 16 & 255) / 255, (hex >> 8 & 255) / 255, (hex & 255) / 255];

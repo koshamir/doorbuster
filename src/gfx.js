@@ -1,8 +1,8 @@
 // DOORBUSTER — gfx.js
 // Purpose: the renderer and what every visual shares: the single toon material, the inverted-hull
 //          outline, the tiled floor material, the chase camera and the frame statistics.
-// Exports: gfx, initGfx, resizeGfx, toonMaterial, outlineMaterial, floorMaterial, flatMaterial,
-//          updateCamera, renderFrame. Shared materials are created once in gfx.mats.
+// Exports: gfx, initGfx, resizeGfx, toonMaterial, outlineMaterial, floorMaterial, ringMaterial,
+//          flatMaterial, updateCamera, renderFrame. Shared materials are created once in gfx.mats.
 // Depends on: config.js and the global THREE (r185, core only). THREE is touched only inside
 //          functions, never at import time, so main.js can load it first.
 //
@@ -76,20 +76,60 @@ const FLOOR_VS = `
 varying vec3 vW;
 void main() { vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`;
 const FLOOR_FS = `
-uniform vec3 uFloor; uniform vec3 uGrout; uniform float uTile; uniform vec3 uTint; uniform float uTintAmt;
+// One texel of uMap per tile: r = store colour index / 8, g = decal / 8 (1-4 arrow east, south, west,
+// north; 5 checkout hatch; 6 start grid), a = 1 on floor and 0 on void.
+uniform sampler2D uMap; uniform vec2 uMapSize; uniform vec3 uZone[6];
+uniform vec3 uFloor; uniform vec3 uGrout; uniform vec3 uInk; uniform vec3 uShade;
+uniform float uTile; uniform vec3 uTint; uniform float uTintAmt;
 varying vec3 vW;
+vec4 tileAt(vec2 id) { return texture2D(uMap, (id + 0.5) / uMapSize); }
 void main() {
-  vec2 g = vW.xz / uTile;
-  vec2 f = abs(fract(g) - 0.5);                      // 0.5 at a tile edge
+  vec2 g = vW.xz / uTile, id = floor(g), f = fract(g), e = abs(f - 0.5);
+  vec4 t = tileAt(id);
   vec2 w = fwidth(g) * 1.2;
-  float line = max(smoothstep(0.5 - 0.02 - w.x, 0.5 - 0.02, f.x), smoothstep(0.5 - 0.02 - w.y, 0.5 - 0.02, f.y));
-  line *= clamp(1.0 - max(w.x, w.y) * 6.0, 0.0, 1.0); // fade the grid far away instead of shimmering
-  vec2 id = floor(g);
-  float check = mod(id.x + id.y, 2.0);
-  vec3 c = mix(uFloor, uFloor * 0.965, check);       // faint checker so speed reads on the floor
+  float far = clamp(1.0 - max(w.x, w.y) * 6.0, 0.0, 1.0);          // fade detail far away instead of shimmering
+  float line = max(smoothstep(0.48 - w.x, 0.48, e.x), smoothstep(0.48 - w.y, 0.48, e.y)) * far;
+  vec3 zone = uZone[int(t.r * 8.0 + 0.5)];
+  vec3 c = mix(uFloor, zone, 0.13);                                  // each store tints its floor
+  c = mix(c, c * 0.955, mod(id.x + id.y, 2.0));                      // faint checker so speed reads on the floor
   c = mix(c, uGrout, line);
+  float d = floor(t.g * 8.0 + 0.5);
+  if (d > 0.5 && d < 4.5) {                                          // a painted chevron pointing down the route
+    vec2 dir = d < 1.5 ? vec2(1.0, 0.0) : d < 2.5 ? vec2(0.0, 1.0) : d < 3.5 ? vec2(-1.0, 0.0) : vec2(0.0, -1.0);
+    vec2 p = f - 0.5, q = vec2(dot(p, dir), dot(p, vec2(-dir.y, dir.x)));
+    float v = abs(q.x - 0.16 + abs(q.y) * 0.9);
+    float m = (1.0 - smoothstep(0.075, 0.075 + w.x, v)) * (1.0 - smoothstep(0.3, 0.3 + w.x, abs(q.y)));
+    c = mix(c, mix(zone, uFloor, 0.25), m * 0.85 * far);
+  } else if (d > 4.5 && d < 5.5) {                                   // checkout lane: yellow and dark hatching
+    c = mix(mix(uZone[3], uInk, step(0.5, fract((f.x + f.y) * 2.0))), c, 0.25);
+  } else if (d > 5.5) {                                              // start grid
+    c = mix(c, vec3(1.0), step(0.42, e.y) * step(0.5, fract(f.x * 4.0)) * 0.8);
+  }
+  // a soft shadow where the floor meets a wall
+  float sh = 0.0;
+  sh = max(sh, (1.0 - tileAt(id + vec2(-1.0, 0.0)).a) * (1.0 - smoothstep(0.0, 0.2, f.x)));
+  sh = max(sh, (1.0 - tileAt(id + vec2(1.0, 0.0)).a) * (1.0 - smoothstep(0.0, 0.2, 1.0 - f.x)));
+  sh = max(sh, (1.0 - tileAt(id + vec2(0.0, -1.0)).a) * (1.0 - smoothstep(0.0, 0.2, f.y)));
+  sh = max(sh, (1.0 - tileAt(id + vec2(0.0, 1.0)).a) * (1.0 - smoothstep(0.0, 0.2, 1.0 - f.y)));
+  c = mix(c, c * uShade, sh * 0.75);
   c = mix(c, c * uTint, uTintAmt);
   gl_FragColor = vec4(c, 1.0);
+}`;
+const RING_VS = `
+varying vec2 vUv;
+void main() { vUv = position.xz; gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0); }`;
+const RING_FS = `
+// The hero's ground ring: a solid ring in the player's colour, and inside it the drift charge as an
+// arc that fills toward the next tier in that tier's colour.
+uniform vec3 uColor; uniform vec3 uCharge; uniform float uFill; uniform float uPulse;
+varying vec2 vUv;
+void main() {
+  float r = length(vUv);
+  float ang = atan(vUv.x, vUv.y) / 6.2831853 + 0.5;
+  float ring = step(0.84, r) * step(r, 1.0);
+  float arc = step(0.58, r) * step(r, 0.8) * step(ang, uFill);
+  if (ring + arc < 0.5) discard;
+  gl_FragColor = vec4(arc > 0.5 ? mix(uCharge, vec3(1.0), uPulse) : uColor, 1.0);
 }`;
 const FLAT_VS = `
 varying vec3 vColor;
@@ -168,11 +208,21 @@ export function outlineMaterial(px) {
   return m;
 }
 export function floorMaterial() {
-  const u = gfx.u, f = rgb(PAL.floor), g = rgb(PAL.grout);
+  const u = gfx.u, v3 = (hex) => { const c = rgb(hex); return new THREE.Vector3(c[0], c[1], c[2]); };
+  const zones = [0, 1, 2, 3, 0, 0].map((i) => v3(PAL.zones[i]));
   return new THREE.ShaderMaterial({
-    uniforms: { uFloor: { value: new THREE.Vector3(f[0], f[1], f[2]) }, uGrout: { value: new THREE.Vector3(g[0], g[1], g[2]) },
+    uniforms: { uFloor: { value: v3(PAL.floor) }, uGrout: { value: v3(PAL.grout) }, uInk: { value: v3(PAL.night) }, uShade: u.uShade,
+      uZone: { value: zones }, uMap: { value: null }, uMapSize: { value: new THREE.Vector2(1, 1) },
       uTile: { value: CFG.TILE }, uTint: u.uTint, uTintAmt: u.uTintAmt },
     vertexShader: FLOOR_VS, fragmentShader: FLOOR_FS,
+  });
+}
+// The ring under the hero's cart (a flat quad from -1 to 1 in x and z; see RING_FS).
+export function ringMaterial() {
+  const c = rgb(PAL.player);
+  return new THREE.ShaderMaterial({
+    uniforms: { uColor: { value: new THREE.Vector3(c[0], c[1], c[2]) }, uCharge: { value: new THREE.Vector3(1, 1, 1) }, uFill: { value: 0 }, uPulse: { value: 0 } },
+    vertexShader: RING_VS, fragmentShader: RING_FS, side: THREE.DoubleSide,
   });
 }
 // Unlit vertex colour with one alpha: blob shadows, glass, particles.

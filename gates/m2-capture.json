@@ -4,15 +4,15 @@
   "summary": [
     {
       "name": "title",
-      "loadMs": 400
+      "loadMs": 360
     },
     {
       "name": "expert",
-      "loadMs": 144,
-      "t": 41.26,
+      "loadMs": 137,
+      "t": 42.82,
       "phase": "done",
-      "items": 36,
-      "value": 864,
+      "items": 38,
+      "value": 785,
       "calls": 28,
       "tris": 17562,
       "gpu": "NVIDIA GeForce RTX 4060",
@@ -22,18 +22,18 @@
           0
         ],
         "cartY": [
-          -0.36,
-          -0.33
+          -0.4,
+          -0.32
         ],
-        "roadSec": 2.33,
-        "yawRev": 0.64,
+        "floorAheadSec": 2.54,
+        "yawRev": 0.57,
         "lift": 0
       }
     },
     {
       "name": "beginner",
-      "loadMs": 140,
-      "t": 51.97,
+      "loadMs": 135,
+      "t": 52.31,
       "phase": "done",
       "items": 35,
       "value": 631,
@@ -46,21 +46,21 @@
           0
         ],
         "cartY": [
-          -0.36,
+          -0.4,
           -0.34
         ],
-        "roadSec": 3.19,
-        "yawRev": 1.34,
+        "floorAheadSec": 2.96,
+        "yawRev": 1.4,
         "lift": 0
       }
     },
     {
       "name": "spill",
-      "loadMs": 143,
+      "loadMs": 146,
       "t": 4.5,
       "phase": "run",
-      "items": 20,
-      "value": 1112,
+      "items": 22,
+      "value": 1140,
       "calls": 36,
       "tris": 19850,
       "gpu": "NVIDIA GeForce RTX 4060",
@@ -70,17 +70,17 @@
           0.01
         ],
         "cartY": [
-          -0.37,
-          -0.35
+          -0.41,
+          -0.34
         ],
-        "roadSec": 3.42,
-        "yawRev": 0,
+        "floorAheadSec": 3.39,
+        "yawRev": 0.14,
         "lift": 0
       }
     },
     {
       "name": "heavy_turn",
-      "loadMs": 141,
+      "loadMs": 140,
       "t": 2.9,
       "phase": "run",
       "items": 40,
@@ -94,17 +94,17 @@
           0
         ],
         "cartY": [
-          -0.37,
-          -0.35
+          -0.41,
+          -0.34
         ],
-        "roadSec": 3.38,
+        "floorAheadSec": 3.64,
         "yawRev": 0.38,
         "lift": 0
       }
     },
     {
       "name": "closed",
-      "loadMs": 136,
+      "loadMs": 135,
       "t": 75,
       "phase": "closed",
       "items": 0,
@@ -118,19 +118,19 @@
           0
         ],
         "cartY": [
-          -0.36,
-          -0.36
+          -0.4,
+          -0.4
         ],
-        "roadSec": 99,
+        "floorAheadSec": 99,
         "yawRev": 0,
         "lift": 0
       }
     },
     {
       "name": "restart",
-      "loadMs": 140,
+      "loadMs": 136,
       "after": {
-        "rebuildMs": 14.1,
+        "rebuildMs": 14.2,
         "countdownS": 1.200000000000002,
         "heapGrowthMB": 0
       },
@@ -147,17 +147,17 @@
           0
         ],
         "cartY": [
-          -0.36,
-          -0.33
+          -0.4,
+          -0.32
         ],
-        "roadSec": 2.33,
+        "floorAheadSec": 2.54,
         "yawRev": 0.74,
         "lift": 0
       }
     },
     {
       "name": "small",
-      "loadMs": 138,
+      "loadMs": 136,
       "t": 6,
       "phase": "run",
       "items": 26,
@@ -171,10 +171,10 @@
           0
         ],
         "cartY": [
-          -0.36,
-          -0.34
+          -0.4,
+          -0.33
         ],
-        "roadSec": 2.53,
+        "floorAheadSec": 2.65,
         "yawRev": 0.95,
         "lift": 0
       }
@@ -195,25 +195,25 @@
           0
         ],
         "cartY": [
-          -0.21,
-          -0.2
+          -0.23,
+          -0.19
         ],
-        "roadSec": 99,
+        "floorAheadSec": 99,
         "yawRev": 0.95,
         "lift": 0
       }
     },
     {
       "name": "realtime",
-      "loadMs": 150,
-      "fps": 164.99705362404143,
+      "loadMs": 145,
+      "fps": 164.99912234509296,
       "p95ms": 6.100000000000364,
-      "maxMs": 6.400000000000091,
+      "maxMs": 6.200000000000728,
       "frames": 1316,
       "calls": 28,
       "tris": 17562,
-      "logicMs": 0.043981832025585345,
-      "renderMs": 0.30000000447034836
+      "logicMs": 0.04859954571065173,
+      "renderMs": 0.29999999701976776
     }
   ],
   "problems": []
