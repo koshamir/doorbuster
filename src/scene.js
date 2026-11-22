@@ -5,10 +5,11 @@
 //          break or fly, checkout lamps and barriers, shadows and the hero's ring. Reads the
 //          simulation, never writes it.
 // Exports: buildScene, syncScene, sceneEvent, disposeScene, goodIcon
-// Depends on: config.js, gfx.js, models.js and the global THREE (inside functions only).
+// Depends on: config.js, render.js, kits.js, models.js and the global THREE (inside functions only).
 
 import { TUNE, CFG, PAL, GOODS, rgb, mix, clamp, lerp, wrapAngle } from './config.js';
-import { gfx, toonMaterial, flatMaterial, ringMaterial } from './gfx.js';
+import { R, celMaterial, hullMaterial, blendMaterial, MRT_OUT, AUX_NONE, v3 } from './render.js';
+import { floorMaterial, floorMap, kitOf } from './kits.js';
 import { makeBuilder, place, addBox, addCyl, addBall, toGeometry, cartGeometry, bumperGeometry, beanGeometry, goodGeometry,
   addShelf, addPiece, pieceGeometry } from './models.js';
 
@@ -23,36 +24,37 @@ const LOOSE = { pyramid: 1, gifts: 1, stand: 1, podium: 1, glass: 1, table: 1, b
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 const towX = new Float32Array(200), towY = new Float32Array(200), towZ = new Float32Array(200), towYaw = new Float32Array(200), towCol = new Float32Array(6);
 
-// The floor's tile map: store colour, painted decals and where the floor ends (see FLOOR_FS in gfx.js).
-function floorMap(world) {
-  const { cols, rows, def } = world, data = new Uint8Array(cols * rows * 4);
-  for (let i = 0; i < cols * rows; i++) {
-    const zone = (def.zones || [])[world.zone[i]] || {};
-    const k = world.plan[Math.floor(i / cols)][i % cols];
-    data[i * 4] = Math.round((zone.color || 0) / 8 * 255);
-    data[i * 4 + 1] = (world.laneOf[i] >= 0 ? 5 : world.belt[i] ? 7 + world.belt[i] : world.wet[i] ? 12 : k === '=' ? 13 : 0) * 16;
-    // blue: a belt that runs against the route (its arrows are red), or a track that runs north-south
-    const b = world.belt[i], to = b ? i + (b === 1 ? 1 : b === 3 ? -1 : b === 2 ? cols : -cols) : -1, line = world.plan[Math.floor(i / cols)];
-    data[i * 4 + 2] = (b ? world.nav[to] > world.nav[i] : k === '=' && line[i % cols - 1] !== '=' && line[i % cols + 1] !== '=') ? 255 : 0;
-    data[i * 4 + 3] = world.floor[i] ? 255 : 0;
-  }
-  // Chevrons along the route: walk the navigation field from the start and paint every third tile.
-  let c = Math.floor(world.start.x / CFG.TILE), r = Math.floor(world.start.z / CFG.TILE);
-  for (let n = 0; n < 600; n++) {
-    let best = world.nav[r * cols + c], bc = c, br = r, dir = 0;
-    for (const [dc, dr, d] of [[1, 0, 1], [0, 1, 2], [-1, 0, 3], [0, -1, 4]]) {
-      const v = world.nav[(r + dr) * cols + c + dc];
-      if (v < best - 1e-3) { best = v; bc = c + dc; br = r + dr; dir = d; }
-    }
-    if (!dir) break;
-    if (n % 3 === 1 && world.plan[r][c] === '.') data[(r * cols + c) * 4 + 1] = dir * 16;
-    c = bc; r = br;
-  }
-  const tex = new THREE.DataTexture(data, cols, rows, THREE.RGBAFormat);
-  tex.magFilter = tex.minFilter = THREE.NearestFilter;
-  tex.needsUpdate = true;
-  return tex;
+// Unlit vertex colour with one alpha (blob shadows, glows, beams), and the hero's ground ring.
+const FLAT_VS = `varying vec3 vColor;
+void main() { vec4 p = vec4(position, 1.0);
+#ifdef USE_INSTANCING
+  p = instanceMatrix * p;
+#endif
+  vColor = color;
+#ifdef USE_INSTANCING_COLOR
+  vColor *= instanceColor;
+#endif
+  gl_Position = projectionMatrix * viewMatrix * modelMatrix * p; }`;
+const FLAT_FS = `uniform float uAlpha; varying vec3 vColor; ${MRT_OUT} void main() { gl_FragColor = vec4(vColor, uAlpha); oAux = vec4(0.0); }`;
+function flatMat(alpha, additive) {
+  return blendMaterial(new THREE.ShaderMaterial({ uniforms: { uAlpha: { value: alpha } }, vertexShader: FLAT_VS, fragmentShader: FLAT_FS, vertexColors: true }), additive);
 }
+const RING_VS = 'varying vec2 vUv; void main() { vUv = position.xz; gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0); }';
+const RING_FS = `uniform vec3 uColor; uniform vec3 uCharge; uniform vec3 uInk; uniform float uFill; uniform float uPulse; varying vec2 vUv; ${MRT_OUT}
+void main() {
+  float r = length(vUv), ang = atan(vUv.x, vUv.y) / 6.2831853 + 0.5;
+  float ring = step(0.56, r) * step(r, 0.68), on = step(0.001, uFill) * step(ang, uFill + 0.012), arc = step(0.74, r) * step(r, 1.0) * on;
+  if (ring + arc < 0.5) discard;
+  float core = step(0.78, r) * step(r, 0.96) * step(ang, uFill);
+  gl_FragColor = vec4(arc > 0.5 ? (core > 0.5 ? mix(uCharge, vec3(1.0), uPulse) : uInk) : uColor, 0.0); ${AUX_NONE}
+}`;
+function ringMat() {
+  return new THREE.ShaderMaterial({ uniforms: { uColor: { value: v3(PAL.player) }, uCharge: { value: new THREE.Vector3(1, 1, 1) }, uInk: { value: v3(PAL.outline) }, uFill: { value: 0 }, uPulse: { value: 0 } },
+    vertexShader: RING_VS, fragmentShader: RING_FS, side: THREE.DoubleSide });
+}
+const SIGN_VS = 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0); }';
+const SIGN_FS = `uniform sampler2D uMap; uniform float uOpacity; varying vec2 vUv; ${MRT_OUT}
+void main() { vec4 t = texture2D(uMap, vUv); gl_FragColor = vec4(t.rgb, t.a * uOpacity); oAux = vec4(0.0); }`;
 
 // A hanging banner with a name on it, drawn on a canvas (the only text in the 3D world). w and h are
 // half sizes in metres.
@@ -66,13 +68,13 @@ function banner(text, color, w = 3.2, h = 0.6) {
   g.textAlign = 'center'; g.textBaseline = 'middle';
   g.fillStyle = hex(PAL.sale); g.fillText(text, 256, 50, 470);
   const tex = new THREE.CanvasTexture(cv);
-  tex.colorSpace = THREE.SRGBColorSpace;
   // two quads back to back, each with the text the right way round
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute([-w, -h, 0, w, -h, 0, w, h, 0, -w, -h, 0, w, h, 0, -w, h, 0,
     w, -h, 0, -w, -h, 0, -w, h, 0, w, -h, 0, -w, h, 0, w, h, 0], 3));
   geo.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1], 2));
-  const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: tex, transparent: true }));
+  const mesh = new THREE.Mesh(geo, blendMaterial(new THREE.ShaderMaterial({ uniforms: { uMap: { value: tex }, uOpacity: { value: 1 } }, vertexShader: SIGN_VS, fragmentShader: SIGN_FS })));
+  mesh.material.map = tex;
   mesh.rotation.order = 'YXZ';
   mesh.rotation.x = -0.45;                              // tipped back toward the high camera
   return mesh;
@@ -80,18 +82,22 @@ function banner(text, color, w = 3.2, h = 0.6) {
 
 // Builds everything for sim.world and returns the "view" that syncScene updates.
 export function buildScene(sim) {
-  const world = sim.world, M = gfx.mats, zones = world.def.zones || [], T = CFG.TILE, cols = world.cols;
+  const kit = kitOf(sim.def), M = { toon: celMaterial({ halftone: true }), toonRim: celMaterial({ rim: 0.55 }), lineBold: hullMaterial(3), floor: floorMaterial(kit) };
+  const world = sim.world, zones = world.def.zones || [], T = CFG.TILE, cols = world.cols;
   const accentOf = (i) => PAL.zones[((zones[world.zone[i]] || {}).color || 0) % 4];
   const isFloor = (c, r) => c >= 0 && r >= 0 && c < cols && r < world.rows && world.floor[r * cols + c] === 1;
   const view = { root: new THREE.Group(), goods: [], counts: new Int32Array(GOODS.length), carts: [], pieces: [], own: [],
     flights: new Map(), time: 0, frame: 0, towerH: 0, doneAt: -1, shadows: null, fixed: 0, shadowN: 0, glows: null, glowN: 0, ring: null, ringMat: null,
     crowd: null, lanes: null, map: null, trains: [], banners: [] };
-  gfx.scene.add(view.root);
+  R.scene.add(view.root);
+  view.own.push(M.toon, M.toonRim, M.floor);
+  view.kit = kit;
   const add = (mesh) => { mesh.frustumCulled = false; view.root.add(mesh); return mesh; };
   const hang = (b, x, y, z, ry) => { b.position.set(x, y, z); b.rotation.y = ry; view.own.push(b.material.map, b.material); view.root.add(b); view.banners.push(b); };
 
   // Floor: one quad under the whole plan; the shader draws tiles, store tints, arrows and edge shadows.
   view.map = floorMap(world);
+  R.renderer.setClearColor(kit.void, 0);
   view.own.push(view.map);
   M.floor.uniforms.uMap.value = view.map;
   M.floor.uniforms.uMapSize.value.set(cols, world.rows);
@@ -117,16 +123,16 @@ export function buildScene(sim) {
       if ((c + r) % 2 === 0) bulbs.push((c + 0.5 + dc * 0.56) * T, (r + 0.5 + dr * 0.56) * T);
     }
   }
-  view.root.add(new THREE.Mesh(toGeometry(wb), [M.toon, M.lineThin]));
+  view.root.add(new THREE.Mesh(toGeometry(wb), M.toon));
 
   // Contact shadows: one instanced octagon; the static ones are written once, moving blobs every frame.
   const sb = makeBuilder();
   addCyl(sb, 1, 1, 0.001, PAL.shadow, { seg: 8 });
-  view.shadows = add(new THREE.InstancedMesh(toGeometry(sb), view.own[view.own.push(flatMaterial(0.2)) - 1], SHADOW_CAP));
+  view.shadows = add(new THREE.InstancedMesh(toGeometry(sb), view.own[view.own.push(flatMat(0.2)) - 1], SHADOW_CAP));
   view.shadows.renderOrder = 1;
   const gb = makeBuilder();
   addCyl(gb, 1, 1, 0.001, PAL.white, { seg: 12 });
-  view.glows = add(new THREE.InstancedMesh(toGeometry(gb), view.own[view.own.push(flatMaterial(0.5)) - 1], GLOW_CAP));
+  view.glows = add(new THREE.InstancedMesh(toGeometry(gb), view.own[view.own.push(flatMat(0.5)) - 1], GLOW_CAP));
   view.glows.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(GLOW_CAP * 3), 3);
   view.glows.renderOrder = 1;
 
@@ -139,7 +145,7 @@ export function buildScene(sim) {
   // A hot item stands in a hard-edged gold column with a star turning above it.
   const beam = makeBuilder();
   addCyl(beam, 0.3, 0.3, 5, PAL.hot, { seg: 8 });
-  const beamGeo = toGeometry(beam), beamMat = flatMaterial(0.42), starGeo = pieceGeometry('star');
+  const beamGeo = toGeometry(beam), beamMat = flatMat(0.42), starGeo = pieceGeometry('star');
   view.own.push(beamMat);
   const geos = {};
   for (const p of world.pieces) {
@@ -149,7 +155,7 @@ export function buildScene(sim) {
       addPiece(fb, p.type, p.x, p.z, accentOf(p.r * cols + p.c));
       continue;
     }
-    const mesh = new THREE.Mesh(geos[p.type] || (geos[p.type] = pieceGeometry(p.type)), [M.toon, M.lineThin]);
+    const mesh = new THREE.Mesh(geos[p.type] || (geos[p.type] = pieceGeometry(p.type)), M.toon);
     mesh.position.set(p.x, 0, p.z);
     if (p.type === 'glass' && isFloor(p.c - 1, p.r) && isFloor(p.c + 1, p.r)) mesh.rotation.y = Math.PI / 2;   // across the way through
     view.root.add(mesh);
@@ -166,19 +172,19 @@ export function buildScene(sim) {
     if (world.wet[i] && !world.wet[i - 1] && !world.wet[i - cols]) addPiece(fb, 'wetsign', (i % cols) * T - 0.2, Math.floor(i / cols) * T - 0.2);
   }
   view.fixed = view.shadowN;
-  view.root.add(new THREE.Mesh(toGeometry(fb), [M.toon, M.lineThin]));
+  view.root.add(new THREE.Mesh(toGeometry(fb), M.toon));
   // The cart train: a string of steel carts.
   const carGeo = sim.trains.length ? cartGeometry(PAL.danger) : null;
   for (const tr of sim.trains) {
     const cars = [];
-    for (let i = 0; i < CFG.trainCars; i++) { const m = new THREE.Mesh(carGeo, [M.toon, M.lineThin]); view.root.add(m); cars.push(m); }
+    for (let i = 0; i < CFG.trainCars; i++) { const m = new THREE.Mesh(carGeo, M.toon); view.root.add(m); cars.push(m); }
     view.trains.push({ tr, cars });
   }
 
   // Holiday garlands: small warm-white bulbs along the top edge of the walls (decoration never uses a signal colour).
   const lb = makeBuilder();
   addBall(lb, 0.1, 0.1, 0.1, PAL.wall, { seg: 5, rings: 3 });
-  const lights = add(new THREE.InstancedMesh(toGeometry(lb), [M.toon], Math.max(1, bulbs.length / 2)));
+  const lights = add(new THREE.InstancedMesh(toGeometry(lb), M.toon, Math.max(1, bulbs.length / 2)));
   const mat4 = new THREE.Matrix4();
   for (let i = 0; i < bulbs.length / 2; i++) lights.setMatrixAt(i, mat4.makeTranslation(bulbs[i * 2], CFG.WALL_H + 0.08, bulbs[i * 2 + 1]));
 
@@ -206,32 +212,33 @@ export function buildScene(sim) {
       if (v < 1e8 && v > far) { far = v; ax = dx; az = dz; }
     }
     hang(banner('CHECKOUT', PAL.sale, Math.max(4, ax ? hz : hx), 1.15), cx + ax * (hx + 0.4), 4.4, cz + az * (hz + 0.4), Math.atan2(ax, az));
-    view.lanes = add(new THREE.InstancedMesh(pieceGeometry('box'), [M.toon, M.lineThin], L.length * 3));
+    view.lanes = add(new THREE.InstancedMesh(pieceGeometry('box'), M.toon, L.length * 3));
     view.lanes.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(L.length * 9).fill(1), 3);
   }
 
   // Goods: one instanced mesh per kind serves shelves, the floor, the air and the towers.
   for (let i = 0; i < GOODS.length; i++) {
-    const mesh = add(new THREE.InstancedMesh(goodGeometry(i), [M.toon, GOODS[i].size === 'H' ? M.lineBold : M.lineThin], GOOD_CAP));
+    const mesh = add(new THREE.InstancedMesh(goodGeometry(i), GOODS[i].size === 'H' ? [M.toon, M.lineBold] : M.toon, GOOD_CAP));
     mesh.count = 0;
     view.goods.push(mesh);
   }
 
   // The crowd: one instanced shopper in three muted colours.
-  view.crowd = add(new THREE.InstancedMesh(beanGeometry('crowd', PAL.white), [M.toon, M.lineThin], CROWD_CAP));
+  view.crowd = add(new THREE.InstancedMesh(beanGeometry('crowd', PAL.white), M.toon, CROWD_CAP));
   view.crowd.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(CROWD_CAP * 3), 3);
   sim.shoppers.forEach((s, i) => { if (i < CROWD_CAP) view.crowd.instanceColor.array.set(rgb(PAL.crowd[s.col]), i * 3); });
 
   // Carts with their shoppers. `tilt` carries the lean, pitch and squash of the cart body.
   for (const k of sim.carts) {
     const g = new THREE.Group(), tilt = new THREE.Group();
-    const glow = toonMaterial();
+    const glow = celMaterial({ rim: 0.55 });
     view.own.push(glow);
     const bean = new THREE.Mesh(beanGeometry(k.char, k.def.color), [M.toonRim, M.lineBold]);
     bean.position.z = -1.3;
     tilt.add(new THREE.Mesh(cartGeometry(k.def.color), [M.toonRim, M.lineBold]));
     tilt.add(new THREE.Mesh(bumperGeometry(), [glow, M.lineBold]));
     g.add(tilt); g.add(bean);
+    g.traverse((o) => o.layers.enable(1));
     view.root.add(g);
     view.carts.push({ k, g, tilt, bean, glow, roll: 0, pitch: 0, squash: 0, stretch: 0, bob: 0, lastSpd: 0,
       swayX: 0, swayXv: 0, swayZ: 0, swayZv: 0, pending: 0 });
@@ -240,7 +247,7 @@ export function buildScene(sim) {
   // The hero's ring: a flat quad on the floor under the player's cart.
   const rg = new THREE.BufferGeometry();
   rg.setAttribute('position', new THREE.Float32BufferAttribute([-1, 0, -1, 1, 0, -1, 1, 0, 1, -1, 0, -1, 1, 0, 1, -1, 0, 1], 3));
-  view.ringMat = ringMaterial();
+  view.ringMat = ringMat();
   view.own.push(view.ringMat);
   view.ring = add(new THREE.Mesh(rg, view.ringMat));
   view.ring.renderOrder = 2;
@@ -494,7 +501,7 @@ export function syncScene(view, sim, alpha, dt) {
   for (const c of view.carts) syncCart(view, c, sim, alpha, dt);
   syncCrowd(view, sim);
   // A banner between the camera and the player's cart would hide it: banners fade away as the cart comes near.
-  for (const b of view.banners) { b.material.opacity = clamp((Math.hypot(b.position.x - p.x, b.position.z - p.z) - 9) / 5, 0, 1); b.visible = b.material.opacity > 0.02; }
+  for (const b of view.banners) { b.material.uniforms.uOpacity.value = b.material.opacity = clamp((Math.hypot(b.position.x - p.x, b.position.z - p.z) - 9) / 5, 0, 1); b.visible = b.material.opacity > 0.02; }
   // The cart train, and a long shadow running ahead of it across the floor (its warning).
   for (const t of view.trains) {
     const tr = t.tr, a = Math.atan2(tr.dx * tr.dir, tr.dz * tr.dir);
@@ -505,7 +512,6 @@ export function syncScene(view, sim, alpha, dt) {
     });
     if (tr.wait <= 0) putShadow(view, tr.x + tr.dx * tr.dir * 5, tr.z + tr.dz * tr.dir * 5, 0.7, 4.4, a);      // 0.8 s of warning at its 7 m/s
   }
-  gfx.mats.floor.uniforms.uTime.value = view.time;
   for (const [e, f] of view.flights) if (f.seen !== view.frame) view.flights.delete(e);   // spilled before it landed
   for (let i = 0; i < view.goods.length; i++) {
     const mesh = view.goods[i];
@@ -570,30 +576,33 @@ export function sceneEvent(view, e) {
 
 // A small picture of one kind of goods for the interface (the list icons): the real model with its
 // outline, drawn once into a canvas. Returns a data URL.
+let iconMats = null;
 export function goodIcon(kind, size = 96) {
-  const T = THREE, ren = gfx.renderer, rt = new T.WebGLRenderTarget(size, size), scene = new T.Scene(), d = GOODS[kind].dims;
-  const mesh = new T.Mesh(goodGeometry(kind), [gfx.mats.toon, gfx.mats.lineBold]);
+  const T = THREE, ren = R.renderer, rt = new T.WebGLRenderTarget(size, size), scene = new T.Scene(), d = GOODS[kind].dims;
+  const ink = iconMats || (iconMats = [celMaterial({ flat: false }), hullMaterial(2.6)]);
+  const mesh = new T.Mesh(goodGeometry(kind), ink);
   mesh.rotation.y = 0.55;
   scene.add(mesh);
   const r = Math.max(d[0], d[1], d[2]) * 0.78, cam = new T.OrthographicCamera(-r, r, r, -r, 0.1, 30);
   cam.position.set(3, 3.4 + d[1] / 2, 5); cam.lookAt(0, d[1] / 2, 0);
-  const res = gfx.u.uRes.value.clone(), line = gfx.mats.lineBold.uniforms.uThick, thick = line.value, px = new Uint8Array(size * size * 4);
-  gfx.u.uRes.value.set(size, size); line.value = 2.6;
+  const res = R.u.uRes.value.clone(), line = ink[1].uniforms.uThick, thick = line.value, px = new Uint8Array(size * size * 4);
+  R.u.uRes.value.set(size, size); line.value = 2.6;
   ren.setRenderTarget(rt); ren.setClearColor(0, 0); ren.clear(); ren.render(scene, cam);
   ren.readRenderTargetPixels(rt, 0, 0, size, size, px);
   ren.setRenderTarget(null); ren.setClearColor(PAL.night, 1);
-  gfx.u.uRes.value.copy(res); line.value = thick;
+  R.u.uRes.value.copy(res); line.value = thick;
   const cv = document.createElement('canvas');
   cv.width = cv.height = size;
   const ctx = cv.getContext('2d'), img = ctx.createImageData(size, size);
   for (let y = 0; y < size; y++) img.data.set(px.subarray((size - 1 - y) * size * 4, (size - y) * size * 4), y * size * 4);
+  for (let i = 3; i < img.data.length; i += 4) img.data[i] = img.data[i - 1] + img.data[i - 2] + img.data[i - 3] > 0 ? 255 : 0;   // (alpha in the scene is the glow mask)
   ctx.putImageData(img, 0, 0);
   rt.dispose(); mesh.geometry.dispose();
   return cv.toDataURL();
 }
 
 export function disposeScene(view) {
-  gfx.scene.remove(view.root);
+  R.scene.remove(view.root);
   view.root.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
   for (const m of view.own) m.dispose();
 }

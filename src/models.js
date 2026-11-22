@@ -145,6 +145,7 @@ export function toGeometry(b) {
   g.setAttribute('normal', new THREE.Float32BufferAttribute(b.nor, 3));
   g.setAttribute('color', new THREE.Float32BufferAttribute(b.col, 3));
   g.setAttribute('onormal', new THREE.Float32BufferAttribute(b.out, 3));
+  g.setAttribute('tex', new THREE.Float32BufferAttribute(new Float32Array(b.pos.length / 3 * 4), 4));
   const n = b.pos.length / 3;
   g.addGroup(0, n, 0);
   g.addGroup(0, n, 1);

@@ -3,13 +3,13 @@
 //          stars, puffs, streaks, confetti) drawn in a single instanced draw call, plus the emitters
 //          that turn simulation events and cart state into particles. Never touches the simulation.
 // Exports: initFx, clearFx, spark, burst, cartFx, eventFx, updateFx, TIER_COLORS
-// Depends on: config.js, gfx.js and the global THREE (inside functions only).
+// Depends on: config.js, render.js and the global THREE (inside functions only).
 //
 // Particles are camera-facing quads; the fragment shader cuts the shape (0 diamond, 1 round puff,
 // 2 four-point star, 3 square, 4 plain sliver) and draws a dark rim, so they match the outlined look (ART.md 4).
 
 import { CFG, PAL, rgb } from './config.js';
-import { gfx } from './gfx.js';
+import { R, MRT_OUT, AUX_NONE } from './render.js';
 
 const FX_CAP = 700, FX_STRIDE = 16;
 // per particle: x y z  vx vy vz  life ttl  size0 size1  rot spin  grav drag  shape colorIndex
@@ -36,6 +36,7 @@ void main() {
 }`;
 const FX_FS = `
 uniform vec3 uRimColor;
+${MRT_OUT}
 varying vec2 vUv; varying vec3 vColor; varying float vShape;
 void main() {
   vec2 p = abs(vUv);
@@ -45,7 +46,8 @@ void main() {
   else if (vShape < 2.5) d = pow(pow(p.x, 0.55) + pow(p.y, 0.55), 1.8); // four-point star
   else d = max(p.x, p.y);                                            // square
   if (d > 1.0) discard;
-  gl_FragColor = vec4(d > 0.8 && vShape < 3.5 && (vShape < 0.5 || vShape > 1.5) ? uRimColor : vColor, 1.0);   // puffs and slivers have no rim
+  gl_FragColor = vec4(d > 0.8 && vShape < 3.5 && (vShape < 0.5 || vShape > 1.5) ? uRimColor : vColor, 0.0);   // puffs and slivers have no rim
+  ${AUX_NONE}
 }`;
 
 export function initFx() {
@@ -61,7 +63,7 @@ export function initFx() {
   fxMesh = new THREE.Mesh(g, mat);
   fxMesh.frustumCulled = false;
   fxMesh.renderOrder = 5;
-  gfx.scene.add(fxMesh);
+  R.scene.add(fxMesh);
 }
 
 export function clearFx() { fxCount = 0; if (fxMesh) fxMesh.geometry.instanceCount = 0; }

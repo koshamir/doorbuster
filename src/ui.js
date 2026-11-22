@@ -337,6 +337,7 @@ export function showPause(s, on) {
   slider('MUSIC', s.music, on.music);
   slider('EFFECTS', s.sfx, on.sfx);
   toggle('SCREEN SHAKE', s.shake, on.shake);
+  toggle('IMPACT FLASH', s.impact, on.impact);
   const row = el('div', 'btn-row', undefined, ui.screen);
   button('btn in go', 'RESUME  (P)', row, on.resume);
   button('btn in', 'RESTART  (R)', row, on.restart);
@@ -383,7 +384,7 @@ export function initDebug(root, hooks) {
   };
 }
 
-// info: { sim, stats (gfx.stats), logicMs, objects, level, scale, bot }
+// info: { sim, stats (R.stats), logicMs, objects, level, scale, bot }
 export function updateDebug(info, frameMs) {
   if (!panel) return;
   frames++;

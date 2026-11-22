@@ -1,7 +1,7 @@
 // DOORBUSTER — main.js
 // Purpose: the entry module: boot, keyboard and touch input, the frame loop, the game states (title,
 //          play, receipt, closed, paused), progress (medals, records, unlocked stores, settings) and
-//          the glue between the simulation (sim.js), the visuals (gfx.js, scene.js, fx.js), the sound
+//          the glue between the simulation (sim.js), the visuals (R.js, scene.js, fx.js), the sound
 //          (audio.js) and the interface (ui.js).
 // Exports: nothing.
 // Depends on: every other module. Loads three.js (platform.loadThree) before anything touches THREE.
@@ -16,7 +16,7 @@ import { navAim, navDistAt, clearPath } from './world.js';
 import { createSim, advanceSim, giveGoods, settle } from './sim.js';
 import { BOTS, makeDriver } from './ai.js';
 import { loadThree, platform } from './platform.js';
-import { gfx, initGfx, resizeGfx, updateCamera, renderFrame, watchFrameRate } from './gfx.js';
+import { R, initRender, resizeRender, updateCamera, renderFrame, watchFrameRate, benchTick, setGrade } from './render.js';
 import { buildScene, syncScene, sceneEvent, disposeScene, goodIcon } from './scene.js';
 import { initFx, clearFx, cartFx, eventFx, updateFx, spark } from './fx.js';
 import { audio, unlockAudio, setSound, setVolumes, audioEvent, audioCue, audioFrame } from './audio.js';
@@ -37,7 +37,7 @@ const game = {
   probe: null, gain: 0, gainT: 0, gainList: false, v: null, said: {},
   icons: {},                      // pictures of goods for the list, by id
   mark: null, markT: 0, markText: '',   // where the arrow points (a piece or a lane), for how long, its word
-  warner: null, dodgeHint: false, glassT: 0, rammed: false, frozen: false, clock: 0, steered: 0, tagAt: -9, aim: { x: 0, z: 0, fx: 0, fz: 0, left: 0 },
+  flash: 0, flashAt: -9, warner: null, dodgeHint: false, glassT: 0, rammed: false, frozen: false, clock: 0, steered: 0, tagAt: -9, aim: { x: 0, z: 0, fx: 0, fz: 0, left: 0 },
 };
 let save = null;                  // platform.progress: { best, medals, unlocked, fails, seen, music, sfx, shake }
 
@@ -55,12 +55,13 @@ function startLevel(quick) {
   game.sim = createSim(def, game.seed, { bot: BOTS[game.bot] ? game.bot : undefined, countdown: quick ? 1.2 : CFG.countdown });
   if (query.get('fill')) giveGoods(game.sim, game.sim.player, Number(query.get('fill')));   // test aid: start with goods
   game.view = buildScene(game.sim);
+  setGrade(game.view.kit.grade);
   setList((def.list || []).map((id) => game.icons[id] || (game.icons[id] = goodIcon(GOOD[id]))));
   game.hitstop = 0; game.slowT = 0; game.gain = 0; game.keys = {}; game.inq.length = 0; game.said = {};
   game.mark = null; game.markT = 0; game.warner = null; game.frozen = false; game.paused = false; game.glassT = 0;
-  gfx.u.uTintAmt.value = 0;
-  gfx.cam.ready = false;
-  gfx.cam.shake = 0;
+  R.u.uTintAmt.value = 0;
+  R.cam.ready = false;
+  R.cam.shake = 0;
 }
 function play(quick) {
   startLevel(quick);
@@ -74,7 +75,7 @@ function title() {
   game.state = 'title';
   const cards = save.unlocked > 1 || save.best[LEVELS[1].id] ? LEVELS.slice(1).map((d, i) => ({ name: d.name, medal: save.medals[d.id] || 0,
     best: save.best[d.id] || 0, locked: i + 1 > save.unlocked, on: i + 1 === game.level })) : null;
-  gfx.cam.lead = cards ? -1.8 : 0.5;                   // with the loyalty card on screen the cart stands above it
+  R.cam.lead = cards ? -1.8 : 0.5;                   // with the loyalty card on screen the cart stands above it
   showTitle(LEVELS[game.level].name, () => play(false), cards, (i) => { game.level = i + 1; title(); });
 }
 function pause(on) {
@@ -82,12 +83,13 @@ function pause(on) {
   game.paused = on;
   if (on) {
     platform.pause();
-    showPause({ sound: platform.soundOn, music: save.music, sfx: save.sfx, shake: TUNE.shake }, {
+    showPause({ sound: platform.soundOn, music: save.music, sfx: save.sfx, shake: TUNE.shake, impact: save.impact !== false }, {
       resume: () => pause(false), restart: () => { pause(false); play(true); }, menu: save.unlocked > 1 ? () => { pause(false); title(); } : null,
       sound: (v) => platform.setSound(v),
       music: (v) => { save.music = v; setVolumes(save.music, save.sfx); platform.save(); },
       sfx: (v) => { save.sfx = v; setVolumes(save.music, save.sfx); audioCue('scan', 4); platform.save(); },     // (a beep to set it by)
       shake: (v) => { TUNE.shake = save.shake = v; platform.save(); },
+      impact: (v) => { save.impact = v; platform.save(); },
     });
   } else {
     platform.resume();
@@ -115,8 +117,8 @@ function press(name, down) { game.inq.push({ name, down, t: performance.now() })
 
 // World position -> CSS pixels on screen (z > 1 means behind the camera).
 function toScreen(x, y, z) {
-  const v = game.v.set(x, y, z).project(gfx.camera);
-  v.x = (v.x + 1) / 2 * gfx.w; v.y = (1 - v.y) / 2 * gfx.h;
+  const v = game.v.set(x, y, z).project(R.camera);
+  v.x = (v.x + 1) / 2 * R.w; v.y = (1 - v.y) / 2 * R.h;
   return v;
 }
 
@@ -143,6 +145,9 @@ function finish() {
 }
 function next() { game.level = Math.min(LAST, game.level + 1); play(false); }
 
+// An impact frame: a two-frame ink flash on a big hit, at most one a second, unless switched off.
+function impact() { if (save.impact !== false && game.clock - game.flashAt > 1) { game.flash = 0.034; game.flashAt = game.clock; } }
+
 // Presentation of one simulation event: sound, particles, scene reactions, interface, platform calls.
 function onEvent(e) {
   const sim = game.sim, p = sim.player, mine = e.cart === p, k = e.cart;
@@ -158,15 +163,15 @@ function onEvent(e) {
       game.warner = k; game.dodgeHint = !p.ai && (save.seen.dodge || 0) < 2;
       if (game.dodgeHint) { save.seen.dodge = (save.seen.dodge || 0) + 1; platform.save(); }
     }
-    else if (e.type === 'ram' && e.ref === p) { game.hitstop = 0.06; gfx.cam.shake = Math.min(1, gfx.cam.shake + 0.6); popWord('RAMMED!', 'bad'); }
+    else if (e.type === 'ram' && e.ref === p) { impact(); game.hitstop = 0.06; R.cam.shake = Math.min(1, R.cam.shake + 0.6); popWord('RAMMED!', 'bad'); }
     else if (e.type === 'selfie') { const s = toScreen(k.x, 3, k.z); if (s.z < 1) floatText('+' + money(CFG.stunts.selfie), s.x, s.y, 'big'); }
     else if (e.type === 'shout') { game.mark = e.ref; game.markT = 5; game.markText = 'HOT!'; const s = toScreen(k.x, 2.6, k.z); if (s.z < 1) floatText('MINE!', s.x, s.y, 'big'); }
     else if (e.type === 'finish') { const s = toScreen(k.x, 2.6, k.z); if (s.z < 1) floatText(money(e.value), s.x, s.y, ''); }
     return;
   }
-  gfx.cam.shake = Math.min(1, gfx.cam.shake + shake);
+  R.cam.shake = Math.min(1, R.cam.shake + shake);
   switch (e.type) {
-    case 'crash': game.hitstop = 0.07; break;
+    case 'crash': game.hitstop = 0.07; if (e.value > 9) impact(); break;
     case 'take': game.gain += e.value; game.gainT = 0.45; if (e.ref.entry.list) game.gainList = true; break;
     case 'spill': case 'shed': { const s = toScreen(p.x, 2.6, p.z); floatText(money(-e.ref.lost), s.x, s.y - 30, 'loss'); break; }
     case 'heavy': case 'overloaded':                    // said once per run: afterwards the tower itself shows it
@@ -180,7 +185,7 @@ function onEvent(e) {
     case 'bump': if (e.ref && e.ref.type === 'glass') game.glassT = 3; break;       // bounced off a shop window: show the key that opens it
     case 'drift': if (!save.seen.drift && !p.ai) { save.seen.drift = true; platform.save(); } break;
     case 'ram':
-      game.hitstop = 0.08; dashed();
+      game.hitstop = 0.08; dashed(); impact();
       if (!game.rammed) { game.rammed = true; game.slowT = 0.5; }      // the first ram is shown in slow motion
       break;
     case 'madmode': if (e.value) { popWord('MADNESS!', 'hot'); game.hitstop = 0.1; } break;
@@ -190,11 +195,11 @@ function onEvent(e) {
       break;
     case 'flashend': if (game.mark === e.ref) game.markT = 0; break;
     case 'closing': announce('CLOSING TIME!', 'The checkouts are shutting one by one. So is your window.'); break;
-    case 'lanewarn': { const s = toScreen(e.ref.x, 3.4, e.ref.z); if (s.z < 1 && s.y > gfx.h * 0.24) floatText('CLOSING', s.x, s.y, 'loss'); break; }
+    case 'lanewarn': { const s = toScreen(e.ref.x, 3.4, e.ref.z); if (s.z < 1 && s.y > R.h * 0.24) floatText('CLOSING', s.x, s.y, 'loss'); break; }
     case 'stunt': {
       popWord(WORDS[e.ref.name] || e.ref.name.toUpperCase(), 'good');
       const s = toScreen(p.x, 2.2, p.z);
-      floatText('+' + money(e.value), s.x, s.y - gfx.h * 0.11, 'big');
+      floatText('+' + money(e.value), s.x, s.y - R.h * 0.11, 'big');
       break;
     }
     case 'finish': game.state = 'finish'; break;       // handled after the event loop (it plays the race out)
@@ -221,23 +226,23 @@ function pointers(dt) {
     text = 'CHECKOUT';
   }
   if (m && playing) {
-    const s = toScreen(m.x, 3.4, m.z), pad = gfx.h * 0.14;
-    if (s.z < 1 && s.x > pad && s.x < gfx.w - pad && s.y > pad * 1.6 && s.y < gfx.h - pad) setArrow(true, s.x, s.y - gfx.h * 0.05, Math.PI, text);
+    const s = toScreen(m.x, 3.4, m.z), pad = R.h * 0.14;
+    if (s.z < 1 && s.x > pad && s.x < R.w - pad && s.y > pad * 1.6 && s.y < R.h - pad) setArrow(true, s.x, s.y - R.h * 0.05, Math.PI, text);
     else {                                                // off screen: on a circle round the middle, pointing the way to drive there
       let tx = m.x, tz = m.z;                             // (along the route while the target is ahead on it and out of sight, never through a wall)
       const wd = sim.world;
       if (navDistAt(wd, m.x, m.z) < navDistAt(wd, p.x, p.z) + 2 && !clearPath(wd, p.x, p.z, m.x, m.z, 0.3) && navAim(wd, p.x, p.z, 5, 0.5, game.aim, 14)) { tx = game.aim.x; tz = game.aim.z; }
-      const rel = Math.atan2(tx - p.x, tz - p.z) - gfx.cam.yaw, r = Math.min(gfx.w, gfx.h) * 0.36;
-      setArrow(true, gfx.w / 2 - Math.sin(rel) * r, Math.max(gfx.h * 0.27, gfx.h * 0.52 - Math.cos(rel) * r), -rel, text);   // (kept below the announcer's line)
+      const rel = Math.atan2(tx - p.x, tz - p.z) - R.cam.yaw, r = Math.min(R.w, R.h) * 0.36;
+      setArrow(true, R.w / 2 - Math.sin(rel) * r, Math.max(R.h * 0.27, R.h * 0.52 - Math.cos(rel) * r), -rel, text);   // (kept below the announcer's line)
     }
   } else setArrow(false);
   const w = game.warner;
   if (w && w.ai && (w.ai.warnT > 0 || w.ai.strikeT > 0) && playing) {
-    const s = toScreen(w.x, 2.8, w.z), pad = gfx.h * 0.08;
-    if (s.z < 1 && s.x > pad && s.x < gfx.w - pad && s.y > pad * 2 && s.y < gfx.h - pad) setWarn(true, s.x, s.y);
+    const s = toScreen(w.x, 2.8, w.z), pad = R.h * 0.08;
+    if (s.z < 1 && s.x > pad && s.x < R.w - pad && s.y > pad * 2 && s.y < R.h - pad) setWarn(true, s.x, s.y);
     else {                                                // out of the picture (it usually comes from behind): beside the player's cart, on the side it comes from
-      const rel = Math.atan2(w.x - p.x, w.z - p.z) - gfx.cam.yaw, c = toScreen(p.x, 0.6, p.z), r = gfx.h * 0.16;
-      setWarn(true, Math.max(pad, Math.min(gfx.w - pad, c.x - Math.sin(rel) * r)), Math.max(pad * 2, Math.min(gfx.h - pad * 0.4, c.y - Math.cos(rel) * r + gfx.h * 0.05)));
+      const rel = Math.atan2(w.x - p.x, w.z - p.z) - R.cam.yaw, c = toScreen(p.x, 0.6, p.z), r = R.h * 0.16;
+      setWarn(true, Math.max(pad, Math.min(R.w - pad, c.x - Math.sin(rel) * r)), Math.max(pad * 2, Math.min(R.h - pad * 0.4, c.y - Math.cos(rel) * r + R.h * 0.05)));
     }
   } else { setWarn(false); game.warner = null; }
   // Teaching without text: steering and throttle at the start, the dash before the first thing to
@@ -259,8 +264,8 @@ function pointers(dt) {
 function tick(dt, draw) {
   const sim = game.sim, t0 = performance.now(), p = sim.player;
   game.now = t0;
-  if (game.paused) { audioFrame(sim, dt, 'pause'); if (draw) renderFrame(); return; }   // the music carries on under water
-  game.clock += dt;
+  if (game.paused) { audioFrame(sim, dt, 'pause'); if (draw) renderFrame({}, R.cam); return; }   // the music carries on under water
+  game.clock += dt; R.clock = game.clock; game.flash -= dt;
   // Hit-stop: a few frozen frames on a big impact; the shake and the particles keep moving.
   let simDt = game.state === 'play' ? dt * game.scale : game.state === 'receipt' && !game.frozen ? dt * 0.25 : 0;
   if (game.slowT > 0) { game.slowT -= dt; simDt *= 0.3; }
@@ -279,9 +284,9 @@ function tick(dt, draw) {
   const swoop = game.state === 'play' && sim.t < 0 && sim.opts.countdown > 2 ? Math.pow(Math.min(1, -sim.t / 2), 2) : 0;   // the first countdown opens high above the route
   // The title circles the start grid; the receipt is read from steep above the checkout, the cart to the left of the paper.
   updateCamera(p, alpha, dt, game.view.towerH, sim.world, game.state === 'title' ? 0.7 + 0.35 * Math.sin(game.clock * 0.4) : undefined, swoop,
-    game.state === 'receipt' ? (gfx.w > gfx.h ? 3 : 0) : undefined);
+    game.state === 'receipt' ? (R.w > R.h ? 3 : 0) : undefined);
   // Closing time washes the store in red, pulsing.
-  const tint = gfx.u.uTintAmt;
+  const tint = R.u.uTintAmt;
   tint.value += ((sim.closing && game.state === 'play' ? 0.24 + 0.08 * Math.sin(game.clock * 6) : 0) - tint.value) * Math.min(1, dt * 4);
   syncScene(game.view, sim, alpha, dt);
   // Money being swept right now is one running label above the cart; when the run of goods ends it
@@ -302,9 +307,10 @@ function tick(dt, draw) {
   audioFrame(sim, dt, game.state);
   if (game.probe) probeCamera(game.probe, p, dt);
   if (!draw) return;                           // capture mode skips only the GPU work between shots
-  renderFrame();
+  const top = Math.abs(p.spd) > TUNE.maxspeed * 0.97 && game.state === 'play' ? 0.35 : 0;
+  renderFrame({ speed: game.state === 'play' && (p.boostT > 0 || p.dashT > 0) ? 1 : top, impact: game.flash > 0 ? 0.85 : 0 }, R.cam);
   if (game.debug) {
-    updateDebug({ sim, stats: gfx.stats, logicMs: game.logicMs, objects: game.view.root.children.length,
+    updateDebug({ sim, stats: R.stats, logicMs: game.logicMs, objects: game.view.root.children.length,
       level: game.level, scale: game.scale, bot: game.bot }, performance.now() - t0);
   }
 }
@@ -312,7 +318,7 @@ function tick(dt, draw) {
 // Camera telemetry for the capture tool (debug and manual modes only): where the cart sits on screen,
 // how many seconds of floor are visible ahead of it, and how often the camera's yaw reverses.
 function probeCamera(pr, k, dt) {
-  const cam = gfx.camera, v = pr.v;
+  const cam = R.camera, v = pr.v;
   cam.updateMatrixWorld();
   v.set(k.x, 0.8, k.z).project(cam);
   pr.minX = Math.min(pr.minX, v.x); pr.maxX = Math.max(pr.maxX, v.x);
@@ -321,46 +327,46 @@ function probeCamera(pr, k, dt) {
   v.set(0, 0.92, 0.5).unproject(cam).sub(cam.position);
   if (v.y < -1e-3 && Math.abs(k.spd) > 6) {
     const s = -cam.position.y / v.y, gx = cam.position.x + v.x * s, gz = cam.position.z + v.z * s;
-    const ahead = (gx - k.x) * Math.sin(gfx.cam.yaw) + (gz - k.z) * Math.cos(gfx.cam.yaw);
+    const ahead = (gx - k.x) * Math.sin(R.cam.yaw) + (gz - k.z) * Math.cos(R.cam.yaw);
     pr.minRoad = Math.min(pr.minRoad, ahead / Math.abs(k.spd));
   }
-  let d = gfx.cam.yaw - pr.lastYaw;
+  let d = R.cam.yaw - pr.lastYaw;
   d = Math.atan2(Math.sin(d), Math.cos(d));
   const rate = d / dt;
   if (Math.abs(rate) > 0.05) {
     if (pr.lastSign && Math.sign(rate) !== pr.lastSign) pr.reversals++;
     pr.lastSign = Math.sign(rate);
   }
-  pr.lastYaw = gfx.cam.yaw; pr.time += dt;
-  pr.lift = Math.max(pr.lift, gfx.cam.lift);
+  pr.lastYaw = R.cam.yaw; pr.time += dt;
+  pr.lift = Math.max(pr.lift, R.cam.lift);
 }
 
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.1, (now - game.last) / 1000);
   game.last = now;
-  if (!game.manual) { tick(dt, true); if (game.state === 'play' && !game.paused) watchFrameRate(dt); }
+  if (!game.manual) { tick(dt, true); if (game.state === 'play' && !game.paused) watchFrameRate(dt); else if (game.state === 'title') benchTick(dt); }
 }
 
 async function boot() {
   await loadThree();
   await platform.init();
-  save = Object.assign({ best: {}, medals: {}, unlocked: 1, fails: 0, seen: {}, music: 0.55, sfx: 0.9, shake: TUNE.shake }, platform.progress);
+  save = Object.assign({ best: {}, medals: {}, unlocked: 1, fails: 0, seen: {}, music: 0.55, sfx: 0.9, shake: TUNE.shake, impact: true }, platform.progress);
   platform.progress = save;
   TUNE.shake = save.shake;
   if (!query.has('level')) game.level = Math.min(LAST, Math.max(1, save.unlocked));     // carry on where the player left off
-  initGfx(document.getElementById('game'));
+  initRender(document.getElementById('game'));
   initFx();
   initUI(document.getElementById('ui'));
   ui.onPause = () => pause(true);
   game.v = new THREE.Vector3();
   // cover=1 and icon=1 are for the pictures of the handoff package: the title view without its buttons, or without any interface and closer.
   if (query.has('cover')) document.body.classList.add('cover');
-  if (query.has('icon')) { document.body.classList.add('icon'); gfx.cam.near = true; }
+  if (query.has('icon')) { document.body.classList.add('icon'); R.cam.near = true; }
   setSound(platform.soundOn); setVolumes(save.music, save.sfx);
   platform.onSound(setSound);
-  platform.onTune(resizeGfx);
-  addEventListener('resize', resizeGfx);
+  platform.onTune(resizeRender);
+  addEventListener('resize', resizeRender);
   addEventListener('pointerdown', (e) => {
     unlockAudio(); hurryUI();
     if (e.pointerType === 'touch' && !game.touch) { game.touch = true; showTouch(press); }
@@ -388,7 +394,7 @@ async function boot() {
   addEventListener('blur', () => { game.keys = {}; game.inq.length = 0; if (game.state === 'play' && !game.manual && !game.bot) pause(true); });
   if (game.debug) {
     initDebug(document.getElementById('ui'), {
-      tuneRaw: platform.tuneRaw, changed: resizeGfx,
+      tuneRaw: platform.tuneRaw, changed: resizeRender,
       restart: () => play(true),
       level: (d) => { game.level = (game.level + d + LEVELS.length) % LEVELS.length; play(true); },
       slow: () => { game.scale = game.scale === 1 ? 0.5 : game.scale === 0.5 ? 0.25 : 1; },
@@ -404,7 +410,7 @@ async function boot() {
     game.probe = { v: new THREE.Vector3(), minX: 9, maxX: -9, minY: 9, maxY: -9, minRoad: 99, reversals: 0, lastSign: 0, lastYaw: 0, time: 0, lift: 0, log: [] };
     const born = new WeakMap();
     window.__db = {
-      game, gfx, TUNE, play, pause, title, save, audio, audioApi: { unlockAudio, audioEvent, audioCue, audioFrame },
+      game, R, TUNE, play, pause, title, save, audio, audioApi: { unlockAudio, audioEvent, audioCue, audioFrame },
       key(name, down) { game.inq.push({ name, down, t: -1e9 }); },     // a scripted key press, applied on the next step
       custom(def) { game.custom = def; play(false); },                 // a test level built by a tool
       // Advances `seconds` of game time in 60 Hz frames and draws the last one. The interface's CSS
@@ -423,7 +429,7 @@ async function boot() {
       },
       info() {
         const p = game.sim.player, pr = game.probe, st = game.sim.stats;
-        return { t: game.sim.t, phase: game.sim.phase, state: game.state, calls: gfx.stats.calls, tris: gfx.stats.tris, renderMs: gfx.stats.ms,
+        return { tier: R.tier, t: game.sim.t, phase: game.sim.phase, state: game.state, calls: R.stats.calls, tris: R.stats.tris, renderMs: R.stats.ms,
           logicMs: game.logicSum / Math.max(1, game.logicN), x: p.x, z: p.z, h: p.h, spd: p.spd, load: p.load, items: p.tower.length, value: p.value, step: CFG.STEP,
           doneT: p.doneT, receipt: p.receipt, mad: p.mad, madT: p.madT, place: p.place, modes: st.madModes, rammed: st.rammed, shoppers: game.sim.shoppers.length, rivals: game.sim.carts.length - 1,
           cam: { cartX: [pr.minX, pr.maxX], cartY: [pr.minY, pr.maxY], minRoadSeconds: pr.minRoad,
