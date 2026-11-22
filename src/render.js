@@ -79,6 +79,7 @@ float shadowAt(vec4 sh, float bias) {
   return smoothstep(0.3, 0.7, mix(mix(a, c, f.x), mix(d, e, f.x), f.y));
 }
 vec4 cellTex(sampler2D map, float cell, float grid, vec2 uv, float pad) {
+  cell = floor(cell + 0.5);
   vec2 o = vec2(mod(cell, grid), floor(cell / grid)) / grid, f = fract(uv);
   return textureGrad(map, o + (pad + f * (1.0 - 2.0 * pad)) / grid, dFdx(uv) / grid, dFdy(uv) / grid);
 }

@@ -31,13 +31,14 @@ function stage(kit, flat) {
 export function initShowcase(kind, q) {
   const kit = KITS[q.get('store')] || KITS.supermarket, flat = q.has('flat'), view = q.get('view') || '';
   const show = { kind, t: 0, chars: [], crowd: null, people: [], cam: null };
-  stage(kit, flat);
+  const floor = stage(kit, flat);
+  if (kind === 'faces') floor.visible = false;
   const cam = R.camera;
   if (kind === 'lineup') {
     const named = !view || flat, crowdRow = view === 'crowd' || flat;
     if (named) CAST_ORDER.forEach((id, i) => {
       const c = makeCharacter(id);
-      c.mesh.position.set((i - 3) * 1.25, 0, flat ? 1.2 : 0);
+      c.mesh.position.set(flat ? -9.2 + i * 1.02 : (i - 3) * 1.25, 0, 0);
       c.mesh.rotation.y = -(i - 3) * 0.07;
       c.mesh.layers.enable(1);
       R.scene.add(c.mesh); show.chars.push(c);
@@ -45,12 +46,14 @@ export function initShowcase(kind, q) {
     if (crowdRow) {
       show.crowd = makeCrowd(CROWD_ORDER);
       R.scene.add(show.crowd.root);
-      CROWD_ORDER.forEach((kind2, i) => show.people.push({ kind: kind2, x: (i - 6) * (flat ? 0.95 : 1.05), z: flat ? -1.2 : 0, h: kind2 === 'scooterElder' || kind2 === 'strollerMom' || kind2 === 'walkerGranny' ? 0.6 : 0, state: 0, t: 0, phase: 0, speed: 0,
+      CROWD_ORDER.forEach((kind2, i) => show.people.push({ kind: kind2, x: flat ? -1.9 + i * 0.95 : (i - 6) * 1.05, z: 0, h: kind2 === 'scooterElder' || kind2 === 'strollerMom' || kind2 === 'walkerGranny' ? 0.6 : 0, state: 0, t: 0, phase: 0, speed: 0,
         style: [2, 2, 1, 3, 3, 0, 1, 0, 0, 1, 3, 0, 2][i], cloth: CROWD_COLORS.cloth[i % 6], pants: CROWD_COLORS.pants[i % 5], hair: CROWD_COLORS.hair[i % 6], seed: i * 1.7, angry: 0 }));
     }
-    if (flat) { cam.position.set(0, 2.6, 12.5); cam.lookAt(0, 0.95, 0); cam.fov = 40; }
+    const fi = CAST_ORDER.indexOf(q.get('focus'));
+    if (fi >= 0) { const x = (fi - 3) * 1.25, hh = CAST[CAST_ORDER[fi]].h; cam.position.set(x + 0.6, hh * 0.62, hh * 1.55 + 0.4); cam.lookAt(x, hh * 0.55, 0); cam.fov = 40; }
+    else if (flat) { cam.position.set(0, 1.2, 19); cam.lookAt(0, 0.9, 0); cam.fov = 26; }
     else if (view === 'crowd') { cam.position.set(0, 1.5, 10.5); cam.lookAt(0, 0.95, 0); cam.fov = 44; }
-    else { cam.position.set(0, 1.35, 9.2); cam.lookAt(0, 1.0, 0); cam.fov = 40; }
+    else { cam.position.set(0, 1.25, 6.7); cam.lookAt(0, 0.98, 0); cam.fov = 38; }
     cam.updateProjectionMatrix();
   } else if (kind === 'faces') {
     const small = q.has('small'), cell = 0.62;
@@ -68,7 +71,7 @@ export function initShowcase(kind, q) {
   }
   show.update = (dt) => {
     show.t += dt; R.clock = show.t;
-    if (!show.static) for (const c of show.chars) animate(c.rig, { mode: 'stand', speed: 0, look: [0, 1.2, 8] }, dt);
+    if (!show.static) for (const c of show.chars) animate(c.rig, { mode: 'show', speed: 0 }, dt);
     if (show.crowd) {
       for (const p of show.people) p.pose = crowdPose(p, show.t);
       syncCrowd(show.crowd, show.people, null);

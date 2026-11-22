@@ -162,6 +162,16 @@ const POSES = {
   taunt: { face: EXPR.happy, bones: { armR: [-1.6, 0.6, -0.2], foreR: [-0.1, 0, 0], chest: [-0.15, -0.3, 0], head: [-0.1, -0.6, 0.2] }, laugh: 1 },
 };
 const POSE_OF = (rig, kind) => POSES[rig.look[kind]] || POSES.trophy;
+// The lineup: each character strikes an attitude. hands = wrist targets in character space.
+const SHOW = {
+  penny: { face: EXPR.happy, hands: { L: [0.19, 0.64, 0.03], R: [-0.19, 0.64, 0.03] }, bones: { chest: [-0.06, 0.1, 0], head: [0.02, -0.18, -0.1], hips: [0, -0.08, 0] } },
+  granny: { face: EXPR.angry, hands: { R: [-0.3, 0.92, 0.12] }, bones: { head: [-0.05, -0.15, 0.08] }, shake: 'foreR' },
+  dad: { face: EXPR.smug, hands: { L: [0.17, 1.02, 0.02], R: [-0.17, 1.02, 0.02] }, bones: { chest: [-0.14, 0, 0], head: [-0.1, 0.12, 0] } },
+  queen: { face: EXPR.happy, hands: { R: [-0.44, 1.18, 0.2], L: [0.42, 1.02, 0.22] }, bones: { head: [-0.08, 0.18, 0.05], chest: [0, 0.15, 0] } },
+  selfie: { face: EXPR.happy, hands: { R: [-0.38, 1.38, 0.26], L: [0.3, 1.12, 0.2] }, bones: { head: [-0.05, -0.32, 0.22], chest: [0, -0.12, 0] } },
+  bubba: { face: EXPR.happy, hands: { R: [-0.6, 1.48, 0.22], L: [0.2, 1.08, 0.44] }, bones: { head: [-0.12, 0, 0], hips: [-0.08, 0, 0] } },
+  gramps: { face: EXPR.smug, hands: { R: [-0.16, 0.98, 0.34], L: [0.17, 0.72, 0.06] }, bones: { head: [0.02, -0.2, 0.08], chest: [0.05, 0, 0] } },
+};
 
 // ---- animation --------------------------------------------------------------------------------------------
 // s: { mode ('push' | 'stand' | 'count' | 'victory' | 'defeat' | 'taunt' | 'tumble'), speed, accel, yaw (rate),
@@ -174,7 +184,7 @@ export function animate(rig, s, dt, rootM) {
   rig.q.fill(0); for (let b = 0; b < rig.nb; b++) rig.q[b * 4 + 3] = 1;
   rig.off.fill(0); rig.sc.fill(1);
   const spd = Math.max(0, s.speed || 0), legLen = L.leg.len[0] + L.leg.len[1], fast = clamp(spd / 12, 0, 1.4);
-  const posed = mode === 'victory' || mode === 'defeat' || mode === 'taunt';
+  const posed = mode === 'victory' || mode === 'defeat' || mode === 'taunt' || mode === 'show';
   // riding: on the cart's rear bar at a boost, a dash or in the air
   const rideT = !posed && mode === 'push' && (s.boost || (s.dash >= 0 && s.dash < 0.45) || s.air > 0 || s.seat) ? 1 : 0;
   rig.ride += (rideT - rig.ride) * (1 - Math.exp(-dt * 10));
@@ -227,7 +237,7 @@ export function animate(rig, s, dt, rootM) {
   // the idle fidget of the countdown and the lineup
   if (mode === 'count' || mode === 'stand') fidget(rig, s, t, k);
   // poses at the checkout and when overtaking
-  if (posed) applyPose(rig, mode === 'victory' ? POSE_OF(rig, 'victory') : mode === 'defeat' ? POSE_OF(rig, 'defeat') : POSES.taunt, t, k);
+  if (posed) applyPose(rig, mode === 'show' ? SHOW[rig.id] || SHOW.penny : mode === 'victory' ? POSE_OF(rig, 'victory') : mode === 'defeat' ? POSE_OF(rig, 'defeat') : POSES.taunt, t, mode === 'show' ? 1 : k);
   else rig.poseK = 0;
   // tumble: thrown out of the cart, limbs flailing
   if (mode === 'tumble') {
@@ -246,6 +256,8 @@ export function animate(rig, s, dt, rootM) {
     for (const side of [1, -1]) { const ar = side > 0 ? B_.armL : B_.armR, fo = side > 0 ? B_.foreL : B_.foreR; go(rig, ar, Math.sin(t * 2 + side) * 0.05, 0, side * 0.08, k); go(rig, fo, -0.25, 0, 0, k); }
   }
   if (mode === 'stand' || mode === 'count') fidgetArms(rig, s, t, k, hold, rootM);
+  const P = posed && (mode === 'show' ? SHOW[rig.id] : null);
+  if (P && P.hands) { for (const [side, key] of [[1, 'L'], [-1, 'R']]) if (P.hands[key]) reach(rig, side, P.hands[key], rootM); if (P.shake) { const b = B_[P.shake], q = rig.q, w = Math.sin(t * 26) * 0.18, c = Math.cos(w / 2), sn = Math.sin(w / 2), o = b * 4; const x = q[o], y = q[o + 1], z = q[o + 2], ww = q[o + 3]; q[o] = ww * sn + x * c; q[o + 1] = y * c + z * sn; q[o + 2] = z * c - y * sn; q[o + 3] = ww * c - x * sn; } }
   // props shown only in a pose (Penny's receipt)
   // face: an event face wins for a moment, otherwise blink now and then
   let e = s.expr !== undefined && s.expr !== null ? s.expr : rig.poseFace !== undefined && posed ? rig.poseFace : s.stun > 0 ? EXPR.dizzy : EXPR.neutral;

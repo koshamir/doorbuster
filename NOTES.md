@@ -1,8 +1,8 @@
 ## STATUS (at most 10 lines)
 Phase: P1 LOOK (prompts/P1_LOOK.md) — in progress
-Done: v2 tagged; housekeeping; hosted three.js in lib/
-Next: tools (check, shots), then rendering item 1
-Open problems: none yet
+Done: housekeeping; tools; item 1 rendering (render.js); item 2 first pass (atlas, cast, figure, rig, crowd, showcase)
+Next: item 2 polish (proportions, hair, triangle budget, crowd charm), then item 3 cart (cartart.js)
+Open problems: characters ~2x over the 7k triangle budget; crowd figures plain; models.js still used for cart/goods/kit
 
 ## Owner feedback (verbatim, latest first, last 3 rounds)
 

@@ -144,7 +144,8 @@ export function cyl(B, r0, r1, h, color, o = {}) {
 // A super-ellipsoid centred on the current origin: radii rx, ry, rz; e1 shapes the profile (north-south),
 // e2 the cross-section (1 = round, < 1 boxier, > 1 pinched). o: seg (24), rings (16), uv: 'face' (planar
 // projection onto the front, x and y over the half sizes fw, fh) or 'sphere'; tex for the faced part
-// (o.faceTex, used where z > o.faceZ * rz); colorAt(x, y, z) -> colour override; cut (stop at this ring share).
+// (o.faceTex, used where z > o.faceZ * rz); colorAt(x, y, z) -> colour override (local); keep(x, y, z) -> false drops a quad (model space);
+// warp(p) -> p reshapes the surface; cut (stop at this ring share).
 export function ellipsoid(B, rx, ry, rz, color, o = {}) {
   const seg = o.seg || 24, rings = o.rings || 16, e1 = o.e1 || 1, e2 = o.e2 || 1, c0 = colOf(color);
   const sp = (v, e) => Math.sign(v) * Math.pow(Math.abs(v), e);
@@ -166,7 +167,8 @@ export function ellipsoid(B, rx, ry, rz, color, o = {}) {
   }
   for (let i = 0; i < last; i++) for (let j = 0; j < seg; j++) {
     const q = [grid[i][j], grid[i][j + 1], grid[i + 1][j + 1], grid[i + 1][j]];
-    if (o.keep) { const cx = (q[0].p[0] + q[2].p[0]) / 2, cy = (q[0].p[1] + q[2].p[1]) / 2, cz = (q[0].p[2] + q[2].p[2]) / 2; if (!o.keep(cx, cy, cz)) continue; }
+    if (o.keep) { const m = B.m, px = (q[0].p[0] + q[2].p[0]) / 2, py = (q[0].p[1] + q[2].p[1]) / 2, pz = (q[0].p[2] + q[2].p[2]) / 2;
+      if (!o.keep(m[0] * px + m[1] * py + m[2] * pz + m[3], m[4] * px + m[5] * py + m[6] * pz + m[7], m[8] * px + m[9] * py + m[10] * pz + m[11])) continue; }
     for (const tri of [[0, 1, 2], [0, 2, 3]]) {
       const vs = tri.map((k) => q[k]);
       const face = o.uv === 'face' && vs.every((v) => v.p[2] > (o.faceZ || 0) * rz);
@@ -319,7 +321,7 @@ export function clump(B, a, b, e, w, color, o = {}) {
   }
   const tip = o.tip === undefined ? 0.15 : o.tip;
   return tube(B, pts, (t) => w * (tip + (1 - tip) * Math.pow(Math.sin(Math.min(1, (1 - t) * 1.15) * Math.PI / 2), 0.7)) * (t < 0.08 ? 0.75 + t * 3 : 1), color,
-    { seg: o.seg || 7, flat: o.flat || [1, 0.55], caps: 'round', capRings: 2, up: o.up, tex: o.tex });
+    { seg: o.seg || 6, flat: o.flat || [1, 0.55], caps: 'round', capRings: 2, up: o.up, tex: o.tex });
 }
 
 // A flat ring (torus-like band) in the xy plane: radii rx, ry, thickness t, depth d (glasses frames, hoops).
