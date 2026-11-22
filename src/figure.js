@@ -348,7 +348,7 @@ export function crowdFigure(B, kind, far) {
   bind(B, CPART.body, sl(2), null);
   at(B, 0, hipY - 0.02, 0); ellipsoid(B, bw * 0.95, 0.09, bw * bd, W, { seg, rings: 6 });
   if (K.apron) { bind(B, CPART.body, sl(0), null); at(B, 0, hipY - 0.12, bw * bd * 0.85); box(B, bw * 1.5, (top - hipY) * 0.85, 0.02, 0xFF5A4E, { bevel: 0.3 }); }
-  if (K.hood) { bind(B, CPART.body, sl(1), null); at(B, 0, 0, 0); const pts = []; for (let i = 0; i <= 6; i++) { const a = -1.2 + i / 6 * 2.4; pts.push([Math.sin(a) * bw * 0.7, top - 0.01, -Math.cos(a) * bw * 0.55]); } tube(B, pts, 0.05, W, { seg: 6, caps: 'round' }); }
+  if (K.hood) { bind(B, CPART.head, sl(1), null); at(B, 0, shY + headR * 0.95, -headR * 0.06); ellipsoid(B, headR * 1.16, headR * 1.12, headR * 1.12, W, { seg: far ? 10 : 16, rings: far ? 7 : 10, keep: (x, y, z) => !(z > headR * 0.35 && y < shY + headR * 1.5) }); bind(B, CPART.body, sl(1), null); at(B, 0, 0, 0); const pts = []; for (let i = 0; i <= 6; i++) { const a = -1.2 + i / 6 * 2.4; pts.push([Math.sin(a) * bw * 0.7, top - 0.01, -Math.cos(a) * bw * 0.55]); } tube(B, pts, 0.05, W, { seg: 6, caps: 'round' }); }
   // head
   bind(B, CPART.head, sl(3), null);
   const hy = K.build === 'mascot' ? h * 0.92 + headR * 0.3 : shY + headR * 0.95;
@@ -394,7 +394,7 @@ function crowdHair(B, K, hy, r, far) {
   else if (st === 'long') for (const s of [1, -1]) clump(B, [s * r * 0.8, hy + r * 0.4, -r * 0.2], [s * r * 1.1, hy - r * 0.3, -r * 0.3], [s * r * 0.95, hy - r * 1.2, -r * 0.4], r * 0.4, 0xFFFFFF, { tip: 0.3 });
   else if (st === 'tuft') clump(B, [0, hy + r * 0.9, 0], [0.02, hy + r * 1.3, 0.05], [-0.04, hy + r * 1.4, -0.06], r * 0.18, 0xFFFFFF, { tip: 0.2 });
   else if (st === 'fringe' || st === 'messy') for (let i = 0; i < 4; i++) { const x = (i - 1.5) * r * 0.35; clump(B, [x, hy + r * 0.8, r * 0.45], [x + 0.03, hy + r * 0.85, r * 0.95], [x + 0.05, hy + r * 0.45, r * 1.02], r * 0.2, 0xFFFFFF, { tip: 0.2 }); }
-  else if (st === 'band') { bind(B, CPART.head, [0, 0, 0, 0], null); at(B, 0, hy + r * 0.45, 0); lathe(B, [[r * 1.08, -0.025], [r * 1.1, 0], [r * 1.08, 0.025]], 0xFF5A4E, { seg: 14 }); }
+  else if (st === 'band') { clump(B, [0, hy + r * 0.6, -r * 0.85], [0, hy + r * 0.35, -r * 1.4], [0, hy - r * 0.3, -r * 1.5], r * 0.3, 0xFFFFFF, { tip: 0.25 }); bind(B, CPART.head, [0, 0, 0, 0], null); at(B, 0, hy + r * 0.45, 0); lathe(B, [[r * 1.08, -0.025], [r * 1.1, 0], [r * 1.08, 0.025]], 0xFF5A4E, { seg: 14 }); }
   else if (st === 'cap') { bind(B, CPART.head, [0, 0, 0, 0], null); at(B, 0, hy + r * 0.35, 0); ellipsoid(B, r * 1.1, r * 0.75, r * 1.1, 0x5A7A9A, { seg: 14, rings: 8, keep: (x, y) => y > hy + r * 0.38 }); at(B, 0, hy + r * 0.45, r * 0.95, 0, 0.15); box(B, r * 1.3, 0.02, r * 0.8, 0x5A7A9A, { bevel: 0.5 }); }
 }
 function crowdProp(B, K, pv, hipY, shY, far) {
@@ -418,7 +418,8 @@ function crowdProp(B, K, pv, hipY, shY, far) {
   else if (p === 'bottle') { at(B, handR[0], handR[1] + 0.03, 0.08); cyl(B, 0.035, 0.035, 0.18, 0x7CC6FE, { seg: 10, top: 0xFF5A4E }); }
   else if (p === 'hotdog') { at(B, handR[0], handR[1] + 0.08, 0.1, 0, 0, 0.3); ellipsoid(B, 0.12, 0.035, 0.04, 0xE8A85C, { seg: 10, rings: 6 }); at(B, handR[0], handR[1] + 0.1, 0.1, 0, 0, 0.3); ellipsoid(B, 0.13, 0.022, 0.025, 0xD9542C, { seg: 8, rings: 6 }); }
   else if (p === 'box') { at(B, 0, shY - 0.32, 0.3); box(B, 0.42, 0.32, 0.34, 0xC98A5B, { bevel: 0.08, top: 0xE0A878 }); }
-  else if (p === 'bags') for (const [x, c] of [[0.3, 0xFF8FAB], [0.36, 0xFFD23F], [-0.32, 0x9B5DE5]]) { at(B, x, hipY - 0.2, 0.05, x); box(B, 0.2, 0.24, 0.08, c, { bevel: 0.2 }); at(B, 0, 0, 0); tube(B, [[x - 0.06, hipY + 0.03, 0.05], [x, hipY + 0.12, 0.05], [x + 0.06, hipY + 0.03, 0.05]], 0.008, 0x2A2440, { seg: 4 }); }
+  else if (p === 'bags') { const hr = K.h / 3.15 / 2, hatY = shY + hr * 1.62; bind(B, CPART.head, [0, 0, 0.2, 0], null); at(B, 0, hatY, -0.02, 0, -0.1); cyl(B, hr * 1.7, hr * 1.7, 0.025, 0xE9B949, { seg: 18 }); at(B, 0, hatY, -0.02, 0, -0.1); ellipsoid(B, hr * 0.85, hr * 0.55, hr * 0.85, 0xE9B949, { seg: 12, rings: 6, keep: (x, y) => y > hatY - 0.01 }); bind(B, CPART.prop, [0, 0, 0, 0], null); at(B, 0, 0, 0); }
+  if (p === 'bags') for (const [x, c] of [[0.3, 0xFF8FAB], [0.36, 0xFFD23F], [-0.32, 0x9B5DE5]]) { at(B, x, hipY - 0.2, 0.05, x); box(B, 0.2, 0.24, 0.08, c, { bevel: 0.2 }); at(B, 0, 0, 0); tube(B, [[x - 0.06, hipY + 0.03, 0.05], [x, hipY + 0.12, 0.05], [x + 0.06, hipY + 0.03, 0.05]], 0.008, 0x2A2440, { seg: 4 }); }
   else if (p === 'headset') { bind(B, CPART.head, [0, 0, 0, 0], null); const hy = shY + 0.2; for (const s of [1, -1]) { at(B, s * 0.2, hy, 0, 0, 0, Math.PI / 2); cyl(B, 0.07, 0.07, 0.05, 0x2EC4B6, { seg: 12, mid: true, top: 0x2A2440 }); } at(B, 0, 0, 0); tube(B, [[-0.2, hy + 0.02, 0], [-0.12, hy + 0.2, 0], [0.12, hy + 0.2, 0], [0.2, hy + 0.02, 0]], 0.02, 0x2A2440, { seg: 6 }); }
   else if (p === 'scooter') {
     at(B, 0, 0.18, 0.15); box(B, 0.62, 0.14, 1.15, 0x7CC6FE, { bevel: 0.35, top: 0x5AA6DE });

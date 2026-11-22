@@ -57,7 +57,7 @@ export function initShowcase(kind, q) {
     }
     const fi = CAST_ORDER.indexOf(q.get('focus'));
     if (fi >= 0) { const x = (fi - 3) * 1.25, hh = CAST[CAST_ORDER[fi]].h; cam.position.set(x + 0.6, hh * 0.62, hh * 1.55 + 0.4); cam.lookAt(x, hh * 0.55, 0); cam.fov = 40; }
-    else if (flat) { cam.position.set(0, 1.2, 19); cam.lookAt(0, 0.9, 0); cam.fov = 26; }
+    else if (flat) { cam.position.set(0.2, 1.2, 19); cam.lookAt(0.2, 0.9, 0); cam.fov = 34; }
     else if (view === 'crowd') { cam.position.set(0, 1.5, 10.5); cam.lookAt(0, 0.95, 0); cam.fov = 44; }
     else { cam.position.set(0, 1.25, 6.7); cam.lookAt(0, 0.98, 0); cam.fov = 38; }
     cam.updateProjectionMatrix();
