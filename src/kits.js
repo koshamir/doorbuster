@@ -18,7 +18,7 @@ export const KITS = {
     shelves: { S: 'gondola', M: 'produce', L: 'freezer' }, fixture: { body: 0xFFF6EA, accent: 0x8EE3C8, trim: 0xFF5A4E, dark: 0x3D2C5E },
     floor: { a: 0xFFF3E2, b: 0xA9EBD5, grout: 0xD9CBB6, checker: 1, paint: 0xFF5A4E, arrow: 0xFFFFFF, vary: 0.035, wet: 0x7CC6FE },
     walls: { face: 0xFFF6EA, band: 0x8EE3C8, stripe: 0xFF5A4E, top: 0x6E5C96, base: 0xE3D3BD },
-    pools: { grid: 10, r: 2.9, warm: [1.0, 0.94, 0.78], k: 0.09 },
+    pools: { grid: 10, r: 2.9, warm: [1.0, 0.94, 0.78], k: 0.12 },
     grade: { shade: [0.66, 0.6, 0.82], key: [1, 0.96, 0.86], light: [0.42, 0.8, 0.43], sat: 1.06, contrast: 1.04, lift: [0.012, 0.0, 0.03], gain: [1, 0.99, 0.97], vignette: 0.2, bloom: 1, halftone: 0.16 },
     void: 0x2A2240,
     hot: 'cheese',

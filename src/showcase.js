@@ -53,7 +53,7 @@ export function initShowcase(kind, q) {
       show.crowd = makeCrowd(CROWD_ORDER);
       R.scene.add(show.crowd.root);
       CROWD_ORDER.forEach((kind2, i) => show.people.push({ kind: kind2, x: flat ? -1.9 + i * 0.95 : (i - 6) * 1.05, z: 0, h: kind2 === 'scooterElder' || kind2 === 'strollerMom' || kind2 === 'walkerGranny' ? 0.6 : 0, state: 0, t: 0, phase: 0, speed: 0,
-        style: [2, 2, 1, 3, 3, 0, 1, 0, 0, 1, 3, 0, 2][i], cloth: CROWD_COLORS.cloth[i % 6], pants: CROWD_COLORS.pants[i % 5], hair: CROWD_COLORS.hair[i % 6], seed: i * 1.7, angry: 0 }));
+        style: [2, 2, 1, 3, 3, 0, 1, 0, 0, 1, 3, 0, 2][i], cloth: CROWD_COLORS.cloth[(i * 3) % CROWD_COLORS.cloth.length], pants: CROWD_COLORS.pants[i % 5], hair: CROWD_COLORS.hair[i % 6], seed: i * 1.7, angry: 0 }));
     }
     const fi = CAST_ORDER.indexOf(q.get('focus'));
     if (fi >= 0) { const x = (fi - 3) * 1.25, hh = CAST[CAST_ORDER[fi]].h; cam.position.set(x + 0.6, hh * 0.62, hh * 1.55 + 0.4); cam.lookAt(x, hh * 0.55, 0); cam.fov = 40; }
@@ -231,7 +231,7 @@ export function makeTitle(kit, ids) {
   for (let i = 0; i < 16; i++) {
     const kind = kit.crowd[i % kit.crowd.length];
     show.people.push({ kind, x: -7 + (i % 8) * 2 + (i > 7 ? 1 : 0), z: -5.2 - (i > 7 ? 1.6 : 0) - (i % 3) * 0.3, h: (i % 5 - 2) * 0.12, state: 0, t: 0, phase: i, speed: 0, angry: 0,
-      style: [0, 1, 3, 2][i % 4], cloth: CROWD_COLORS.cloth[i % 6], pants: CROWD_COLORS.pants[i % 5], hair: CROWD_COLORS.hair[(i * 3) % 6], seed: i * 1.3, scale: 1 });
+      style: [0, 1, 3, 2][i % 4], cloth: CROWD_COLORS.cloth[(i * 3) % CROWD_COLORS.cloth.length], pants: CROWD_COLORS.pants[i % 5], hair: CROWD_COLORS.hair[(i * 3) % 6], seed: i * 1.3, scale: 1 });
   }
   R.renderer.setClearColor(0x1B1735, 0);
   setGrade(kit.grade);

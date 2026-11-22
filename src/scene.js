@@ -380,7 +380,7 @@ function syncShoppers(view, sim, dt) {
     let q = view.people[i];
     if (!q) {
       const kind = view.crowdKinds[(i * 7 + 3) % view.crowdKinds.length], f = CROWD[kind].face;
-      q = view.people[i] = { kind, style: f === 2 ? 2 : [0, 1, 3][i % 3], cloth: CROWD_COLORS.cloth[(i * 5) % 6], pants: CROWD_COLORS.pants[(i * 3) % 5], hair: CROWD_COLORS.hair[(i * 7 + 1) % 6], seed: i * 1.7, phase: i, scale: 0.96 + (i % 5) * 0.02, pose: {} };
+      q = view.people[i] = { kind, style: f === 2 ? 2 : [0, 1, 3][i % 3], cloth: CROWD_COLORS.cloth[(i * 7) % CROWD_COLORS.cloth.length], pants: CROWD_COLORS.pants[(i * 3) % 5], hair: CROWD_COLORS.hair[(i * 7 + 1) % 6], seed: i * 1.7, phase: i, scale: 0.96 + (i % 5) * 0.02, pose: {} };
     }
     const sp = Math.hypot(s.vx, s.vz);
     q.phase += sp / 1.15 * Math.PI * 2 * dt;
