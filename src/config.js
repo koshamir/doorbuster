@@ -8,8 +8,8 @@
 
 // ---- Tune values. tune.json must list the same names; these are the in-code defaults. ----------
 export const TUNE = {
-  maxspeed: 12, accel: 14, brake: 20, turnrate: 3, turnattop: 0.55, grip: 20, driftgrip: 3.5,
-  driftturn: 1.15, turbopower: 1.4, dashspeed: 6, dashcooldown: 1.5,
+  maxspeed: 12, accel: 14, brake: 20, turnrate: 3, turnattop: 0.5, grip: 20, driftgrip: 3.5,
+  driftturn: 1.35, turbopower: 1.4, dashspeed: 6, dashcooldown: 1.5,
   loadfull: 30, loadfree: 0.3, loadaccel: 0.55, loadbrake: 0.3, loadtop: 0.1, loadturn: 0.2,
   overstack: 1.5, spillmax: 0.4, recollect: 4, sweepgap: 0.6, magnet: 0.9,
   madnessfill: 1, madnessdrain: 1, madnesstime: 6, ramdrop: 0.3, immunity: 1.5,
@@ -29,7 +29,9 @@ export function applyTune(values) {
 export const CFG = {
   STEP: 1 / 120,          // fixed simulation step, seconds
   TILE: 2,                // metres per plan character
-  CART_R: 0.6,            // cart collision radius, metres
+  CART_R: 0.6,            // nominal cart radius (pickup reach, bot clearance), metres
+  noseAt: 0.28, noseR: 0.56,   // the cart collides as two circles: the nose (basket and bumper)...
+  tailAt: -0.75, tailR: 0.5,   // ...and the tail (the shopper); offsets are along the heading
   WALL_H: 2.4,            // wall height, metres (kept low so the high camera sees over it)
   // steering and speed
   steerRise: 9,           // how fast the steering input builds, 1/s
@@ -40,8 +42,8 @@ export const CFG = {
   dashSettle: 22,         // the same right after a dash, so the lunge is a lunge and not a cruise
   // drift and boost
   driftMinSpeed: 0.4,     // share of top speed needed to start or keep a drift
-  driftTiers: [0.6, 1.2, 2.0],   // seconds of drift for spark tiers 1..3
-  driftRange: [0.53, 1.0], // yaw multiplier when steering out of / into the drift (1 = driftturn in full)
+  driftTiers: [0.5, 1.0, 1.7],   // seconds of drift for spark tiers 1..3
+  driftRange: [0.32, 1.0], // yaw multiplier when steering out of / into the drift (1 = driftturn in full)
   driftKick: 10,          // how fast the body swings out to its drift angle and back, 1/s
   driftStraight: 0.18,    // seconds the body takes to swing back onto its path after a drift
   driftScrub: 0.35,       // speed bled per second at full slip, 1/s
@@ -50,16 +52,18 @@ export const CFG = {
   boostAccel: 2.5,        // acceleration multiplier while boosting
   // dash
   dashTime: 0.33, dashBuffer: 0.15, dashSteer: 0.5, dashReach: 0.35,
-  dashSag: 0.75,          // top speed share for a moment after a dash that hit nothing
-  dashSagTime: 0.8,       // how long that lasts, seconds
+  dashSag: 0.82,          // top speed share for a moment after a dash that hit nothing
+  dashSagTime: 0.7,       // how long that lasts, seconds
   // walls
   wallBounce: 0.15, wallFriction: 0.25, wallAlign: 9,
+  wallTurn: 6,            // fastest the body turns to follow a surface, rad/s
+  slideKeep: 0.6,         // a slide along a wall keeps at least this share of the speed
   wallPeel: 0.5,          // how fast a rubbing cart turns away from the surface, rad/s
   scrapeDrag: 0.4,        // share of speed lost per second while rubbing a wall or shelf
   crashSpeed: 6.5,        // speed into a wall (along its normal) that counts as a crash, m/s
-  crashCos: 0.72,         // and the hit must be this head-on (cos of the angle to the normal)
+  crashCos: 0.85,         // and the hit must be this head-on (cos of the angle to the normal: within about 32 degrees)
   crashKeep: 0.55,        // share of speed a crash keeps, redirected along the surface
-  crashWhip: 14,          // how fast the nose swings round after a crash, rad/s
+  crashWhip: 8,           // how fast the nose swings round after a crash, rad/s
   crashStun: 0.4,         // seconds of lost control after a crash
   stunGrip: 3,            // side grip while spinning or stunned
   wetGrip: 1.2,           // side grip on a wet floor

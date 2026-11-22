@@ -1,23 +1,23 @@
 == node tools/check.mjs
   108  index.html
   138  src\ai.js
-  319  src\cart.js
-  165  src\config.js
-  182  src\fx.js
-  241  src\gfx.js
+  356  src\cart.js
+  169  src\config.js
+  185  src\fx.js
+  246  src\gfx.js
   103  src\levels.js
-  248  src\main.js
-  202  src\models.js
+  249  src\main.js
+  203  src\models.js
   133  src\platform.js
   232  src\scene.js
-  258  src\sim.js
+  266  src\sim.js
   217  src\ui.js
   406  src\world.js
-shipped: 14 files, 2952 lines (limit 15 files / 8000 lines, target about 6000)
+shipped: 14 files, 3011 lines (limit 15 files / 8000 lines, target about 6000)
 tune.json: 38 entries (limit 40)
 level 0 "gauntlet": 46x22 tiles, route 266 m, timer 90 s, goods 130 units (4.3 carts)
 level 1 "doors": 39x41 tiles, route 415 m, timer 75 s, goods 160 units (5.3 carts)
-size without three.js: 153 KB (limit 1536 KB)
+size without three.js: 157 KB (limit 1536 KB)
 
 all checks pass
 
@@ -26,149 +26,163 @@ all checks pass
 Level 0 "GAUNTLET" — 30 runs per bot, timer 90 s, route 266 m
   bot                    finish  time   slowest  of timer  spare s (worst)  avg m/s  near-zero  longest standstill s  max no-control s  stuck/run  crashes/run
   ---------------------  ------  -----  -------  --------  ---------------  -------  ---------  --------------------  ----------------  ---------  -----------
-  beginner               100%    29.81  30.45    33%       59.55            8.07     0%         0.22                  0                 0          0          
-  confident              100%    23.81  24.22    26%       65.78            10.09    0%         0.07                  0                 0          0          
-  expert                 100%    22.72  22.98    25%       67.02            10.39    0%         0.07                  0                 0          0          
-  sloppy                 100%    24.24  31.35    27%       58.65            10.71    1%         0.32                  0.40              0.30       0.73       
-  expert, no collecting  100%    21.27  21.27    24%       68.73            11.31    0%         0.07                  0                 0          0          
+  beginner               100%    29.82  30.30    33%       59.70            8.08     0%         0.07                  0                 0          0          
+  confident              100%    23.66  24.22    26%       65.78            10.15    0%         0.07                  0                 0          0          
+  expert                 100%    22.76  22.97    25%       67.03            10.40    0%         0.07                  0                 0          0          
+  sloppy                 100%    24.04  33.06    27%       56.94            10.82    1%         0.36                  0.40              0.07       0.67       
+  expert, no collecting  100%    21.18  21.18    24%       68.82            11.36    0%         0.07                  0                 0          0          
 
   obstacles — clean passes (no crash, no stuck) and median seconds for the stretch
   bot                    slalom     doorway    hairpin right  aisle      notch      shelf end  hairpin left  chicane    checkout 
   ---------------------  ---------  ---------  -------------  ---------  ---------  ---------  ------------  ---------  ---------
-  beginner               100% 7.7s  100% 1.4s  100% 1.7s      100% 2.9s  100% 1.2s  100% 2.1s  100% 3.1s     100% 4.1s  100% 4.6s
-  confident              100% 6.2s  100% 1.3s  100% 1.6s      100% 2.0s  100% 0.9s  100% 1.6s  100% 2.7s     100% 3.3s  100% 3.6s
-  expert                 100% 5.7s  100% 1.3s  100% 1.6s      100% 1.9s  100% 0.9s  100% 1.5s  100% 2.6s     100% 3.2s  100% 3.3s
-  sloppy                 90% 6.0s   70% 1.1s   100% 1.6s      100% 1.9s  87% 0.9s   97% 1.5s   100% 2.9s     83% 2.8s   100% 3.3s
-  expert, no collecting  100% 5.7s  100% 1.3s  100% 1.6s      100% 1.9s  100% 0.8s  100% 1.4s  100% 2.4s     100% 2.4s  100% 3.0s
-  logic cost: 1.7 microseconds per step, 0.003 ms per 60 Hz frame (budget 6 ms)
+  beginner               100% 7.7s  100% 1.4s  100% 1.7s      100% 2.9s  100% 1.2s  100% 2.0s  100% 3.2s     100% 4.2s  100% 4.6s
+  confident              100% 6.2s  100% 1.3s  100% 1.6s      100% 1.9s  100% 0.9s  100% 1.6s  100% 2.7s     100% 3.3s  100% 3.6s
+  expert                 100% 5.7s  100% 1.3s  100% 1.7s      100% 1.9s  100% 0.9s  100% 1.5s  100% 2.6s     100% 3.2s  100% 3.3s
+  sloppy                 93% 6.0s   70% 1.1s   100% 1.6s      97% 1.7s   97% 0.8s   100% 1.6s  100% 2.9s     97% 2.7s   100% 3.4s
+  expert, no collecting  100% 5.7s  100% 1.3s  100% 1.7s      100% 1.9s  100% 0.8s  100% 1.4s  100% 2.4s     100% 2.3s  100% 2.9s
+  logic cost: 1.8 microseconds per step, 0.004 ms per 60 Hz frame (budget 6 ms)
 
   receipts and loot
   bot                    median $  best $  items $  time $  stunts $  list done  taken  spilled  load x full  first shelf avg  first shelf min
   ---------------------  --------  ------  -------  ------  --------  ---------  -----  -------  -----------  ---------------  ---------------
-  beginner               1262      1369    302.80   897.50  43.33     0%         27.73  0        1.07         15.57            5              
-  confident              1355      1444    311.30   987.50  50        0%         27.17  0        1.08         14.27            1              
-  expert                 1373      1474    328.17   1005    65        0%         28.20  0        1.13         14.80            2              
-  sloppy                 1209      1414    225.73   979.50  16.67     0%         24.97  2.47     0.84         11.97            2              
-  expert, no collecting  1072      1100    61.33    1020    0         0%         8.03   0        0.27         4.03             3              
+  beginner               1263      1369    306.93   896     45        0%         27.83  0        1.08         14.53            4              
+  confident              1360      1447    305.77   989     46.67     0%         27.03  0        1.07         12.83            1              
+  expert                 1379      1474    323.90   1005    63.33     0%         28.07  0        1.12         13.93            1              
+  sloppy                 1280      1474    266.67   983     26.67     0%         25.50  0.47     0.96         13.07            1              
+  expert, no collecting  1080      1100    64.67    1020    0         0%         8.47   0        0.28         4.47             4              
 
 Level 1 "DOORS OPEN" — 30 runs per bot, timer 75 s, route 415 m
   bot                    finish  time   slowest  of timer  spare s (worst)  avg m/s  near-zero  longest standstill s  max no-control s  stuck/run  crashes/run
   ---------------------  ------  -----  -------  --------  ---------------  -------  ---------  --------------------  ----------------  ---------  -----------
-  beginner               100%    52.24  55.88    70%       19.12            7.59     0%         0.47                  0.40              0.13       0.07       
-  confident              100%    42.63  43.48    57%       31.52            9.12     0%         0.07                  0                 0          0          
-  expert                 100%    41.44  43.71    55%       31.29            9.46     0%         0.07                  0                 0          0          
-  sloppy                 100%    42.23  45.88    56%       29.12            10.09    0%         0.29                  0.40              0          0.33       
-  expert, no collecting  100%    35.93  36.23    48%       38.77            10.76    0%         0.07                  0                 0          0          
+  beginner               100%    52.08  53.11    69%       21.89            7.62     0%         0.16                  0                 0          0          
+  confident              100%    42.68  43.67    57%       31.33            9.13     0%         0.22                  0                 0          0          
+  expert                 100%    41.55  43.32    55%       31.68            9.46     0%         0.07                  0                 0          0          
+  sloppy                 100%    42.56  46.75    57%       28.25            10.02    0%         0.30                  0.40              0.03       0.30       
+  expert, no collecting  100%    35.65  35.90    48%       39.10            10.84    0%         0.07                  0                 0          0          
   logic cost: 1.4 microseconds per step, 0.003 ms per 60 Hz frame (budget 6 ms)
 
   receipts and loot
   bot                    median $  best $  items $  time $  stunts $  list done  taken  spilled  load x full  first shelf avg  first shelf min
   ---------------------  --------  ------  -------  ------  --------  ---------  -----  -------  -----------  ---------------  ---------------
-  beginner               1228      1315    656.33   335     33.33     100%       36.77  0.53     1.47         13.63            7              
-  confident              1401      1467    676.07   476.50  50        100%       39.40  0        1.55         15               15             
-  expert                 1533      1589    807.23   495.50  21.67     100%       37.83  0        1.63         13.57            12             
-  sloppy                 1546      1723    849.37   483.50  20        90%        37.50  2.43     1.63         8.63             1              
-  expert, no collecting  695       762     123.13   581.50  0         0%         11.07  0        0.38         2.60             1              
+  beginner               1227      1292    658.30   335.50  33.33     100%       36.23  0        1.46         13.43            7              
+  confident              1404      1451    673.90   477     50        100%       39.13  0        1.54         15               15             
+  expert                 1529      1589    805.57   493.50  21.67     100%       37.90  0        1.63         13.57            12             
+  sloppy                 1502      1688    799.90   480     25        93%        38.47  2.13     1.61         9                2              
+  expert, no collecting  695       777     123.33   585     0         0%         11.10  0        0.39         2.60             1              
 
 == node tools/script.mjs
 
 Basics — launch, stop, full-lock circle at top speed
   load   top m/s  0-95% s  dist m  stop s  stop m  turn radius m  yaw rad/s  slip deg  speed in turn
   -----  -------  -------  ------  ------  ------  -------------  ---------  --------  -------------
-  empty  12       1.04     6.74    0.61    3.55    7.27           1.65       4.35      12.00        
-  half   11.66    1.20     7.53    0.64    3.67    7.32           1.59       4.20      11.65        
-  full   10.80    2.08     12.08   0.80    4.12    7.56           1.43       3.76      10.80        
+  empty  12       1.04     6.74    0.61    3.55    8.00           1.50       3.95      12.00        
+  half   11.66    1.20     7.53    0.64    3.67    8.01           1.45       3.84      11.65        
+  full   10.80    2.08     12.08   0.80    4.12    8.18           1.32       3.48      10.80        
 
 Drift in the open — steer + drift at top speed, then release (path radius = distance / change of travel direction)
   case                  hold s  tier  slip deg  path radius m  path turned deg  boost peak m/s  boost s
   --------------------  ------  ----  --------  -------------  ---------------  --------------  -------
-  empty, stick in       0.70    1     27.99     7.28           66.05            14.40           0.92   
-  empty, stick in       1.30    2     30.19     6.77           131.78           16.80           1.50   
-  empty, stick in       2.10    3     31.16     6.57           219.41           19.20           2.17   
-  empty, stick neutral  0.70    1     22.00     9.06           53.07            14.40           0.92   
-  empty, stick neutral  1.30    2     23.12     8.63           103.43           16.80           1.50   
-  empty, stick neutral  2.10    3     23.62     8.46           170.57           19.20           1.87   
-  empty, stick out      0.70    1     17.95     10.99          43.74            14.40           0.92   
-  empty, stick out      1.30    2     17.35     11.35          78.66            16.80           1.50   
-  empty, stick out      2.10    3     17.08     11.52          125.22           19.20           2.17   
-  full, stick in        0.70    1     21.95     8.18           52.87            12.96           0.90   
-  full, stick in        1.30    2     23.64     7.61           105.51           15.12           1.45   
-  full, stick in        2.10    3     24.40     7.39           175.71           17.28           1.52   
+  empty, stick in       0.70    1     29.95     6.86           70.07            14.40           0.92   
+  empty, stick in       1.30    2     32.40     6.37           140.17           16.80           1.50   
+  empty, stick in       2.10    3     33.50     6.17           233.65           19.20           2.17   
+  empty, stick neutral  0.70    1     20.66     9.61           50.04            14.40           0.92   
+  empty, stick neutral  1.30    2     21.45     9.26           96.41            16.80           1.50   
+  empty, stick neutral  2.10    3     21.81     9.11           158.25           19.20           2.10   
+  empty, stick out      0.70    1     14.55     13.51          35.59            14.40           0.92   
+  empty, stick out      1.30    2     12.74     15.37          58.11            16.80           1.50   
+  empty, stick out      2.10    3     11.94     16.37          88.12            19.20           2.17   
+  full, stick in        0.70    1     23.40     7.71           56.09            12.96           0.90   
+  full, stick in        1.30    2     25.29     7.16           112.26           15.12           1.45   
+  full, stick in        2.10    3     26.13     6.93           187.15           17.28           1.49   
 
 Drift against geometry — 10 m corridor, turn-in point scanned in 0.5 m steps, drift released when the path points down the exit
   geometry        stick    best tier, no crash  tier 1+ window m  tier 2+ window m  tier 3 window m  no-crash share  speed 1.5 s after exit
   --------------  -------  -------------------  ----------------  ----------------  ---------------  --------------  ----------------------
-  90-degree bend  in       1                    9.50              0                 0                57%             12.00                 
-  90-degree bend  neutral  1                    10.50             0                 0                57%             12.00                 
-  90-degree bend  out      2                    10.50             0.50              0                57%             12.00                 
-  hairpin         in       2                    10.50             10                0                57%             12.00                 
-  hairpin         neutral  2                    10.50             10.50             0                57%             12.00                 
-  hairpin         out      3                    3                 3                 2.50             16%             14.06                 
+  90-degree bend  in       1                    16                0                 0                89%             12.00                 
+  90-degree bend  neutral  3                    18                6                 5.50             100%            13.54                 
+  90-degree bend  out      3                    18                13.50             5                100%            13.95                 
+  hairpin         in       2                    16.50             10.50             0                89%             12.00                 
+  hairpin         neutral  3                    13                12.50             10               70%             14.26                 
+  hairpin         out      3                    9                 9                 9                49%             14.13                 
 
-Dash (a dash that hits nothing sags to 75% top speed for 0.8 s)
+Dash (a dash that hits nothing sags to 82% top speed for 0.7 s)
   case          speed after 1 step  peak m/s  s above top  slowest after  metres gained in 2 s
   ------------  ------------------  --------  -----------  -------------  --------------------
-  from rest     7.80                12        0            7.93           1.34                
-  at top speed  18                  18        0.59         9              0.86                
-  mashing dash for 6 s at top speed: 4 dashes (cooldown 1.5 s), 3.1 m against plain driving (4.3%)
+  from rest     7.80                12        0            7.94           2.32                
+  at top speed  18                  18        0.59         9.84           1.68                
+  mashing dash for 6 s at top speed: 4 dashes (cooldown 1.5 s), 6.7 m against plain driving (9.3%)
 
 Response (one 60 Hz frame = 2 steps)
   throttle: speed 0.117 m/s after 1 step, 0.233 after 2
-  steering at top speed: yaw 0.124 rad/s after 1 step; heading changed 0.177 deg after 2 steps, 1.24 deg after 50 ms; full yaw 1.65 rad/s within 0.25 s
+  steering at top speed: yaw 0.112 rad/s after 1 step; heading changed 0.161 deg after 2 steps, 1.13 deg after 50 ms; full yaw 1.50 rad/s within 0.25 s
   (the visible response on the first frame is the body lean and yaw in scene.js, driven by the raw input)
 
 Walls — hit a wall at an angle to its surface, holding gas, no steering
   load   angle deg  result  speed in  speed +0.5 s  min speed 2 s  near-zero s  s back to 75% top  no-control s
   -----  ---------  ------  --------  ------------  -------------  -----------  -----------------  ------------
-  empty  10         slide   12        12.00         11.13          0            0.06               0           
-  empty  20         slide   12        11.78         9.89           0            0.05               0           
-  empty  30         slide   12        10.75         8.48           0            0.24               0           
-  empty  45         slide   12        10.44         8.04           0            0.31               0           
-  empty  60         CRASH   12        7.74          6.55           0            0.63               0.40        
-  empty  75         CRASH   12        7.70          6.50           0            0.63               0.40        
-  empty  90         CRASH   12        7.49          6.27           0            0.66               0.40        
-  full   45         slide   10.80     7.68          6.75           0            0.60               0           
-  full   90         CRASH   10.80     6.21          5.66           0            0.91               0.40        
+  empty  10         slide   12        11.89         11.08          0            0.06               0           
+  empty  20         slide   12        10.78         9.74           0            0.05               0           
+  empty  30         slide   12        9.73          8.23           0            0.36               0           
+  empty  45         slide   12        9.33          7.74           0            0.44               0           
+  empty  60         slide   12        7.78          5.93           0            0.69               0           
+  empty  75         CRASH   12        7.62          6.43           0            0.64               0.40        
+  empty  90         CRASH   12        7.23          6.08           0            0.68               0.40        
+  full   45         slide   10.80     6.55          6.20           0            0.96               0           
+  full   90         CRASH   10.80     5.88          5.55           0            0.97               0.40        
+
+Walls with the wheel held — moving east and into the north wall; wheel over 0.2 s before the hit, let go 0.3 s after
+  angle deg  steering       result  slowest in 1.5 s  metres east in 1.5 s  afterwards          fastest body turn deg/s
+  ---------  -------------  ------  ----------------  --------------------  ------------------  -----------------------
+  50         into the wall  slide   4.70              12.0                  carried on          224                    
+  50         away from it   slide   99                0.0                   left the wall       0                      
+  65         into the wall  CRASH   6.35              14.0                  carried on          458                    
+  65         away from it   slide   8.16              16.1                  carried on          436                    
+  80         into the wall  CRASH   6.09              13.8                  carried on          458                    
+  80         away from it   slide   6.50              15.3                  carried on          493                    
+  90         into the wall  CRASH   6.38              -14.1                 followed the wheel  458                    
+  90         away from it   CRASH   6.38              14.1                  carried on          458                    
 
 Pinned — gas held, no steering
   case                        load   s to 1 m/s   s to 3 m/s  longest near-zero s  automatic back-outs 
   --------------------------  -----  -----------  ----------  -------------------  --------------------
-  wall, nose-first            empty  0.29         0.47        0.28                 0                   
+  wall, nose-first            empty  0.17         0.44        0.16                 0                   
   inside corner at top speed  empty  slowest 0.0  -           0.12                 0 (crashes 1)       
   notch between two displays  empty  -            -           0.12                 0 (did not get past)
-  wall, nose-first            full   0.36         0.36        0.35                 1                   
-  inside corner at top speed  full   slowest 0.0  -           0.21                 0 (crashes 1)       
-  notch between two displays  full   -            -           0.22                 0 (did not get past)
+  wall, nose-first            full   0.33         0.88        0.32                 0                   
+  inside corner at top speed  full   slowest 2.6  -           0                    0 (crashes 1)       
+  notch between two displays  full   -            -           0                    0 (did not get past)
 
 Outside corner — drive at a wall corner, centre offset from the edge line in metres (negative = more of the cart hits the face)
   offset  crashes  bumps  near-zero s  slowest m/s
   ------  -------  -----  -----------  -----------
   -0.50   1        0      0.07         6.29       
-  -0.25   0        1      0.07         9.34       
-  0       0        1      0.07         9.65       
-  0.25    0        1      0.07         9.24       
-  0.50    0        1      0.07         9.00       
+  -0.25   0        1      0.07         10.35      
+  0       0        1      0.07         10.57      
+  0.25    0        1      0.07         10.24      
+  0.50    0        1      0.07         10.01      
 
 Seams — rubbing along a surface for 4 s while steering slightly into it
   surface           min speed  x reached  crashes
   ----------------  ---------  ---------  -------
-  one wall          11.65      65.86      0      
-  30 counter boxes  11.72      66.02      0      
+  one wall          11.22      67.14      0      
+  30 counter boxes  11.18      67.00      0      
 
-Tunnelling — a 0.3 m wall hit at fixed speeds, 40 start offsets within one step
-  speed m/s  metres per step  touched the wall  stayed in front  deepest overshoot m
-  ---------  ---------------  ----------------  ---------------  -------------------
-  12         0.100            40/40             40/40            0                  
-  18         0.150            40/40             40/40            0                  
-  24         0.200            40/40             40/40            0                  
-  30         0.250            40/40             40/40            0                  
+Tunnelling — a 0.3 m wall (x 59.85 to 60.15) hit at fixed speeds, 40 start offsets within one step
+  speed m/s  metres per step  touched the wall  stayed in front  furthest centre x
+  ---------  ---------------  ----------------  ---------------  -----------------
+  12         0.100            40/40             40/40            59.15            
+  18         0.150            40/40             40/40            59.13            
+  24         0.200            40/40             40/40            59.28            
+  30         0.250            40/40             40/40            59.21            
 
-Gap — straight through two displays at full speed
+Gap — straight at two displays at full speed, no steering (beyond 0.54 m off-centre the cart must touch)
   lateral offset m  gap m  crashes  bumps  result  speed after
   ----------------  -----  -------  -----  ------  -----------
   0                 2.20   0        0      passed  12         
-  0.25              2.20   0        0      passed  12         
-  0.40              2.20   0        0      passed  12         
+  0.30              2.20   0        0      passed  12         
+  0.50              2.20   0        0      passed  12         
+  0.60              2.20   0        1      passed  12.00      
+  0.80              2.20   0        1      passed  12.00      
 
 Sweeping — goods taken from a 20 m shelf while driving parallel to it (sweepgap 0.6 m)
   speed m/s  gap 0 (touching)  gap 0.2  gap 0.4  gap 0.6  gap 0.8  gap 1.0
@@ -182,29 +196,29 @@ Spill — head-on crash at top speed, then driving back over the goods within 4 
   ------------  -------  -----  ------------  ---------  -------
   2             0        0%     0             0          1      
   6             2        33%    2             2          1      
-  20            6        30%    6             6          1      
+  20            6        30%    6             3          2      
   40            16       40%    16            0          1      
 
-Beginner drift — random sloppy attempts at a 90-degree corner in a 10 m corridor (hold 0.45-1.2 s, turn-in spread 12 m)
-  load   attempts  boost, no crash  within two tries  same if held 0.65 s+  best tier 0/1/2/3  crashed
-  -----  --------  ---------------  ----------------  --------------------  -----------------  -------
-  empty  300       66%              88%               86%                   71 / 229 / 0 / 0   13%    
-  full   300       66%              88%               84%                   70 / 230 / 0 / 0   11%    
+Beginner drift — random sloppy attempts at a 90-degree corner in a 10 m corridor (hold 0.3-1.8 s, stick 50-100%, turn-in spread 12 m)
+  load   attempts  boost, no crash  within two tries  same if held long enough  boost and exit within 30 deg  best tier 0/1/2/3    crashed
+  -----  --------  ---------------  ----------------  ------------------------  ----------------------------  -------------------  -------
+  empty  300       65%              88%               76%                       45%                           46 / 122 / 123 / 9   18%    
+  full   300       78%              95%               90%                       45%                           45 / 120 / 121 / 14  7%     
 
 Frame rate — the same 8 s key script through the real frame loop, keys sampled once per frame (before)
   Hz   steps run  x      z      heading deg  speed
   ---  ---------  -----  -----  -----------  -----
-  30   960        59.62  65.91  29.52        11.78
-  60   960        59.62  65.91  29.52        11.78
-  144  960        59.62  65.91  29.52        11.78
-  240  960        59.79  65.52  30.30        11.73
-  largest distance between any two rates after 8 s: 0.422 m
+  30   960        56.20  78.43  14.85        12.00
+  60   960        56.20  78.43  14.85        12.00
+  144  960        56.20  78.43  14.85        12.00
+  240  960        56.49  78.09  15.57        12   
+  largest distance between any two rates after 8 s: 0.452 m
 
 Frame rate — the same 8 s key script through the real frame loop, keys applied on their own step (now)
   Hz   steps run  x      z      heading deg  speed
   ---  ---------  -----  -----  -----------  -----
-  30   960        59.79  65.52  30.30        11.73
-  60   960        59.79  65.52  30.30        11.73
-  144  960        59.79  65.52  30.30        11.73
-  240  960        59.79  65.52  30.30        11.73
+  30   960        56.49  78.09  15.57        12   
+  60   960        56.49  78.09  15.57        12   
+  144  960        56.49  78.09  15.57        12   
+  240  960        56.49  78.09  15.57        12   
   largest distance between any two rates after 8 s: 0.000 m

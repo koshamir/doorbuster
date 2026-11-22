@@ -26,6 +26,7 @@ export function makeCart(id, charId, x, z, h) {
     id, char: charId, def: CHARS[charId], player: charId === 'player',
     x, z, h, px: x, pz: z, ph: h,            // pose now and one step ago (for render interpolation)
     vx: 0, vz: 0, spd: 0, slip: 0, yaw: 0, steer: 0,
+    avx: 0, avz: 0,                          // velocity smoothed over about 0.4 s: where the cart has been going
     drift: 0, driftT: 0, tier: 0, straightT: 0,   // drift direction (-1, 0, 1), seconds held, spark tier 0..3, exit timer
     boostT: 0, boostMul: 1,
     dashT: 0, dashCd: 0, dashBuf: 0, dashHits: 0, sagT: 0,
@@ -101,6 +102,26 @@ function helperYaw(k, inp, world) {
   return k.help;
 }
 
+// The helper while drifting: if the path is about to run nearly head-on into something, open or
+// close the arc within the stick's own range. Returns +1 (tighten), -1 (widen) or 0. Every third step.
+function driftHint(k, world) {
+  if (k.helpN++ % 3) return k.help;
+  k.help = 0;
+  const sp = Math.hypot(k.vx, k.vz);
+  if (sp < 5) return 0;
+  const ux = k.vx / sp, uz = k.vz / sp;
+  for (let d = 0.5; d <= sp * CFG.assistLook; d += 0.5) {
+    const c = collide(world, k.x + ux * d, k.z + uz * d, CFG.CART_R, false, true);
+    if (!c) continue;
+    if (!c.solid.dash && ux * c.nx + uz * c.nz < -0.5) {
+      const side = c.nx * uz - c.nz * ux;                 // which way glances off: + left, - right
+      if (Math.abs(side) > 0.08) k.help = Math.sign(side) === k.drift ? 1 : -1;
+    }
+    break;
+  }
+  return k.help;
+}
+
 // Which way along a surface a crashing cart glances off: +1 = along (tx, tz), -1 = the other way.
 // The driver's steering decides; otherwise the side where the obstacle ends sooner and the way is
 // longer, with a slight preference for the way the cart was already leaning.
@@ -125,8 +146,12 @@ function crashSide(k, world, nx, nz, tx, tz) {
 // A hard hit: nearly head-on, at speed. A crash costs goods, not momentum (GDD 4): the cart glances
 // off along the surface (normal nx, nz) with part of its speed and its nose whips round to follow.
 // While the cart is still immune from the last hit it glances off the same way but loses nothing more.
-function hardHit(k, sim, nx, nz, speed, into, top0, solid) {
-  const tx = -nz, tz = nx, side = crashSide(k, sim.world, nx, nz, tx, tz), keep = speed * CFG.crashKeep;
+function hardHit(k, sim, nx, nz, speed, into, top0, solid, v0x, v0z) {
+  // It carries on the way it has been going along the surface (judged over the last moments, so a
+  // late jerk of the wheel does not send it back where it came from); only a dead-on hit has to choose.
+  const tx = -nz, tz = nx, keep = speed * CFG.crashKeep;
+  const was = k.avx * tx + k.avz * tz, along = v0x * tx + v0z * tz;
+  const side = Math.abs(was) > speed * 0.1 ? Math.sign(was) : Math.abs(along) > speed * 0.15 ? Math.sign(along) : crashSide(k, sim.world, nx, nz, tx, tz);
   k.vx = tx * side * keep + nx * 0.6; k.vz = tz * side * keep + nz * 0.6;
   k.turnTo = Math.atan2(k.vx, k.vz);
   k.stunT = Math.max(k.stunT, k.immuneT > 0 ? CFG.crashStun * 0.5 : CFG.crashStun);
@@ -211,7 +236,9 @@ export function stepCart(k, inp, sim, dt) {
   } else if (k.drift) {
     // The drift turns at a rate that does not depend on speed, so the slip angle stays put instead of
     // winding up as the cart slows: sin(slip) = yaw / driftgrip.
-    const along = k.steer * k.drift;                 // +1 steering into the drift, -1 out of it
+    let along = k.steer * k.drift;                   // +1 steering into the drift, -1 out of it
+    const hint = driftHint(k, world);
+    if (hint) along = hint > 0 ? Math.max(along, 0.7) : Math.min(along, -0.8);
     const arc = k.drift * TUNE.turnrate * TUNE.turnattop * (1 - TUNE.loadturn * lf) * TUNE.driftturn *
       lerp(CFG.driftRange[0], CFG.driftRange[1], (along + 1) / 2);
     // The rear steps out at once: the body swings to the slip angle this arc holds, so the path
@@ -230,7 +257,7 @@ export function stepCart(k, inp, sim, dt) {
   let v = Math.hypot(k.vx, k.vz);
   let slip = v > 0.05 ? wrapAngle(k.h - Math.atan2(k.vx, k.vz)) : 0;
   let back = false;
-  if (Math.abs(slip) > Math.PI / 2) { back = true; slip = wrapAngle(slip - Math.PI); v = -v; }
+  if (Math.abs(slip) > Math.PI / 2 && k.turnTo === null) { back = true; slip = wrapAngle(slip - Math.PI); v = -v; }
   const grip = back ? TUNE.grip : k.wetT > 0 ? CFG.wetGrip : k.drift ? TUNE.driftgrip : k.straightT > 0 ? CFG.stunGrip : free ? TUNE.grip : CFG.stunGrip;
   slip -= Math.sin(slip) * (1 - Math.exp(-grip * dt));
 
@@ -263,22 +290,27 @@ export function stepCart(k, inp, sim, dt) {
   k.x += (k.vx + k.convX) * dt; k.z += (k.vz + k.convZ) * dt;
   let crashed = false, touched = 0, sumX = 0, sumZ = 0;
   const v0x = k.vx, v0z = k.vz, speed0 = Math.hypot(v0x, v0z);
-  for (let pass = 0; pass < 4; pass++) {
-    const c = collide(world, k.x, k.z, CFG.CART_R, k.air > 0, false);
-    if (!c) break;
-    const s = c.solid, nx = c.nx, nz = c.nz;        // copied: the contact object is reused by later queries
-    if (s && s.soft) { s.on = false; sim.onKnock(k, s); continue; }
-    if (s && s.dash && (k.dashT > 0 || mad)) { s.on = false; sim.onSmash(k, s); continue; }
-    k.x += nx * c.depth; k.z += nz * c.depth;
+  for (let pass = 0; pass < 5; pass++) {
+    // The cart is two circles, nose and tail; take the deeper contact of the two.
+    const hx = Math.sin(k.h), hz = Math.cos(k.h);
+    let s = null, nx = 0, nz = 0, depth = 0, nose = true;
+    let c = collide(world, k.x + hx * CFG.noseAt, k.z + hz * CFG.noseAt, CFG.noseR, k.air > 0, false);
+    if (c) { s = c.solid; nx = c.nx; nz = c.nz; depth = c.depth; }
+    c = collide(world, k.x + hx * CFG.tailAt, k.z + hz * CFG.tailAt, CFG.tailR, k.air > 0, false);
+    if (c && c.depth > depth) { s = c.solid; nx = c.nx; nz = c.nz; depth = c.depth; nose = false; }
+    if (!s) break;
+    if (s.soft) { s.on = false; sim.onKnock(k, s); continue; }
+    if (s.dash && (k.dashT > 0 || mad)) { s.on = false; sim.onSmash(k, s); continue; }
+    k.x += nx * depth; k.z += nz * depth;
     const vn = k.vx * nx + k.vz * nz;
     if (vn >= 0) continue;
     const into = -vn, speed = Math.hypot(k.vx, k.vz);
-    const bouncy = s && s.type === 'glass';
-    const hard = !bouncy && into > CFG.crashSpeed && into > speed * CFG.crashCos;   // nearly head-on, at speed
+    const bouncy = s.type === 'glass';
+    const hard = nose && !bouncy && into > CFG.crashSpeed && into > speed * CFG.crashCos;   // nose first, nearly head-on, at speed
     k.wallT = 0.12; k.wnx = nx; k.wnz = nz;
     if (hard) {
       crashed = true;
-      hardHit(k, sim, nx, nz, speed, into, top0, s);
+      hardHit(k, sim, nx, nz, speed, into, top0, s, v0x, v0z);
     } else {
       touched++; sumX += nx; sumZ += nz;
       const e = bouncy ? 0.6 : CFG.wallBounce;
@@ -286,6 +318,9 @@ export function stepCart(k, inp, sim, dt) {
       const tx = -nz, tz = nx, vt = k.vx * tx + k.vz * tz;
       const loss = Math.min(Math.abs(vt), CFG.wallFriction * into) * Math.sign(vt);
       k.vx -= loss * tx; k.vz -= loss * tz;
+      // A steep slide never costs more speed than a crash would: the wall turns the cart, it does not eat it.
+      const left = Math.hypot(k.vx, k.vz), floor = speed * CFG.slideKeep;
+      if (into > 2 && left > 0.5 && left < floor) { k.vx *= floor / left; k.vz *= floor / left; }
       if (into > 2) sim.emit('bump', k, into, s);
     }
   }
@@ -293,14 +328,14 @@ export function stepCart(k, inp, sim, dt) {
   // one hard hit against the corner's bisector, so the cart glances out instead of dying there.
   if (!crashed && touched >= 2 && speed0 > CFG.crashSpeed && Math.hypot(k.vx, k.vz) < speed0 * 0.4) {
     const len = Math.hypot(sumX, sumZ);
-    if (len > 0.3) { crashed = true; hardHit(k, sim, sumX / len, sumZ / len, speed0, -(v0x * sumX + v0z * sumZ) / len, top0, null); }
+    if (len > 0.3) { crashed = true; hardHit(k, sim, sumX / len, sumZ / len, speed0, -(v0x * sumX + v0z * sumZ) / len, top0, null, v0x, v0z); }
   }
   // Rubbing along a surface: turn the body to follow it, and throw sparks now and then.
   if (k.wallT > 0.1 && !crashed && free) {
     const sp = Math.hypot(k.vx, k.vz);
     if (sp > 1) {
       const off = wrapAngle(k.h - Math.atan2(k.vx, k.vz));
-      if (Math.abs(off) < 1.3) k.h = wrapAngle(k.h - off * Math.min(1, CFG.wallAlign * dt));
+      if (Math.abs(off) < 1.3) k.h = wrapAngle(k.h - clamp(off * Math.min(1, CFG.wallAlign * dt), -CFG.wallTurn * dt, CFG.wallTurn * dt));
       // ...and peel off it unless the driver is steering into it, so a scrape does not turn into a grind
       const away = Math.sign(k.wnx * Math.cos(k.h) - k.wnz * Math.sin(k.h));
       if (k.steer * away > -0.1) k.h = wrapAngle(k.h + away * CFG.wallPeel * dt);
@@ -309,6 +344,8 @@ export function stepCart(k, inp, sim, dt) {
   }
   const fwd = k.vx * Math.sin(k.h) + k.vz * Math.cos(k.h);
   k.spd = Math.hypot(k.vx, k.vz) * (fwd < 0 ? -1 : 1);
+  const mem = 1 - Math.exp(-dt / 0.4);
+  k.avx += (k.vx - k.avx) * mem; k.avz += (k.vz - k.avz) * mem;
 
   // Still pinned after a moment of pushing (a notch, a dead-end): back out and swing the other way.
   if (free && inp.gas > 0 && Math.abs(k.spd) < 1 && k.wallT > 0) {

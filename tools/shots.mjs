@@ -100,6 +100,25 @@ for (const sc of scenarios) {
     Object.assign(row, { calls: res.info.calls, tris: res.info.tris, logicMs: res.info.logicMs, renderMs: res.info.renderMs });
     await page.screenshot({ path: join(outDir, sc.name + '.png') });
   } else {
+    // A strip centred on an event (strip.around = 'crash'): play the scenario once to find when the
+    // event happens, then load it again and capture around that moment. Runs are deterministic.
+    if (sc.strip && sc.strip.around) {
+      const keys = [...(sc.script || [])].sort((x, y) => x[0] - y[0]);
+      for (const [t, k, v] of keys) {
+        const now = await page.evaluate(() => window.__db.game.sim.t);
+        if (t > now + 1e-6) await page.evaluate((d) => window.__db.advance(d), t - now);
+        await page.evaluate(([kk, vv]) => { window.__db.key(kk, vv); if (kk === 'dash') window.__db.key(kk, false); }, [k, v]);
+      }
+      await page.evaluate((d) => window.__db.advance(d), sc.strip.within || 6);
+      const log = await page.evaluate(() => window.__db.info().log);
+      const hit = log.find((e) => e[0] === sc.strip.around);
+      if (!hit) problems.push(tag('event "' + sc.strip.around + '" never happened'));
+      sc.strip.from = (hit ? hit[1] : 1) - (sc.strip.before || 0.2);
+      row.eventAt = hit ? hit[1] : null;
+      await page.reload();
+      await page.waitForFunction(() => window.__ready === true, null, { timeout: 15000 });
+      if (sc.room) await page.evaluate((def) => window.__db.custom(def), room(sc.room[0], sc.room[1]));
+    }
     // Manual time: build one timeline of key events and captures, in game seconds since GO.
     const events = [];
     for (const [t, key, value] of sc.script || []) events.push({ t, key, value });
@@ -137,7 +156,7 @@ for (const sc of scenarios) {
     if (sc.platform) row.platform.hostedThree = hosted;
     Object.assign(row, { t: +info.t.toFixed(2), phase: info.phase, items: info.items, value: info.value, calls: info.calls, tris: info.tris, gpu: info.gpu.replace(/^ANGLE \((\w+), ([^(]+?) \(.*$/, '$2') });
     if (info.cam) row.cam = { cartX: info.cam.cartX.map((v) => +v.toFixed(2)), cartY: info.cam.cartY.map((v) => +v.toFixed(2)),
-      roadSec: +info.cam.minRoadSeconds.toFixed(2), yawRev: +info.cam.yawReversalsPerSecond.toFixed(2), lift: +info.cam.maxLift.toFixed(2) };
+      floorAheadSec: +info.cam.minRoadSeconds.toFixed(2), yawRev: +info.cam.yawReversalsPerSecond.toFixed(2), lift: +info.cam.maxLift.toFixed(2) };
   }
   summary.push(row);
   await ctx.close();

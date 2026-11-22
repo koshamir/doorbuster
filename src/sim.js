@@ -234,17 +234,25 @@ export function advanceSim(sim, seconds, before) {
   return sim.acc / CFG.STEP;
 }
 
-// Carts are circles. A heavier cart shoves a lighter one; nobody drops anything from a plain bump.
+// Carts are two circles each (nose and tail). A heavier cart shoves a lighter one; nobody drops
+// anything from a plain bump.
+const PART = [[CFG.noseAt, CFG.noseR], [CFG.tailAt, CFG.tailR]];
 function bumpCarts(sim) {
-  const carts = sim.carts, d0 = CFG.CART_R * 2;
+  const carts = sim.carts;
   for (let i = 0; i < carts.length; i++) for (let j = i + 1; j < carts.length; j++) {
     const a = carts[i], b = carts[j];
     if (a.air > 0 || b.air > 0) continue;
-    const dx = b.x - a.x, dz = b.z - a.z, d2 = dx * dx + dz * dz;
-    if (d2 >= d0 * d0 || d2 < 1e-9) continue;
-    const d = Math.sqrt(d2), nx = dx / d, nz = dz / d;
+    if (Math.abs(b.x - a.x) > 3.2 || Math.abs(b.z - a.z) > 3.2) continue;
+    // the deepest overlap among the four pairs of circles
+    let over = 0, nx = 0, nz = 0;
+    for (const [pa, ra] of PART) for (const [pb, rb] of PART) {
+      const dx = b.x + Math.sin(b.h) * pb - a.x - Math.sin(a.h) * pa, dz = b.z + Math.cos(b.h) * pb - a.z - Math.cos(a.h) * pa;
+      const d = Math.hypot(dx, dz);
+      if (ra + rb - d > over && d > 1e-6) { over = ra + rb - d; nx = dx / d; nz = dz / d; }
+    }
+    if (over <= 0) continue;
     const ma = 1 + Math.min(1, a.load / TUNE.loadfull), mb = 1 + Math.min(1, b.load / TUNE.loadfull);
-    const push = (d0 - d) / (ma + mb);
+    const push = over / (ma + mb);
     a.x -= nx * push * mb; a.z -= nz * push * mb;
     b.x += nx * push * ma; b.z += nz * push * ma;
     const vn = (b.vx - a.vx) * nx + (b.vz - a.vz) * nz;

@@ -189,6 +189,26 @@ if (want('walls')) {
   table('Walls — hit a wall at an angle to its surface, holding gas, no steering',
     ['load', 'angle deg', 'result', 'speed in', 'speed +0.5 s', 'min speed 2 s', 'near-zero s', 's back to 75% top', 'no-control s'], rows);
 
+  // The same hits with the wheel held into the wall (oversteer) or away from it: the cart must carry
+  // on the way it was going along the wall, never turn back.
+  const srow = [];
+  for (const deg of [50, 65, 80, 90]) for (const [sname, steer] of [['into the wall', 1], ['away from it', -1]]) {
+    const sim = make(room(80, 40)), al = deg / DEG;
+    const p = launch(sim, 40, 2 + CFG.CART_R + 5 * Math.sin(al) + 0.5, Math.atan2(Math.cos(al), -Math.sin(al)), TUNE.maxspeed);
+    let hitT = -1, minV = 99, x0 = 0, x1 = 0, hMax = 0, lastH = p.h;
+    const inp = p.input;
+    for (let i = 0; i < 3 * 120; i++) {               // the wheel goes over 0.2 s before the hit and is let go 0.3 s after it
+      const t = i * STEP;
+      inp.gas = 1; inp.steer = t > 0.2 && (hitT < 0 || t - hitT < 0.3) ? steer : 0;
+      stepSim(sim);
+      if (hitT < 0 && p.wallT > 0) { hitT = t; x0 = p.x; }
+      if (hitT >= 0 && t - hitT < 1.5) { minV = Math.min(minV, Math.abs(p.spd)); hMax = Math.max(hMax, Math.abs(wrap(p.h - lastH)) / STEP); x1 = p.x; }
+      lastH = p.h;
+    }
+    srow.push([deg, sname, sim.stats.crashes ? 'CRASH' : 'slide', minV, (x1 - x0).toFixed(1), x1 > x0 + 3 ? 'carried on' : x1 < x0 - 3 ? (deg === 90 ? 'followed the wheel' : 'TURNED BACK') : 'left the wall', (hMax * DEG).toFixed(0)]);
+  }
+  table('Walls with the wheel held — moving east and into the north wall; wheel over 0.2 s before the hit, let go 0.3 s after', ['angle deg', 'steering', 'result', 'slowest in 1.5 s', 'metres east in 1.5 s', 'afterwards', 'fastest body turn deg/s'], srow);
+
   // pinned nose-first and wedged in a notch, gas only
   const prow = [];
   for (const [load, lname] of [[0, 'empty'], [TUNE.loadfull, 'full']]) {
@@ -261,26 +281,27 @@ if (want('walls')) {
       let hit = false, far = 0;
       for (let n = 0; n < 30; n++) { stepSim(sim); if (p.wallT > 0) hit = true; far = Math.max(far, p.x); }
       if (hit) touched++;
-      if (far < 60 - 0.15 - CFG.CART_R + 0.01) held++;
-      deepest = Math.max(deepest, far - (60 - 0.15 - CFG.CART_R));
+      if (far < 60 - 0.15) held++;                    // the cart's centre never entered the wall
+      deepest = Math.max(deepest, far);
     }
     trow.push([speed, (speed * STEP).toFixed(3), touched + '/40', held + '/40', deepest]);
   }
-  table('Tunnelling — a 0.3 m wall hit at fixed speeds, 40 start offsets within one step', ['speed m/s', 'metres per step', 'touched the wall', 'stayed in front', 'deepest overshoot m'], trow);
+  table('Tunnelling — a 0.3 m wall (x 59.85 to 60.15) hit at fixed speeds, 40 start offsets within one step', ['speed m/s', 'metres per step', 'touched the wall', 'stayed in front', 'furthest centre x'], trow);
 }
 
 // ---- gap of two cart widths at full speed -----------------------------------------------------------
 if (want('gap')) {
   const rows = [];
-  for (const off of [0, 0.25, 0.4]) {
-    // two round displays whose edges are 2.2 m apart (centres two tiles apart), cart width 1.2 m
+  for (const off of [0, 0.3, 0.5, 0.6, 0.8]) {
+    // two round displays whose edges are 2.2 m apart (centres two tiles apart); the cart's nose is
+    // 1.12 m wide, so it clears by 0.54 m on each side when centred
     const def = room(60, 40, (g, mid) => { g[mid - 1][30] = 'O'; g[mid + 1][30] = 'O'; });
     const sim = make(def), p = sim.player;
     p.z += off;
     hold(sim, 6, { gas: 1 });
     rows.push([off, 2.2, sim.stats.crashes, events(sim, 'bump'), p.x > 70 ? 'passed' : 'blocked', Math.abs(p.spd)]);
   }
-  table('Gap — straight through two displays at full speed', ['lateral offset m', 'gap m', 'crashes', 'bumps', 'result', 'speed after'], rows);
+  table('Gap — straight at two displays at full speed, no steering (beyond 0.54 m off-centre the cart must touch)', ['lateral offset m', 'gap m', 'crashes', 'bumps', 'result', 'speed after'], rows);
 }
 
 // ---- sweeping: no visible misses, at any speed --------------------------------------------------------
@@ -332,7 +353,7 @@ if (want('beginner')) {
   const rng = makeRng(2026);
   const rows = [];
   for (const [name, load] of [['empty', 0], ['full', TUNE.loadfull]]) {
-    let ok = 0, crashed = 0, long = 0, okLong = 0; const tiers = [0, 0, 0, 0], N = 300;
+    let ok = 0, crashed = 0, long = 0, okLong = 0, clean = 0; const tiers = [0, 0, 0, 0], N = 300;
     for (let i = 0; i < N; i++) {
       const sim = createSim(def, i + 1, { countdown: 0, bot: 'beginner' });
       const p = sim.player, inp = p.input;
@@ -340,9 +361,9 @@ if (want('beginner')) {
       const drv = p.ai; p.ai = null;                 // scripted hands first, the beginner bot afterwards
       const turnAt = 62 + rng() * 12;                // where the player starts turning (ideal is about 69)
       const lag = -0.1 + rng() * 0.35;               // drift button this long after the steering key (may be early)
-      const holdT = 0.45 + rng() * 0.75;             // how long the drift button stays down
+      const holdT = 0.3 + rng() * 1.5;               // how long the drift button stays down
       const stick = 0.5 + rng() * 0.5;               // analog-ish steering amount
-      let tSteer = -1, tier = 0, boosted = false;
+      let tSteer = -1, tier = 0, boosted = false, exitOff = 9;
       for (let n = 0; n < 12 * 120; n++) {
         const t = n * STEP;
         if (tSteer < 0 && p.x >= turnAt) tSteer = t;
@@ -356,19 +377,20 @@ if (want('beginner')) {
         }
         stepSim(sim);
         tier = Math.max(tier, p.tier);
-        for (const e of sim.events) if (e.type === 'boost') boosted = true;
+        for (const e of sim.events) if (e.type === 'boost') { boosted = true; exitOff = Math.abs(wrap(Math.atan2(p.vx, p.vz) - Math.PI)); }
         sim.events.length = 0;
       }
       tiers[tier]++;
+      if (boosted && sim.stats.crashes === 0 && exitOff < 0.52) clean++;
       const crash = sim.stats.crashes > 0;
       if (crash) crashed++;
       if (boosted && !crash) ok++;
-      if (holdT >= 0.65) { long++; if (boosted && !crash) okLong++; }
+      if (holdT >= CFG.driftTiers[0] + 0.05) { long++; if (boosted && !crash) okLong++; }
     }
-    rows.push([name, N, (ok / N * 100).toFixed(0) + '%', ((1 - (1 - ok / N) ** 2) * 100).toFixed(0) + '%', (okLong / long * 100).toFixed(0) + '%', tiers.join(' / '), (crashed / N * 100).toFixed(0) + '%']);
+    rows.push([name, N, (ok / N * 100).toFixed(0) + '%', ((1 - (1 - ok / N) ** 2) * 100).toFixed(0) + '%', (okLong / long * 100).toFixed(0) + '%', (clean / N * 100).toFixed(0) + '%', tiers.join(' / '), (crashed / N * 100).toFixed(0) + '%']);
   }
-  table('Beginner drift — random sloppy attempts at a 90-degree corner in a 10 m corridor (hold 0.45-1.2 s, turn-in spread 12 m)',
-    ['load', 'attempts', 'boost, no crash', 'within two tries', 'same if held 0.65 s+', 'best tier 0/1/2/3', 'crashed'], rows);
+  table('Beginner drift — random sloppy attempts at a 90-degree corner in a 10 m corridor (hold 0.3-1.8 s, stick 50-100%, turn-in spread 12 m)',
+    ['load', 'attempts', 'boost, no crash', 'within two tries', 'same if held long enough', 'boost and exit within 30 deg', 'best tier 0/1/2/3', 'crashed'], rows);
 }
 
 // ---- frame rate: the same physics and the same input timing at any display rate -----------------------

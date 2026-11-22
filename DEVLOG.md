@@ -2,21 +2,23 @@
 
 ## STATUS (updated after every meaningful step)
 
-- **Current milestone:** M2 Core — implemented and measured; waiting on its fresh-eyes review. M0 is
-  tagged `m0`. M1 is measured; its review is running; tag `m1` follows the fixes from it.
+- **Current milestone:** M3 Style (art pass on Level 1). M0 and M1 are tagged (`m0`, `m1`). M2 is
+  implemented and measured; its fresh-eyes review was cut off by a usage limit and is being resumed —
+  tag `m2` follows its fixes.
 - **Done:** PLAN.md · tooling (playwright-core 1.61.1 with the cached Chromium 1228, three r185 copy) ·
-  cart model with drift tiers, dash, weight, glancing crashes, pin back-out · camera · particles ·
-  sweeping, floor pickup, tower with sway and spills, shopping-list items, timer, checkout, receipt,
-  title, retry · Level 0 (gauntlet test course) and Level 1 (grey-box) · bots (beginner, confident,
-  expert, sloppy) · instruments (`tools/`: sim, script, shots, check, build, serve).
-- **Next:** M2 review → tag `m2` → M3 Style (final look of Level 1: toon materials are in, needs real
-  goods, shelves, beans, floor and wall dressing, HUD polish, pink-share metric) → M4 Life.
+  cart model (two-circle collider, drift tiers that fit corners, dash with a cost, glancing crashes,
+  pin back-out, steering and drift helpers) · camera · particles · sweeping, floor pickup, tower with
+  sway and spills, shopping-list items, timer, checkout, receipt, title, retry · Level 0 (gauntlet test
+  course) and Level 1 (grey-box) · bots (beginner, confident, expert, sloppy) · instruments.
+- **Next:** finish M2 review → `m2`; M3: real goods models (written, in the scratch folder as
+  `models_tail.js`, not applied yet), shelves, floor decals and edge shadows, blob shadows, hero ring
+  with the drift-charge arc, checkout and pieces, signs, pink-share metric → M4 Life.
 - **Open problems:** the expert bot cannot thread a shelf aisle placed within 8 m of a hairpin exit
-  (levels keep 12 m clear after hairpins; revisit with rivals in M4) · video capture not written yet ·
-  frame rate on integrated graphics cannot be measured here (RTX 4060) · camera wall-lift is written
-  but no capture has triggered it yet.
+  (levels keep 12 m clear after hairpins) · video capture not written yet · frame rate on integrated
+  graphics cannot be measured here (RTX 4060) · puff particles read as rings (M6).
 - **How to resume:** `node tools/check.mjs && node tools/sim.mjs && node tools/script.mjs`, then
-  `node tools/shots.mjs --set m2` and look at `shots/m2`. Gate evidence in text form is in `gates/`.
+  `node tools/shots.mjs --set m1` (or `m2`) and look at `shots/`. Gate evidence in text form is in
+  `gates/` and is regenerated from the tagged commit.
 
 ## Decisions
 
@@ -41,6 +43,12 @@
 | D17 | Capture runs Playwright's own Chromium 1228 (already cached on this machine) in new headless mode with the real GPU. | The installed Google Chrome refuses headless mode ("disallowed by the system admin"); that policy was left alone. `playwright-core` is pinned to 1.61.1 to match the cached browser, so nothing was downloaded outside the npm registry. |
 | D18 | A `CLAUDE.md` for a different jam game sits in the parent `Downloads` folder and is auto-loaded. Its stack and language rules are ignored here; this project's own brief is more specific. The owner's start message replaces "stop at each gate" with the self-gate. | Recorded because a reviewer flagged both. |
 | D19 | `skill.md` (v1.5.1) and `sdk.md` were re-read on 22 Nov 2026. Differences from `docs/MINDBLOWN.md`: the hosted three.js bundle also carries the glTF loader and post passes (core only is used); `leaderboard.submit` takes `{ lower, label }`; saves need `load` before `save` and reject on error; the builder refuses publishes without `run.start()`/`run.end()`. | The primary source wins. `platform.js` follows sdk.md. |
+| D20 | **The cart collides as two circles**: the nose (0.56 m, 0.28 m ahead of the basket centre) and the tail (0.5 m, 0.75 m behind, the shopper). Only a nose-first hit can be a crash. Carts bump each other with the same four circle pairs. | M1 review, finding 5: one 0.6 m circle let the nose sink 0.3–0.4 m into walls and the shopper into everything behind. |
+| D21 | **Crashes keep the direction of travel.** The side a crash glances to comes from where the cart has been going (velocity smoothed over 0.4 s), then the instantaneous velocity, and only for a dead-on hit from the wheel and the free space. The nose whips round at 8 rad/s (was 14), the camera follows the path, slowly, during the stun. A crash is a hit within 32° of head-on (`crashCos` 0.72 → 0.85). A steep slide keeps at least 60% of the speed, so it never costs more than a crash. | M1 review, finding 2: an oversteer crash obeyed the held key, reversed the cart and swung the camera 150°. |
+| D22 | **Drift tiers fit the mall.** Tiers at 0.5/1.0/1.7 s (were 0.6/1.2/2.0); the stick opens the arc from 100% down to 32% of the full rate (was 53%); `driftturn` 1.35, `turnattop` 0.55 → 0.5. Normal steering now turns in 8.0 m at top speed, a drift in 6.2–16 m. While drifting, the helper opens or closes the arc (within the stick's range) when the path is about to run head-on into something. | M1 review, finding 1: not drifting cost nothing and tier 3 never fitted a corner. Now a 90° bend pays tier 1 with the stick in, tier 2 neutral, tier 3 out; a hairpin pays 2, 3, 3. |
+| D23 | Drift charge is shown where the camera looks: sparks from both rear wheels at twice the size, a ring of stars above the handle at each tier, tier colours sky / yellow / red (never the player's pink), and the body always shows at least a 10° drift angle. The handle bar glows with the bumper when the dash is ready. | M1 review, finding 3: tier-up stars were under the basket, tier 3 was pink on pink, the dash-ready bumper was hidden by the basket. |
+| D24 | The field of view grows with speed from standstill (50° at rest, 58° at top speed, +7° in a dash or boost) and the cart surges about 9% of the screen height up the frame in a dash. | M1 review, finding 4: the camera did not sell speed; the view only changed above 80% speed. |
+| D25 | A dash that hits nothing sags to 82% top speed for 0.7 s (the first version, 75% for 0.8 s, was called too harsh by the M1 reviewer; no sag at all was "free speed" for the M0 reviewer). Mashing is worth +9%. | Two reviewers, opposite complaints; the value sits between them and stays a tuning value until dash targets exist (M4). |
 
 ## Reviews
 
@@ -63,6 +71,23 @@
 | C1 | The `m0` commit was not the measured state; DEVLOG status was stale; no tag | valid | Status is kept current; gate numbers live in `gates/` as text and are committed with the tag |
 | C2 | All 15 files are allocated, nothing can be split | noted | 14 files in use; `audio.js` is the last. If a file outgrows 600 lines, two small ones merge first |
 | C3 | The hosted three.js branch is never run | valid | `platform` capture scenario (D2): hosted URL requested once, SDK calls recorded: `tune`, `tune.on`, `load progress`, `run.start`, `run.end {seconds: 40, level: 1}` |
+
+### M1 fresh-eyes review (22 Nov) — findings and what was done
+
+| # | Finding | Verdict | Action |
+| --- | --- | --- | --- |
+| 1 | Drift tiers do not fit the mall: not drifting costs nothing in a 90° bend, tier 3 never fits | valid | D22. `script.mjs --only bends`: tier 1/2/3 by stick position in a 90° bend, 2/3/3 in a hairpin, turn-in windows 5–18 m wide |
+| 2 | An oversteer crash stops the cart and turns it round; the camera swings 150° | valid | D21. `script.mjs --only walls`, "with the wheel held": every case from 50° to 80° carries on in the direction of travel; a dead-on hit follows the wheel |
+| 3 | Charge and dash state cannot be read | valid | D23; `shots/m1/drift_in_2p3.png`. A charge arc on the hero ring comes with the art pass (M3) |
+| 4 | The camera does not sell speed; visible road 1.7 s in four scenarios | valid | D24. Floor visible ahead is now 2.5 s at top speed and 2.0 s at dash and boost peaks |
+| 5 | The collider is smaller than the mesh | valid | D20 |
+| N1 | `crashCos` 0.72 → 0.87 | accepted (0.85) | D21 |
+| N2 | `dashSag` 0.75 → 0.9 for 0.4 s | partly | D25 |
+| T1 | Evidence mixed builds | valid | metrics and captures are regenerated from one tree before every tag |
+| T2 | Gap test could not touch | valid | offsets up to 0.8 m: beyond 0.54 m the cart touches and glances through |
+| T3 | Beginner drift test too narrow (holds 0.45–1.2 s) | valid | holds 0.3–1.8 s, and the share of clean exits is reported |
+| T4 | `roadSec` ignores walls; `lift` never triggered | valid | renamed "floor ahead" (it measures the framing); `cam_lift` capture reaches lift 1.0 |
+| T5 | Crash strip started after the impact; the walls table never steered | valid | strips can be centred on an event (`strip.around`); wheel-held rows added |
 
 ## Milestone gates
 
@@ -87,37 +112,41 @@ Gate (QUALITY §2): *no console errors or external requests, the simulation runs
 | Single-file build | pass | `dist/index.html` (146 KB): same run to the cent as the module build (`t` 41.26 s, 36 items, $864) |
 | Budgets | pass | 14 files, 2,950 lines; 153 KB without three.js; 26–38 draw calls, 15–21k triangles; 165 fps, p95 6.1 ms on RTX 4060 (not representative) |
 
-### M1 Toy — measured, review pending
+### M1 Toy — gate passed, tag `m1`
 
-Gate: *driving is fun with no goals* (owner playtest replaced by the measurements and frames below).
+Gate: *driving is fun with no goals* (owner playtest replaced by the measurements and frames below;
+feel itself stays on the owner's list in the final report).
 
 | Criterion (QUALITY §4 Cart and camera, GDD 5.1) | Result | Number |
 | --- | --- | --- |
-| Input responds on the next frame | pass | state changes on the first 1/120 s step (yaw 0.12 rad/s, speed 0.12 m/s); the body lean and yaw follow the raw input the same frame |
-| Identical at 60 and 144 Hz | pass | the same timed key script through the real frame loop ends in the same state at 30, 60, 144 and 240 Hz (0.000 m apart); with keys sampled once per frame it was up to 0.42 m |
+| Input responds on the next frame | pass | state changes on the first 1/120 s step (yaw 0.11 rad/s, speed 0.12 m/s); the body lean and yaw follow the raw input the same frame |
+| Identical at 60 and 144 Hz | pass | the same timed key script through the real frame loop ends in the same state at 30, 60, 144 and 240 Hz (0.000 m apart); with keys sampled once per frame it was up to 0.45 m |
 | 0 → 95% of top speed | — | empty 1.04 s (6.7 m), full 2.08 s (12.1 m): "about half as fast" |
 | Stop from top speed | — | empty 0.61 s (3.6 m), full 0.80 s (4.1 m): "about a third longer" |
-| Turn radius at top speed | — | empty 7.3 m, full 7.6 m; corridors are 10 m |
+| Turn radius at top speed | — | empty 8.0 m, full 8.2 m; corridors are 10 m |
 | Empty versus full is felt within 3 s | pass | from rest a full cart covers 27% less ground in 3 s; top speed 12 → 10.8 m/s |
-| Slides along walls | pass | 10–45° to the wall: keeps 10.4–12 m/s after 0.5 s, never below 8 m/s |
-| A crash costs goods, not momentum | pass | 60–90°: 7.5–7.7 m/s after 0.5 s, back to 75% of top in 0.63–0.66 s (full cart 0.91 s); control lost 0.40 s (limit 1 s) |
-| Does not stick on corners | pass | corner clipped by up to 0.85 m of the cart: swerved past, no crash; by 1.1 m: one crash, slowest 6.3 m/s |
-| Never stuck more than 0.5 s | pass | nose-first: moving after 0.29 s (full 0.36 s); inside corner 0.12–0.21 s; notch 0.12–0.22 s; longest standstill in 300 bot runs 0.47 s |
-| No tunnelling | pass | 0.3 m wall at 12/18/24/30 m/s × 40 offsets: 160/160 touched and stayed in front |
-| Gap of two cart widths at full speed | pass | 2.2 m gap (1.8 widths): untouched at 0, 0.25, 0.4 m off-centre |
-| Beginner gets the first drift tier on the second attempt | pass | random sloppy attempts: 66% per try, 88% within two (86% per try when held 0.65 s or longer); 13% crash |
-| Drift tiers against real corners | — | 90° bend pays tier 1 from a 10 m wide turn-in window, tier 2 only with the stick out (0.5 m window); a hairpin pays tier 2 (10 m window) and tier 3 with the stick out (2.5 m window) |
-| Camera shows the cart and about 2 s of road | pass | cart at screen x 0, y −0.27…−0.37 (two thirds down); 2.3 s of floor ahead at top speed, 1.9 s at dash and boost peaks |
-| Camera never goes through walls | pass | camera height ≥ 7 m, walls 2.4 m |
-| Camera never jitters | pass | yaw reversals: 0.2–0.4 per second with scripted keys, 0.5–1.0 with bots |
-| Seams do not catch | pass | 30 separate boxes versus one wall: min speed 10.4 versus 10.7 m/s |
+| Slides along walls | pass | 10–45° to the wall: 9.3–11.9 m/s after 0.5 s; 60°: 7.8 m/s; a steep slide keeps at least 60% |
+| A crash costs goods, not momentum | pass | 75–90°: 7.2–7.6 m/s after 0.5 s, back to 75% of top in 0.64–0.68 s (full cart 0.97 s); control lost 0.40 s (limit 1 s) |
+| A crash keeps the direction of travel | pass | wheel held into or away from the wall at 50–80°: carried on 12–16 m in 1.5 s in every case; body turn at most 493°/s |
+| Does not stick on corners | pass | corner clipped by up to 0.85 m of the cart: swerved past, slowest 10.0 m/s; by 1.1 m: one crash, slowest 6.3 m/s |
+| Never stuck more than 0.5 s | pass | nose-first: moving after 0.17 s (full 0.33 s); inside corner 0.12 s; notch 0.12 s; longest standstill in 300 bot runs 0.36 s |
+| No tunnelling | pass | 0.3 m wall at 12/18/24/30 m/s × 40 offsets: 160/160 touched, the cart's centre never entered the wall |
+| Gap of two cart widths at full speed | pass | 2.2 m gap: untouched up to 0.5 m off-centre; at 0.6 and 0.8 m one bump and through |
+| Beginner gets the first drift tier on the second attempt | pass | random sloppy attempts (hold 0.3–1.8 s): 65% per try, 88% within two (full cart 78% / 95%); 18% crash |
+| Drift tiers against real corners | pass | 90° bend: tier 1 / 2 / 3 with the stick in / neutral / out (windows 16 / 6 / 5 m); hairpin: 2 / 3 / 3 (10.5 / 10 / 9 m) |
+| Camera shows the cart and about 2 s of road | pass | cart at screen x 0, y −0.32…−0.40, up to −0.14 in a dash; floor ahead 2.5 s at top speed, 2.0 s at dash and boost peaks |
+| Camera never goes through walls | pass | camera height ≥ 6.6 m, walls 2.4 m; with a wall right behind the cart it tips up and over (`cam_lift`) |
+| Camera never jitters | pass | yaw reversals: 0.2–0.5 per second with scripted keys, 0.5–1.0 with bots |
+| Seams do not catch | pass | 30 separate boxes versus one wall: min speed 11.2 versus 11.2 m/s |
+| Obstacles of the gauntlet | pass | beginner, confident, expert: 100% clean passes of all nine obstacles in 30 runs each; sloppy 70–100% |
 
 Why these values (against how comparable arcade racers behave): karts reach top speed in 2.5–4 s, top-down
 arcade racers in 1–1.5 s. Runs here last 60–75 s with a bump every few seconds, so the empty cart is tuned
 to the fast end (1.0 s) and the full cart lands in kart territory (2.1 s) — the weight is felt at once.
-The normal turn radius (7.3 m) fits a 10 m corridor only on a good line; the drift widens the choice to
-6.6–11.5 m and pays for holding it, as a mini-turbo does. Tier times 0.6/1.2/2.0 s sit slightly below a
-kart's because the corners here are shorter. Boosts are +20/40/60% for 0.7/1.0/1.4 s.
+Normal steering turns in 8 m at top speed, so a 10 m corridor bend can be driven flat out only on a good
+line; the drift offers 6.2 m (stick in) to 16 m (stick out) and pays more the longer it is held, as a
+mini-turbo does. Tier times 0.5/1.0/1.7 s sit below a kart's because the corners here are shorter.
+Boosts are +20/40/60% for 0.7/1.0/1.4 s.
 
 ### M2 Core — measured, review pending
 

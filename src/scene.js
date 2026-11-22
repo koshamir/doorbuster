@@ -141,7 +141,7 @@ function syncCart(view, c, alpha, dt) {
   c.squash = Math.max(0, c.squash - dt * 5);
   const sq = c.squash * c.squash;
   c.stretch += ((k.dashT > 0 ? 1 : 0) - c.stretch) * (1 - Math.exp(-dt * 20));      // the dash stretches the cart forward
-  const yawShow = k.slip * 0.35 + k.steer * 0.1;
+  const yawShow = k.slip * 0.35 + k.steer * 0.1 + k.drift * 0.18;   // a drift always shows a clear angle
   c.tilt.rotation.set(c.pitch, yawShow, c.roll);
   c.tilt.scale.set((1 + sq * 0.16) * (1 - c.stretch * 0.1), 1 - sq * 0.3, (1 + sq * 0.16) * (1 + c.stretch * 0.24));
   c.bob += speed * dt * 1.5;

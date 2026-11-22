@@ -171,13 +171,14 @@ export function cartGeometry(color) {
     place(b, x - 0.07, 0.2, z, 0, 0, -Math.PI / 2); addCyl(b, 0.2, 0.2, 0.14, PAL.night, { seg: 10, bottom: true, top: PAL.steel });
   }
   for (const x of [-0.42, 0.42]) { place(b, x, 0.9, -0.74, 0, -0.35, 0); addBox(b, 0.08, 0.5, 0.08, PAL.steel, { bevel: 0.3 }); }
-  place(b, 0, 1.32, -0.92); addBox(b, 1.04, 0.1, 0.1, PAL.night, { bevel: 0.35 });        // handle
   return toGeometry(b);
 }
-// The front bumper is its own mesh so it can glow when the dash is ready.
+// The front bumper and the handle bar are one mesh that glows when the dash is ready: the chase
+// camera sees the handle, everyone else sees the bumper.
 export function bumperGeometry() {
   const b = makeBuilder();
   place(b, 0, 0.44, 0.76); addBox(b, 1.08, 0.2, 0.16, PAL.sale, { bevel: 0.35 });
+  place(b, 0, 1.3, -0.92); addBox(b, 1.1, 0.14, 0.14, PAL.sale, { bevel: 0.35 });
   return toGeometry(b);
 }
 

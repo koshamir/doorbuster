@@ -81,6 +81,7 @@ function toScreen(x, y, z) {
 // Presentation of one simulation event: particles, scene reactions, interface, platform calls.
 function onEvent(e) {
   const sim = game.sim, p = sim.player, mine = e.cart === p;
+  if (game.probe && mine) game.probe.log.push([e.type, +sim.t.toFixed(3)]);     // for the capture tool
   const shake = eventFx(e);
   sceneEvent(game.view, e);
   if (!mine) return;
@@ -215,7 +216,7 @@ async function boot() {
     });
   }
   if (game.debug || game.manual) {
-    game.probe = { v: new THREE.Vector3(), minX: 9, maxX: -9, minY: 9, maxY: -9, minRoad: 99, reversals: 0, lastSign: 0, lastYaw: 0, time: 0, lift: 0 };
+    game.probe = { v: new THREE.Vector3(), minX: 9, maxX: -9, minY: 9, maxY: -9, minRoad: 99, reversals: 0, lastSign: 0, lastYaw: 0, time: 0, lift: 0, log: [] };
     window.__db = {
       game, gfx, TUNE, play,
       key(name, down) { game.inq.push({ name, down, t: -1e9 }); },     // a scripted key press, applied on the next step
@@ -231,7 +232,7 @@ async function boot() {
         return { t: game.sim.t, phase: game.sim.phase, state: game.state, calls: gfx.stats.calls, tris: gfx.stats.tris, renderMs: gfx.stats.ms,
           logicMs: game.logicSum / Math.max(1, game.logicN), x: p.x, z: p.z, h: p.h, spd: p.spd, load: p.load, items: p.tower.length, value: p.value, step: CFG.STEP,
           cam: { cartX: [pr.minX, pr.maxX], cartY: [pr.minY, pr.maxY], minRoadSeconds: pr.minRoad,
-            yawReversalsPerSecond: pr.reversals / Math.max(pr.time, 1e-6), maxLift: pr.lift } };
+            yawReversalsPerSecond: pr.reversals / Math.max(pr.time, 1e-6), maxLift: pr.lift }, log: pr.log };
       },
     };
   }

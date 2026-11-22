@@ -7,7 +7,8 @@
 // room ([cols, rows]: an empty test room built by the tool instead of a level), until (run on until
 // the game reaches a state, then screenshot), plain (seconds to wait on the untouched page),
 // platform (serve as play.mindblown.ai with a recording stand-in for the SDK), after (page script
-// whose result is added to the summary).
+// whose result is added to the summary). strip.around = 'crash' centres the strip on that event of
+// the player's cart (strip.before seconds earlier; the scenario is played once first to find it).
 
 const l0 = 'level=0&seed=1';
 const l1 = 'level=1&seed=3';
@@ -30,7 +31,9 @@ export const SETS = {
     { name: 'turn', room: yard, script: [[0, 'gas', true], [1.6, 'left', true], [2.6, 'left', false]], shots: [2.0], strip: { from: 1.55, frames: 8, dt: 0.0667 } },
     { name: 'dash', room: yard, script: [[0, 'gas', true], [2.0, 'dash', true]], shots: [2.1], strip: { from: 1.95, frames: 8, dt: 0.05 } },
     { name: 'wall_slide', query: l0, script: [[0, 'gas', true], [0.9, 'right', true], [1.2, 'right', false]], shots: [2.0], strip: { from: 1.4, frames: 8, dt: 0.1 } },
-    { name: 'crash', query: l0, script: [[0, 'gas', true], [0.8, 'right', true], [1.75, 'right', false]], shots: [2.6], strip: { from: 1.75, frames: 8, dt: 0.0667 } },
+    { name: 'crash', query: l0, script: [[0, 'gas', true], [0.8, 'right', true], [1.75, 'right', false]], strip: { around: 'crash', before: 0.2, frames: 8, dt: 0.0667 } },
+    { name: 'oversteer', query: l0, script: [[0, 'gas', true], [0.7, 'left', true]], strip: { around: 'crash', before: 0.25, frames: 8, dt: 0.0833, within: 5 } },
+    { name: 'cam_lift', room: yard, script: [[0, 'brake', true], [1.3, 'brake', false]], shots: [0.2, 1.6] },
     { name: 'gauntlet', query: l0 + '&autoplay=expert', shots: [3, 6, 9, 13, 17, 21], strip: { from: 9.5, frames: 8, dt: 0.1 }, squint: true },
     { name: 'heavy', room: yard, query: 'fill=30', script: [[0, 'gas', true], [2.5, 'left', true], [3.4, 'left', false]], shots: [2.4, 3.3] },
     { name: 'small', query: l0 + '&autoplay=confident', viewport: [800, 450], shots: [7] },

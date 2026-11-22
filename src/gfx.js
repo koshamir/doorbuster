@@ -190,14 +190,19 @@ export function updateCamera(k, alpha, dt, towerHeight, world) {
   const cam = gfx.cam, camera = gfx.camera;
   const x = lerp(k.px, k.x, alpha), z = lerp(k.pz, k.z, alpha);
   const h = k.ph + wrapAngle(k.h - k.ph) * alpha;
-  const want = h - k.slip * 0.55;                      // follow the travel direction; the lag below lets a turning cart yaw on screen
-  if (!cam.ready) { cam.yaw = want; cam.zoom = 0; cam.ready = true; cam.tower = 0; cam.lift = 0; }
+  // Follow the travel direction; the lag lets a turning cart yaw on screen. While a crash whips the
+  // nose round, follow where the cart is going instead, and gently.
+  const stunned = k.stunT > 0 && Math.hypot(k.vx, k.vz) > 1;
+  const want = stunned ? Math.atan2(k.vx, k.vz) : h - k.slip * 0.55;
+  if (!cam.ready) { cam.yaw = want; cam.zoom = 0; cam.ready = true; cam.tower = 0; cam.lift = 0; cam.punch = 0; }
   cam.t += dt;
-  cam.yaw += wrapAngle(want - cam.yaw) * (1 - Math.exp(-dt * CFG.camFollow));
+  cam.yaw += wrapAngle(want - cam.yaw) * (1 - Math.exp(-dt * (stunned ? 3 : CFG.camFollow)));
   const sf = clamp(Math.abs(k.spd) / TUNE.maxspeed, 0, 1.7);
-  cam.zoom += (sf - cam.zoom) * (1 - Math.exp(-dt * 2.5));
+  cam.zoom += (sf - cam.zoom) * (1 - Math.exp(-dt * 3.5));
   cam.tower += ((towerHeight || 0) - cam.tower) * (1 - Math.exp(-dt * 2));
-  const fast = Math.max(0, cam.zoom - 0.8);             // only real speed changes the framing
+  const fast = Math.max(0, cam.zoom - 1);               // above top speed: boost and dash
+  const kick = k.dashT > 0 ? 1 : k.boostT > 0 ? 0.6 : 0;       // a dash or boost punches the view at once
+  cam.punch += (kick - cam.punch) * (1 - Math.exp(-dt * (kick > cam.punch ? 16 : 3)));
   const fx = Math.sin(cam.yaw), fz = Math.cos(cam.yaw);
   // A wall within 1.5 m behind the cart (as the camera sees it) would hide it: tip up and over.
   let hidden = false;
@@ -206,10 +211,12 @@ export function updateCamera(k, alpha, dt, towerHeight, world) {
     hidden = c < 0 || r < 0 || c >= world.cols || r >= world.rows || !world.floor[r * world.cols + c];
   }
   cam.lift += ((hidden ? 1 : 0) - cam.lift) * (1 - Math.exp(-dt * 6));
-  const height = (TUNE.camheight * (1 + 0.16 * fast) + cam.tower * 0.45) * (1 + 0.4 * cam.lift);
+  const height = (TUNE.camheight * (0.95 + 0.05 * Math.min(cam.zoom, 1) + 0.16 * fast) + cam.tower * 0.45) * (1 + 0.4 * cam.lift);
   const pitch = TUNE.campitch * Math.PI / 180 + 0.45 * cam.lift;
   const back = height / Math.tan(pitch);
-  const lead = back - height / Math.tan(pitch + 0.2);   // keeps the cart in the lower third of the frame
+  // The look point keeps the cart in the lower third of the frame; in a dash or boost the camera
+  // hangs back a little, so the cart surges up the screen.
+  const lead = back - height / Math.tan(pitch + 0.2) - 1.1 * cam.punch;
   const lx = x + fx * lead, lz = z + fz * lead;
   let sx = 0, sy = 0;
   if (cam.shake > 0.001 && TUNE.shake) {                // trauma-based shake: offset grows with trauma squared
@@ -221,9 +228,7 @@ export function updateCamera(k, alpha, dt, towerHeight, world) {
   camera.lookAt(lx + fz * sx * 0.5, 0.6, lz - fx * sx * 0.5);
   // Field of view: wider with speed, and wider still on tall screens so the corridor stays visible.
   const aspect = gfx.w / gfx.h;
-  const kick = k.dashT > 0 ? 1 : k.boostT > 0 ? 0.6 : 0;       // a dash or boost punches the view wider at once
-  cam.punch += (kick - cam.punch) * (1 - Math.exp(-dt * (kick > cam.punch ? 16 : 3)));
-  const base = TUNE.camfov + 9 * fast + 7 * cam.punch;
+  const base = TUNE.camfov - 5 + 8 * Math.min(cam.zoom, 1) + 6 * fast + 7 * cam.punch;   // 50 at rest, 58 at top speed
   const tall = aspect < 1.3 ? Math.min(1.7, 1.3 / aspect) : 1;
   const fov = 2 * Math.atan(Math.tan(base * Math.PI / 360) * tall) * 180 / Math.PI;
   if (Math.abs(fov - camera.fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }

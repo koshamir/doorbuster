@@ -15,7 +15,7 @@ const FX_CAP = 700, FX_STRIDE = 16;
 // per particle: x y z  vx vy vz  life ttl  size0 size1  rot spin  grav drag  shape colorIndex
 const fxData = new Float32Array(FX_CAP * FX_STRIDE);
 let fxCount = 0, fxMesh = null, fxPos = null, fxParam = null, fxColor = null, fxSeed = 12345;
-export const TIER_COLORS = [PAL.white, PAL.sale, PAL.orange, PAL.player];
+export const TIER_COLORS = [PAL.white, PAL.sky, PAL.sale, PAL.danger];   // drift charge: none, tier 1, 2, 3 (never the player's pink)
 const FX_COLORS = [PAL.white, PAL.sale, PAL.orange, PAL.player, PAL.danger, PAL.steel, PAL.list, PAL.hot, PAL.sky, PAL.mint, PAL.outline];
 const FX_RGB = FX_COLORS.map(rgb);
 
@@ -97,10 +97,9 @@ export function cartFx(k, x, z, h, dt) {
   const fx = Math.sin(h), fz = Math.cos(h), rx = fz, rz = -fx;         // forward and the cart's left
   const speed = Math.abs(k.spd);
   if (k.drift && speed > 3) {
-    // Sparks from the outside rear wheel, coloured by the charge tier.
-    const side = -k.drift;
-    for (let n = 0; n < (k.tier > 0 ? 2 : 1); n++) {
-      fxOpt.color = TIER_COLORS[k.tier]; fxOpt.shape = k.tier > 0 ? 0 : 1; fxOpt.size = k.tier > 0 ? 0.16 + 0.05 * k.tier : 0.22; fxOpt.end = 0;
+    // Sparks from both rear wheels, coloured by the charge tier and growing with it.
+    for (const side of [-1, 1]) {
+      fxOpt.color = TIER_COLORS[k.tier]; fxOpt.shape = k.tier > 0 ? 0 : 1; fxOpt.size = k.tier > 0 ? 0.3 + 0.09 * k.tier : 0.3; fxOpt.end = 0;
       fxOpt.ttl = 0.22 + fxRnd() * 0.2; fxOpt.grav = k.tier > 0 ? 7 : -1; fxOpt.drag = 2; fxOpt.spin = undefined; fxOpt.rot = undefined; fxOpt.aspect = 0;
       fxOpt.vx = -fx * speed * 0.35 + rx * side * (1 + fxRnd() * 2.5); fxOpt.vz = -fz * speed * 0.35 + rz * side * (1 + fxRnd() * 2.5); fxOpt.vy = 1 + fxRnd() * 2.2;
       spark(x - fx * 0.55 + rx * side * 0.45, 0.12, z - fz * 0.55 + rz * side * 0.45, fxOpt);
@@ -129,8 +128,12 @@ export function eventFx(e) {
   const fx = Math.sin(k.h), fz = Math.cos(k.h);
   switch (e.type) {
     case 'drift':
-      if (e.value > 0) burst(k.x - fx * 0.5, 0.3, k.z - fz * 0.5, 10, { color: TIER_COLORS[e.value], shape: 2, size: 0.34, ttl: 0.35, grav: 0, drag: 4 }, 5, 2);
-      return 0;
+      // A new tier: a ring of stars above the handle, where the camera sees it.
+      if (e.value > 0) {
+        burst(k.x - fx * 0.9, 1.8, k.z - fz * 0.9, 12, { color: TIER_COLORS[e.value], shape: 2, size: 0.6 + 0.1 * e.value, ttl: 0.45, grav: 0, drag: 5 }, 7, 1.5);
+        burst(k.x - fx * 0.9, 1.6, k.z - fz * 0.9, 8, { color: PAL.white, shape: 0, size: 0.3, ttl: 0.3, grav: 0, drag: 5 }, 4, 1);
+      }
+      return e.value > 0 ? 0.08 : 0;
     case 'boost':
       burst(k.x - fx * 0.9, 0.5, k.z - fz * 0.9, 8 + e.value * 4, { color: TIER_COLORS[e.value], shape: 0, size: 0.4, ttl: 0.4, grav: 0, drag: 3 }, 4, 1.5, -fx * 6, -fz * 6);
       return 0.12 * e.value;
