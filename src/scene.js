@@ -4,7 +4,7 @@
 //          sway, goods flying into carts, goods on shelves and on the floor, the crowd, pieces that
 //          break or fly, checkout lamps and barriers, shadows and the hero's ring. Reads the
 //          simulation, never writes it.
-// Exports: buildScene, syncScene, sceneEvent, disposeScene, goodIcon
+// Exports: buildScene, syncScene, sceneEvent, disposeScene
 // Depends on: config.js, render.js, kits.js, models.js and the global THREE (inside functions only).
 
 import { TUNE, CFG, PAL, GOODS, rgb, mix, clamp, lerp, wrapAngle } from './config.js';
@@ -14,7 +14,8 @@ import { makeRacer, poseCart, animate } from './rig.js';
 import { makeCrowd, syncCrowd, crowdPose, disposeCrowd } from './crowd.js';
 import { CROWD, CROWD_COLORS } from './cast.js';
 import { EXPR } from './atlas.js';
-import { makeBuilder, place, addBox, addCyl, addBall, mGeometry, cartGeometry, bumperGeometry, goodGeometry,
+import { makeGoods, beginGoods, endGoods, putGood, variantAt } from './goods.js';
+import { makeBuilder, place, addBox, addCyl, addBall, mGeometry, cartGeometry, bumperGeometry,
   addShelf, addPiece, pieceGeometry } from './models.js';
 
 const CAST_IDS = { penny: 'player', granny: 'granny', dad: 'dad', queen: 'queen', selfie: 'selfie', bubba: 'bro' };
@@ -221,12 +222,9 @@ export function buildScene(sim) {
     view.lanes.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(L.length * 9).fill(1), 3);
   }
 
-  // Goods: one instanced mesh per kind serves shelves, the floor, the air and the towers.
-  for (let i = 0; i < GOODS.length; i++) {
-    const mesh = add(new THREE.InstancedMesh(goodGeometry(i), GOODS[i].size === 'H' ? [M.toon, M.lineBold] : M.toon, GOOD_CAP));
-    mesh.count = 0;
-    view.goods.push(mesh);
-  }
+  // Goods: one instanced mesh per base shape serves shelves, the floor, the air and the towers (goods.js).
+  view.gv = makeGoods(view.root);
+  view.hot = kit.hot || 'cheese';
 
   // The crowd: one instanced shopper in three muted colours.
   view.crowdKinds = kit.crowd;
@@ -272,12 +270,6 @@ function putAt(m, o, x, y, z, ry, s, rx, rz) {
   }
   m[o + 3] = 0; m[o + 7] = 0; m[o + 11] = 0;
   m[o + 12] = x; m[o + 13] = y; m[o + 14] = z; m[o + 15] = 1;
-}
-function putGood(view, kind, x, y, z, ry, s, rx, rz) {
-  const n = view.counts[kind];
-  if (n >= GOOD_CAP) return;
-  putAt(view.goods[kind].instanceMatrix.array, n * 16, x, y, z, ry, s, rx, rz);
-  view.counts[kind] = n + 1;
 }
 
 // Writes one contact shadow: an octagon of half sizes (rx, rz) turned by ry, just above the floor.
@@ -437,7 +429,7 @@ function syncCart(view, c, sim, alpha, dt) {
       if (v >= 1) continue;
       wx = lerp(wx, lane.x + 1.6, v); wz = lerp(wz, lane.z, v); wy = lerp(wy, 1.1, v) + Math.sin(v * Math.PI) * 1.4; scale *= 1 - v * v * 0.7;
     }
-    putGood(view, e.good, wx, wy, wz, h + yawShow + towYaw[i], scale, c.swayZ * 0.8, -c.swayX * 0.8);
+    putGood(view.gv, e.good, e.v ?? i * 7, wx, wy, wz, h + yawShow + towYaw[i], scale, c.swayZ * 0.8, -c.swayX * 0.8, view.hot);
   }
 }
 
@@ -468,14 +460,14 @@ const GREEN = rgb(PAL.green), RED = rgb(PAL.danger), AMBER = rgb(PAL.sale);
 export function syncScene(view, sim, alpha, dt) {
   const world = sim.world, p = sim.player;
   view.time += dt; view.frame++;
-  view.counts.fill(0);
+  beginGoods(view.gv);
   view.shadowN = view.fixed;
   view.glowN = 0;
   const lure = sim.stats.taken === 0 && sim.t > 0;     // until the player's first item, the goods on the shelves nearby hop for attention
   for (const it of world.items) {
     if (it.taken) continue;
     const hop = lure && Math.abs(it.x - p.x) < 9 && Math.abs(it.z - p.z) < 22 ? Math.max(0, Math.sin(view.time * 9 + it.x * 1.3 + it.z * 1.7)) * 0.16 : 0;
-    putGood(view, it.good, it.x, 0.5 + hop, it.z, Math.atan2(it.nx, it.nz), 1, 0, 0);
+    putGood(view.gv, it.good, it.v ?? (it.v = variantAt(it.x, it.z)), it.x, 0.5 + hop, it.z, Math.atan2(it.nx, it.nz), 1, 0, 0, view.hot);
   }
   for (const d of world.drops) {
     if (!d.live) continue;
@@ -484,9 +476,9 @@ export function syncScene(view, sim, alpha, dt) {
     const bob = 0.14 + 0.07 * Math.sin(view.time * 4 + d.x * 1.3 + d.z);
     if (age < 0.45) {                                                               // thrown out of a cart
       const u = age / 0.45;
-      putGood(view, d.good, lerp(d.ox, d.x, u), 1.0 + Math.sin(u * Math.PI) * 1.4 - u * 0.86, lerp(d.oz, d.z, u), u * 9 + d.x, 0.9, u * 7, u * 5);
+      putGood(view.gv, d.good, variantAt(d.x, d.z), lerp(d.ox, d.x, u), 1.0 + Math.sin(u * Math.PI) * 1.4 - u * 0.86, lerp(d.oz, d.z, u), u * 9 + d.x, 0.9, u * 7, u * 5, view.hot);
     } else {
-      putGood(view, d.good, d.x, bob + (d.list ? 0.25 : 0), d.z, view.time * 1.6 + d.x * 1.7, d.list ? 1.3 : 0.95, 0, 0.18);
+      putGood(view.gv, d.good, variantAt(d.x, d.z), d.x, bob + (d.list ? 0.25 : 0), d.z, view.time * 1.6 + d.x * 1.7, d.list ? 1.3 : 0.95, 0, 0.18, view.hot);
       if (d.list) putGlow(view, d.x, d.z, 0.85 + 0.12 * Math.sin(view.time * 5), PAL.list);   // list items stand on a teal disc
       else putShadow(view, d.x, d.z, 0.3, 0.3, 0);
     }
@@ -507,7 +499,7 @@ export function syncScene(view, sim, alpha, dt) {
       it.beam.visible = it.star.visible = hot;
       if (hot) {
         const top = GOODS[it.p.good].dims[1];
-        putGood(view, it.p.good, it.p.x, 0.36 + 0.06 * Math.sin(view.time * 3), it.p.z, view.time * 1.2, 1, 0, 0);
+        putGood(view.gv, it.p.good, 0, it.p.x, 0.36 + 0.06 * Math.sin(view.time * 3), it.p.z, view.time * 1.2, 1, 0, 0, view.hot);
         putGlow(view, it.p.x, it.p.z, 1.5 + 0.1 * Math.sin(view.time * 4), PAL.hot);
         it.star.position.set(it.p.x, top + 1.5 + 0.18 * Math.sin(view.time * 3.3), it.p.z);
         it.star.rotation.y = view.time * 2.2;
@@ -529,11 +521,7 @@ export function syncScene(view, sim, alpha, dt) {
     if (tr.wait <= 0) putShadow(view, tr.x + tr.dx * tr.dir * 5, tr.z + tr.dz * tr.dir * 5, 0.7, 4.4, a);      // 0.8 s of warning at its 7 m/s
   }
   for (const [e, f] of view.flights) if (f.seen !== view.frame) view.flights.delete(e);   // spilled before it landed
-  for (let i = 0; i < view.goods.length; i++) {
-    const mesh = view.goods[i];
-    mesh.count = view.counts[i];
-    mesh.instanceMatrix.needsUpdate = true;
-  }
+  endGoods(view.gv);
   // Checkout lamps: green while open, blinking amber for two seconds before closing, then red with a barrier.
   if (view.lanes) {
     world.lanes.forEach((l, i) => {
@@ -586,37 +574,11 @@ export function sceneEvent(view, e) {
     else if (e.type === 'bump' || e.type === 'cartbump') { c.squash = 0.55; c.swayXv += (c.k.id % 2 ? 2 : -2); }
     else if (e.type === 'take' && c.k === e.cart) {
       // Goods leave the shelf one after another: each waits a little longer than the one before.
+      e.ref.entry.v = variantAt(e.ref.x, e.ref.z);
       view.flights.set(e.ref.entry, { x: e.ref.x, y: e.ref.y, z: e.ref.z, t: -Math.min(0.24, c.pending * 0.03), seen: view.frame });
       c.pending++;
     }
   }
-}
-
-// A small picture of one kind of goods for the interface (the list icons): the real model with its
-// outline, drawn once into a canvas. Returns a data URL.
-let iconMats = null;
-export function goodIcon(kind, size = 96) {
-  const T = THREE, ren = R.renderer, rt = new T.WebGLRenderTarget(size, size), scene = new T.Scene(), d = GOODS[kind].dims;
-  const ink = iconMats || (iconMats = [celMaterial({ flat: false }), hullMaterial(2.6)]);
-  const mesh = new T.Mesh(goodGeometry(kind), ink);
-  mesh.rotation.y = 0.55;
-  scene.add(mesh);
-  const r = Math.max(d[0], d[1], d[2]) * 0.78, cam = new T.OrthographicCamera(-r, r, r, -r, 0.1, 30);
-  cam.position.set(3, 3.4 + d[1] / 2, 5); cam.lookAt(0, d[1] / 2, 0);
-  const res = R.u.uRes.value.clone(), line = ink[1].uniforms.uThick, thick = line.value, px = new Uint8Array(size * size * 4);
-  R.u.uRes.value.set(size, size); line.value = 2.6;
-  ren.setRenderTarget(rt); ren.setClearColor(0, 0); ren.clear(); ren.render(scene, cam);
-  ren.readRenderTargetPixels(rt, 0, 0, size, size, px);
-  ren.setRenderTarget(null); ren.setClearColor(PAL.night, 1);
-  R.u.uRes.value.copy(res); line.value = thick;
-  const cv = document.createElement('canvas');
-  cv.width = cv.height = size;
-  const ctx = cv.getContext('2d'), img = ctx.createImageData(size, size);
-  for (let y = 0; y < size; y++) img.data.set(px.subarray((size - 1 - y) * size * 4, (size - y) * size * 4), y * size * 4);
-  for (let i = 3; i < img.data.length; i += 4) img.data[i] = img.data[i - 1] + img.data[i - 2] + img.data[i - 3] > 0 ? 255 : 0;   // (alpha in the scene is the glow mask)
-  ctx.putImageData(img, 0, 0);
-  rt.dispose(); mesh.geometry.dispose();
-  return cv.toDataURL();
 }
 
 export function disposeScene(view) {

@@ -19,6 +19,7 @@ export const KITS = {
     pools: { grid: 10, r: 2.9, warm: [1.0, 0.94, 0.78], k: 0.09 },
     grade: { shade: [0.66, 0.6, 0.82], key: [1, 0.96, 0.86], light: [0.42, 0.8, 0.43], sat: 1.06, contrast: 1.04, lift: [0.012, 0.0, 0.03], gain: [1, 0.99, 0.97], vignette: 0.2, bloom: 1, halftone: 0.16 },
     void: 0x2A2240,
+    hot: 'cheese',
     crowd: ['walkerGranny', 'strollerMom', 'staff', 'caneGrandpa', 'toddler', 'phoneTeen', 'bellyBro', 'jogger'],
   },
 };

@@ -135,7 +135,7 @@ export function cyl(B, r0, r1, h, color, o = {}) {
   const sn = (i) => { const a = i / seg * Math.PI * 2; return vunit([Math.sin(a), slope, Math.cos(a)]); };
   for (let i = 0; i < seg; i++) {
     const j = i + 1, a0 = ring(i, 0, r0), a1 = ring(j, 0, r0), t0 = ring(i, h, r1), t1 = ring(j, h, r1);
-    const u0 = i / seg, u1 = j / seg, tex = o.side;
+    const u0 = i / seg * (o.uRep || 1), u1 = j / seg * (o.uRep || 1), tex = o.side;
     const n0 = o.smooth === false ? vunit(vcross(vsub(t0, a0), vsub(a1, a0))).map((v) => -v) : sn(i), n1 = o.smooth === false ? n0 : sn(j);
     vtx(B, a0, n0, c, [u0, 1], tex); vtx(B, a1, n1, c, [u1, 1], tex); vtx(B, t1, n1, c, [u1, 0], tex);
     vtx(B, a0, n0, c, [u0, 1], tex); vtx(B, t1, n1, c, [u1, 0], tex); vtx(B, t0, n0, c, [u0, 0], tex);

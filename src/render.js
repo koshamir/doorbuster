@@ -54,7 +54,7 @@ void main() {
   ${SKIN_VS}
   vColor = color;
 #ifdef USE_INSTANCING_COLOR
-  vColor *= instanceColor;
+  if (tex.x > 2.5 || tex.x < -0.5) vColor *= instanceColor;
 #endif
   vec4 w = modelMatrix * p;
   vW = w.xyz; vN = normalize(mat3(modelMatrix) * n); vUv = uv; vTex = tex;
@@ -103,7 +103,7 @@ void main() {
 #endif
 #ifdef MAP_B
   if (mode > 2.5 && mode < 3.5) { vec4 t = cellTex(uMapB, vTex.y, GRID_B, clamp(vUv, 0.0, 0.999), 0.004); base = mix(base, t.rgb, t.a); }
-  else if (mode > 3.5) { vec4 t = cellTex(uMapB, vTex.y, GRID_B, vUv, 0.004); base = mix(base, t.rgb, t.a); }
+  else if (mode > 3.5 && mode < 4.5) { vec4 t = cellTex(uMapB, vTex.y, GRID_B, vUv, 0.004); base = mix(base, t.rgb, t.a); }
 #endif
   vec3 n = normalize(vN);
   float nl = dot(n, uLight);

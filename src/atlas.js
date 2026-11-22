@@ -3,7 +3,7 @@
 //          blink for every named character, four shared crowd styles), patterns (fabrics, seams, prints,
 //          cart paints and decals), product labels and the store-kit signs. Each is one 2048 px canvas
 //          turned into a texture once and cached.
-// Exports: EXPR, PAT, faceAtlas, faceCell, crowdCell, patternAtlas, atlasTex, inkStyle
+// Exports: EXPR, PAT, LABELS, faceAtlas, faceCell, crowdCell, patternAtlas, labelAtlas, atlasTex, inkStyle
 // Depends on: the global THREE (inside functions only).
 //
 // Faces: cells of 256 px, row = character (cast.js face.row), column = expression; the crowd styles sit
@@ -211,4 +211,61 @@ export function patternAtlas() {
   cell(PAT.star, () => { g.fillStyle = '#FFD23F'; g.strokeStyle = INK; g.lineWidth = 10; g.beginPath(); for (let k = 0; k < 10; k++) { const a = k / 10 * 6.283 - Math.PI / 2, r = k % 2 ? 50 : 110; g.lineTo(128 + Math.cos(a) * r, 128 + Math.sin(a) * r); } g.closePath(); g.fill(); g.stroke(); });
   cell(PAT.vest, () => { g.fillStyle = 'rgba(255,255,255,0.95)'; g.fillRect(0, 150, 256, 18); g.fillStyle = '#FFD23F'; g.fillRect(0, 172, 256, 10); });
   return (cache.pat = atlasTex(cv));
+}
+
+// ---- product labels ----------------------------------------------------------------------------------------
+// One 256 px cell per invented brand (ART.md section 5): a background, a band, a decoration made of simple
+// shapes, a bold wordmark fitted to the width, a tagline, and an ink border.
+export const LABELS = [
+  ['SUGAR STORM', '#5B3FD6', '#FFD23F', '#FFFFFF', 'bolt'], ['CRUNCH-O-RAMA', '#FF9F1C', '#E63946', '#FFFFFF', 'burst'], ['BEAN BOSS', '#7A4A22', '#FFD23F', '#FFF6EA', 'face'],
+  ['TOMATO TORNADO', '#E63946', '#8AC926', '#FFFFFF', 'swirl'], ['NOODLE NOODLE', '#FFD23F', '#E63946', '#2A1A3A', 'wave'], ['CHOMPERS', '#3BB273', '#FFD23F', '#FFFFFF', 'teeth'],
+  ['PUFF-A-LUMP', '#FF8FC7', '#FFFFFF', '#5B3FD6', 'dots'], ['MEGA FIZZ', '#3A86FF', '#FFFFFF', '#FFFFFF', 'bubbles'], ['FIZZ BANG', '#E63946', '#FFD23F', '#FFFFFF', 'burst'],
+  ['SPLOOSH', '#48CAE4', '#FFFFFF', '#1B4F8A', 'drop'], ['MOOVELOUS', '#FFFFFF', '#3A86FF', '#3A86FF', 'spots'], ['YO-GOGO', '#FF6FA0', '#FFFFFF', '#FFFFFF', 'star'],
+  ['CLOUDROLL', '#7CC6FE', '#FFFFFF', '#FFFFFF', 'cloud'], ['BEAN THERE', '#3B2416', '#E9B949', '#E9B949', 'bean'], ['ZAPTRONIX', '#1B1F3B', '#00E5FF', '#00E5FF', 'bolt'],
+  ['BOOP', '#FF4FD8', '#FFFFFF', '#FFFFFF', 'circle'], ['BASSBRICK', '#2A2440', '#8AC926', '#8AC926', 'waves'], ['PIXELPOP', '#9B5DE5', '#FFD23F', '#FFFFFF', 'pixels'],
+  ['GIGAVISION', '#1B1F3B', '#FF4FD8', '#FFFFFF', 'screen'], ['MAISON MAYHEM', '#2A2440', '#E9B949', '#E9B949', 'line'], ['ZOOMIES', '#FF7F11', '#FFFFFF', '#FFFFFF', 'swoosh'],
+  ['MEGA-FLEX', '#E63946', '#2A2440', '#FFFFFF', 'bolt'], ['GOAL-O-MATIC', '#3BB273', '#FFFFFF', '#FFFFFF', 'ball'], ['EGGCELLENT', '#F4E1C1', '#FFD23F', '#7A4A22', 'egg'],
+  ['DOUGH-RE-MI', '#E8B36A', '#E63946', '#FFFFFF', 'notes'], ['PIZZA PANIC', '#FFF6EA', '#E63946', '#E63946', 'slice'], ['JAMMIN', '#9B2D5A', '#FFFFFF', '#FFFFFF', 'berry'],
+  ['OJ-OH', '#FF9F1C', '#8AC926', '#FFFFFF', 'circle'], ['FIZZ BANG ZERO', '#2A2440', '#E63946', '#FFFFFF', 'burst'], ['SPLOOSH LEMON', '#FFE45C', '#48CAE4', '#1B4F8A', 'drop'],
+  ['SUGAR STORM CHOCO', '#6B3A1E', '#FFD23F', '#FFFFFF', 'bolt'], ['CHOMPERS BBQ', '#7A2E1E', '#FF9F1C', '#FFFFFF', 'teeth'],
+];
+export function labelAtlas() {
+  if (cache.label) return cache.label;
+  const cv = canvas(), g = cv.getContext('2d');
+  LABELS.forEach((L, i) => { g.save(); g.translate((i % 8) * 256, Math.floor(i / 8) * 256); g.beginPath(); g.rect(0, 0, 256, 256); g.clip(); drawLabel(g, L); g.restore(); });
+  return (cache.label = atlasTex(cv));
+}
+function drawLabel(g, [name, bg, band, ink, deco]) {
+  g.fillStyle = bg; g.fillRect(0, 0, 256, 256);
+  g.fillStyle = band; g.beginPath(); g.moveTo(0, 168); g.lineTo(256, 140); g.lineTo(256, 186); g.lineTo(0, 214); g.fill();
+  g.save(); g.translate(128, 66); g.fillStyle = band; g.strokeStyle = INK; g.lineWidth = 6;
+  const P = (pts) => { g.beginPath(); pts.forEach(([x, y], k) => k ? g.lineTo(x, y) : g.moveTo(x, y)); g.closePath(); g.fill(); g.stroke(); };
+  if (deco === 'bolt') P([[-14, -44], [22, -44], [4, -8], [26, -8], [-22, 44], [-4, 4], [-26, 4]]);
+  else if (deco === 'burst' || deco === 'star') { const n = deco === 'star' ? 10 : 24; g.beginPath(); for (let k = 0; k < n; k++) { const a = k / n * 6.283, r = k % 2 ? 22 : 46; g.lineTo(Math.cos(a) * r, Math.sin(a) * r); } g.closePath(); g.fill(); g.stroke(); }
+  else if (deco === 'face' || deco === 'circle' || deco === 'ball' || deco === 'berry') {
+    g.beginPath(); g.arc(0, 0, 40, 0, 7); g.fill(); g.stroke(); g.fillStyle = INK;
+    if (deco === 'face') { g.beginPath(); g.arc(-13, -6, 6, 0, 7); g.arc(13, -6, 6, 0, 7); g.fill(); g.lineWidth = 6; g.beginPath(); g.arc(0, 4, 18, 0.3, 2.8); g.stroke(); }
+    if (deco === 'ball') { g.lineWidth = 5; g.beginPath(); g.moveTo(-40, 0); g.lineTo(40, 0); g.moveTo(0, -40); g.quadraticCurveTo(22, 0, 0, 40); g.stroke(); }
+  }
+  else if (deco === 'swirl' || deco === 'wave' || deco === 'waves') { g.lineWidth = 12; g.strokeStyle = band; for (let k = 0; k < 3; k++) { g.beginPath(); for (let x = -60; x <= 60; x += 6) g.lineTo(x, -24 + k * 22 + Math.sin(x / 10 + k) * 8); g.stroke(); } }
+  else if (deco === 'teeth') { g.beginPath(); g.ellipse(0, 0, 50, 34, 0, 0, 7); g.fill(); g.stroke(); g.fillStyle = '#FFFFFF'; for (let k = -2; k <= 2; k++) { g.beginPath(); g.moveTo(k * 16 - 7, -12); g.lineTo(k * 16 + 7, -12); g.lineTo(k * 16, 4); g.fill(); } }
+  else if (deco === 'dots' || deco === 'bubbles' || deco === 'pixels' || deco === 'spots') {
+    for (let k = 0; k < 7; k++) { const x = -50 + (k * 37) % 100, y = -30 + (k * 23) % 60, r = 8 + (k % 3) * 5;
+      if (deco === 'pixels') { g.fillRect(x - r, y - r, r * 1.6, r * 1.6); g.strokeRect(x - r, y - r, r * 1.6, r * 1.6); }
+      else { g.fillStyle = deco === 'spots' ? INK : band; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); if (deco !== 'spots') g.stroke(); } }
+  }
+  else if (deco === 'drop' || deco === 'egg' || deco === 'bean') { g.beginPath(); g.ellipse(0, 4, deco === 'bean' ? 34 : 30, deco === 'drop' ? 36 : 42, deco === 'bean' ? 0.6 : 0, 0, 7); g.fill(); g.stroke(); if (deco === 'drop') P([[0, -56], [18, -18], [-18, -18]]); }
+  else if (deco === 'cloud') { g.beginPath(); for (const [x, y, r] of [[-30, 8, 24], [0, -10, 32], [30, 8, 24], [0, 14, 26]]) { g.moveTo(x + r, y); g.arc(x, y, r, 0, 7); } g.fill(); g.stroke(); }
+  else if (deco === 'screen') { g.fillRect(-56, -36, 112, 72); g.strokeRect(-56, -36, 112, 72); g.fillStyle = '#00E5FF'; g.fillRect(-46, -26, 92, 52); }
+  else { g.lineWidth = 14; g.strokeStyle = band; g.beginPath(); g.moveTo(-60, 20); g.quadraticCurveTo(0, -50, 60, -10); g.stroke(); }
+  g.restore();
+  // the wordmark: as big as fits, outlined
+  let size = 74;
+  g.font = '900 ' + size + 'px "Arial Black", Impact, sans-serif';
+  while (g.measureText(name).width > 232 && size > 26) { size -= 2; g.font = '900 ' + size + 'px "Arial Black", Impact, sans-serif'; }
+  g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
+  g.lineWidth = Math.max(6, size * 0.16); g.strokeStyle = INK; g.strokeText(name, 128, 132);
+  g.fillStyle = ink; g.fillText(name, 128, 132);
+  g.font = '900 22px "Arial Black", sans-serif'; g.fillStyle = INK; g.fillText(name.length % 3 ? 'NEW!' : 'XL', 206, 232);
+  g.strokeStyle = INK; g.lineWidth = 8; g.strokeRect(4, 4, 248, 248);
 }
