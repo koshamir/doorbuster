@@ -28,21 +28,25 @@ export function unlockAudio(offline) {
   const c = A.ctx = offline || new AC(), lim = c.createDynamicsCompressor();
   lim.threshold.value = -14; lim.knee.value = 8; lim.ratio.value = 12; lim.attack.value = 0.003; lim.release.value = 0.2;
   A.master = c.createGain(); A.master.gain.value = A.on ? 0.9 : 0;
-  A.master.connect(lim); lim.connect(c.destination);
+  A.master.connect(lim);
+  if (offline) { const two = c.createChannelMerger(2); lim.connect(two, 0, 0); A.master.connect(two, 0, 1); two.connect(c.destination); }   // right channel: before the limiter
+  else lim.connect(c.destination);
   A.sfx = c.createGain(); A.sfx.gain.value = A.vSfx; A.sfx.connect(A.master);
   A.wah = c.createBiquadFilter(); A.wah.type = 'lowpass'; A.wah.frequency.value = 18000; A.wah.connect(A.master);
   A.music = c.createGain(); A.music.gain.value = A.vMusic; A.music.connect(A.wah);
   A.noise = c.createBuffer(1, c.sampleRate * 1.5, c.sampleRate);
   const d = A.noise.getChannelData(0);
   for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-  // Three noises that run all the time and are only turned up and down: drift screech, rolling, crowd murmur.
+  // Five noises that run all the time and are only turned up and down: drift screech, rolling, crowd
+  // murmur, the cart train's rattle, a travelator's whirr.
   const loop = (type, f, q) => {
     const src = c.createBufferSource(), flt = c.createBiquadFilter(), g = c.createGain();
     src.buffer = A.noise; src.loop = true; flt.type = type; flt.frequency.value = f; flt.Q.value = q; g.gain.value = 0;
     src.connect(flt); flt.connect(g); g.connect(A.sfx); src.start();
     return { f: flt.frequency, g: g.gain };
   };
-  A.loops = { screech: loop('bandpass', 2600, 7), roll: loop('lowpass', 400, 0.7), murmur: loop('bandpass', 420, 0.9) };
+  A.loops = { screech: loop('bandpass', 2600, 7), roll: loop('lowpass', 400, 0.7), murmur: loop('bandpass', 420, 0.9),
+    train: loop('bandpass', 170, 1.6), belt: loop('bandpass', 720, 9) };
   A.nextT = c.currentTime + 0.1;
 }
 export function setSound(on) {
@@ -121,8 +125,10 @@ export function audioEvent(e, sim) {
   switch (e.type) {
     case 'take': {
       if (!mine) { if (soon('rtake', 0.12)) tone(A.sfx, 'sine', 520, 0, t, 0.05, 0.05); break; }
-      // The pop climbs a pentatonic scale with every item of a chain and starts again after a pause.
-      A.chain = t - A.chainT < 0.75 ? Math.min(A.chain + 1, 19) : 0; A.chainT = t;
+      // The pop climbs a pentatonic scale with every item of a chain (two octaves at most) and starts
+      // again after a pause; a burst of takes is one pop per 45 ms.
+      if (!soon('take', 0.045)) break;
+      A.chain = t - A.chainT < 0.75 ? Math.min(A.chain + 1, 9) : 0; A.chainT = t;
       const m = 67 + [0, 2, 4, 7, 9][A.chain % 5] + 12 * Math.floor(A.chain / 5), size = GOODS[e.ref.good].size;
       tone(A.sfx, 'triangle', hz(m), hz(m + 5), t, 0.09, 0.34);
       if (size === 'L' || size === 'H') tone(A.sfx, 'sine', hz(m - 12), 0, t, 0.16, 0.3);
@@ -176,6 +182,10 @@ export function audioEvent(e, sim) {
     case 'lanewarn': arp(t, [88, 88], 'square', 0.1, 0.16, 0.08); break;
     case 'laneclose': tone(A.sfx, 'square', 98, 92, t, 0.3, 0.2); click(t + 0.28, 0.3); break;
     case 'go': arp(t, [64, 71, 76], 'square', 0.2, 0.001, 0.5); whoosh(t, 300, 2500, 0.4, 0.25); break;
+    case 'wet': if (mine) { hiss(A.sfx, 'bandpass', 900, 2600, 3, t, 0.3, 0.3); tone(A.sfx, 'sine', 700, 1500, t, 0.22, 0.12); } break;   // wheels squeal on water
+    case 'jump': whoosh(t, 300, 3000, 0.5, 0.4 * far); if (mine) tone(A.sfx, 'triangle', hz(60), hz(84), t, 0.45, 0.16); break;
+    case 'land': boom(t, 0.7 * far, 110); clang(t + 0.03, 4, 0.1 * far); break;
+    case 'selfie': click(t, 0.5 * far); tone(A.sfx, 'square', hz(96), 0, t + 0.02, 0.05, 0.1 * far); click(t + 0.09, 0.35 * far); break;   // a shutter
     case 'finish':
       if (mine) arp(t, [72, 76, 79, 84, 79, 84, 88], 'triangle', 0.28, 0.07, 0.25);
       else if (soon('rfin', 0.3)) arp(t, [79, 84], 'sine', 0.12, 0.07, 0.2);
@@ -201,8 +211,10 @@ export function audioCue(name, n) {
   else if (name === 'click') tone(A.sfx, 'triangle', hz(81), hz(86), t, 0.05, 0.18);
 }
 
-// ---- Music: a two-chord funk vamp on a 16-step grid, four bars long, played by a look-ahead
-// scheduler (so it loops without a seam and can change tempo). Notes are MIDI numbers, 0 is a rest.
+// ---- Music: a two-chord funk vamp on a 16-step grid, played by a look-ahead scheduler (so it loops
+// without a seam and can change tempo). Four bars make a pass and four passes the tune: twice as
+// written, once a minor third up, once with the lead's bars in reverse order and a snare fill into the
+// repeat. Notes are MIDI numbers, 0 is a rest.
 const BASS = [
   [40, 0, 0, 40, 0, 52, 0, 0, 43, 0, 45, 0, 0, 47, 50, 0], [40, 0, 0, 40, 0, 52, 0, 50, 0, 47, 0, 45, 0, 43, 0, 42],
   [45, 0, 0, 45, 0, 57, 0, 0, 48, 0, 50, 0, 0, 52, 55, 0], [45, 0, 0, 45, 0, 57, 0, 55, 0, 52, 0, 47, 0, 47, 0, 46]];
@@ -214,10 +226,10 @@ const SNARE = [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1], BELL = [1, 0, 1,
 // level: 0 = menu (bass and soft chords), 1-4 = the multiplier in a run (drums and bass, then chords,
 // then the lead, then cowbell and claps), 5 = MADNESS mode (everything, double-time hats).
 function musicStep(t, n, level, closing) {
-  const M = A.music, bar = (n >> 4) & 3, s = n & 15;
+  const M = A.music, bar = (n >> 4) & 3, s = n & 15, pass = (n >> 6) & 3, up = pass === 2 ? 3 : 0, fill = pass === 3 && bar === 3 && s >= 12;
   if (level > 0) {
     if (KICK[s]) { tone(M, 'sine', 125, 44, t, 0.16, 0.95); hiss(M, 'highpass', 3000, 0, 0.7, t, 0.012, 0.25); }
-    if (SNARE[s]) { hiss(M, 'bandpass', 1900, 0, 0.9, t, 0.13, 0.5); tone(M, 'triangle', 190, 150, t, 0.07, 0.3); }
+    if (SNARE[s] || fill) { hiss(M, 'bandpass', 1900, 0, 0.9, t, 0.13, fill ? 0.3 + (s - 12) * 0.07 : 0.5); tone(M, 'triangle', 190, 150, t, 0.07, 0.3); }
     if (s % 2 === 0 || level >= 3) hiss(M, 'highpass', 7500, 0, 0.7, t, s % 4 === 2 ? 0.07 : 0.028, level >= 5 ? 0.2 : 0.13);
     if (level >= 4 && BELL[s]) { tone(M, 'square', 545, 0, t, 0.06, 0.08); tone(M, 'square', 815, 0, t, 0.06, 0.06); }
     if (level >= 4 && (s === 4 || s === 12)) for (let i = 0; i < 3; i++) hiss(M, 'bandpass', 1300, 0, 1.2, t + i * 0.011, 0.07, 0.22);
@@ -226,13 +238,14 @@ function musicStep(t, n, level, closing) {
   const b = BASS[bar][s];
   if (b) {
     const c = A.ctx, o = c.createOscillator(), f = c.createBiquadFilter(), g = c.createGain(), d = 0.17;
-    o.type = 'sawtooth'; o.frequency.value = hz(b);
+    o.type = 'sawtooth'; o.frequency.value = hz(b + up);
     f.type = 'lowpass'; f.Q.value = 5; f.frequency.setValueAtTime(1100, t); f.frequency.exponentialRampToValueAtTime(180, t + d);
     g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(level ? 0.5 : 0.3, t + 0.006); g.gain.exponentialRampToValueAtTime(0.0006, t + d + 0.05);
     o.connect(f); f.connect(g); g.connect(M); o.start(t); o.stop(t + d + 0.08);
   }
-  if (STAB[s] && (level === 0 || level >= 2)) for (const m of CHORD[bar]) tone(M, 'square', hz(m), 0, t, 0.1, level ? 0.06 : 0.035);
-  if (level >= 3 && LEAD[bar][s]) tone(M, 'square', hz(LEAD[bar][s]), hz(LEAD[bar][s]) * 1.01, t, 0.13, 0.085);
+  if (STAB[s] && (level === 0 || level >= 2)) for (const m of CHORD[bar]) tone(M, 'square', hz(m + up), 0, t, 0.1, level ? 0.06 : 0.035);
+  const ld = LEAD[pass === 3 ? 3 - bar : bar][s];
+  if (level >= 3 && ld) tone(M, 'square', hz(ld + up), hz(ld + up) * 1.01, t, 0.13, 0.085);
 }
 
 // Once a frame: keeps the music scheduled a little ahead, moves its layers, tempo and filter with the
@@ -261,6 +274,11 @@ export function audioFrame(sim, dt, state) {
   for (const s of sim.shoppers) if (s.state >= 0 && Math.abs(s.x - p.x) < 16 && Math.abs(s.z - p.z) < 16) near++;
   L.murmur.g.setTargetAtTime(play ? Math.min(0.16, 0.012 * near + 0.05 * Math.max(0, sim.t) / sim.timer + (sim.closing ? 0.04 : 0)) : 0.02, t, 0.3);
   L.murmur.f.setTargetAtTime(380 + 120 * Math.sin(t * 0.9), t, 0.2);
+  // The cart train rattles louder the nearer it is (a clatter while it moves), and a belt whirrs under the cart.
+  let td = 1e9, moving = false;
+  for (const tr of sim.trains || []) { const d = Math.hypot(tr.x - p.x, tr.z - p.z); if (d < td) { td = d; moving = tr.wait <= 0; } }
+  L.train.g.setTargetAtTime(play && td < 32 ? Math.pow(1 - td / 32, 2) * (moving ? (Math.sin(t * 40) > 0 ? 0.3 : 0.12) : 0.05) : 0, t, 0.012);
+  L.belt.g.setTargetAtTime(on && (p.convX || p.convZ) ? 0.07 : 0, t, 0.06);
   // A heavy cart squeaks: little chirps, faster with speed.
   if (on && A.on && p.load > TUNE.loadfull * 0.7 && speed > 3 && p.madT <= 0) {
     A.squeak -= dt * speed / 5;

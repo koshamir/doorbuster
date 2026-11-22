@@ -36,7 +36,7 @@ export function initUI(root) {
   ui.root = root;
   ui.hud = el('div', 'hud', undefined, root);
   const t = el('div', 'plate hud-timer', undefined, ui.hud);
-  el('span', 'lbl', 'CLOSING IN', t);
+  el('span', 'lbl', 'DOORS LOCK IN', t);
   ui.timer = el('b', '', '0:00', t);
   const r = el('div', 'tag hud-total', undefined, ui.hud);
   el('span', 'lbl', 'RECEIPT', r);
@@ -114,7 +114,7 @@ export function updateHud(sim, dt) {
     if (ui.popQ.length && ui.popT < (ui.popKind === 'hot' ? 0.1 : 0.5)) showPop(ui.popQ.shift());
     else if (ui.popT <= 0) ui.pop.classList.remove('in');
   }
-  if (ui.newsT > 0) { ui.newsT -= dt; if (ui.newsT <= 0) { ui.news.classList.remove('in'); ui.hud.classList.remove('newsy'); } }
+  if (ui.newsT > 0) { ui.newsT -= dt; if (ui.newsT <= 0) ui.news.classList.remove('in'); }
   for (const f of ui.floats) {
     if (f.t <= 0) continue;
     f.t -= dt;
@@ -149,7 +149,6 @@ export function announce(title, sub) {
   ui.news.firstChild.textContent = title;
   ui.news.lastChild.textContent = sub || '';
   ui.news.classList.add('in');
-  ui.hud.classList.add('newsy');                       // pop-up words move below the line while it is up
   ui.newsT = 3.4;
 }
 
@@ -218,6 +217,7 @@ export function floatText(text, x, y, kind) {
 // accelerator is automatic. press(name, down) receives the same names as the keyboard.
 export function showTouch(press) {
   if (ui.touch) return;
+  ui.root.classList.add('touching');                   // a finger needs a bigger pause button
   ui.touch = el('div', 'touch', undefined, ui.root);
   for (const [name, text, cls] of [['left', '◀', 'l1'], ['right', '▶', 'l2'], ['brake', 'BRAKE', 'r3'], ['drift', 'DRIFT', 'r2'], ['dash', 'DASH', 'r1']]) {
     const b = el('div', 'pad ' + cls, text, ui.touch);
@@ -233,7 +233,7 @@ export function hideScreens() {
   ui.hud.classList.remove('off');
   ui.tally = null;
   ui.popQ.length = 0; ui.popT = 0; ui.pop.classList.remove('in');
-  ui.news.classList.remove('in'); ui.hud.classList.remove('newsy'); ui.newsT = 0;
+  ui.news.classList.remove('in'); ui.newsT = 0;
   ui.em = parseFloat(getComputedStyle(ui.root).fontSize) || 16;
   lastTotal = 0;
 }
@@ -261,14 +261,16 @@ export function showTitle(levelName, onStart, cards, pick) {
     });
   }
   button('btn big', 'START', low, onStart);
-  el('div', 'hint', 'Arrows or WASD to drive · Space to drift · Shift to dash · P to pause', low);
+  el('div', 'hint', navigator.maxTouchPoints > 0 && !matchMedia('(pointer: fine)').matches ? 'Steer with the left thumb · DASH and DRIFT under the right · the cart rolls by itself'
+    : 'Arrows or WASD to drive · Space to drift · Shift to dash · P to pause', low);
 }
 
 // The receipt: lines print one by one, then the total, the medal, the final table and the record.
 // rc = the player's receipt; tableOf() returns [{ name, total, me }] best first and is called only
 // when the table is due (main.js plays the rest of the race out at that moment); best = { value, isNew };
-// medal 1-4; onNext is absent on the last level; onMenu (optional) goes back to the loyalty card.
-export function showReceipt(rc, tableOf, best, storeName, medal, onRetry, onNext, onMenu) {
+// medal 1-4; onNext is absent on the last level; onMenu (optional) goes back to the loyalty card;
+// goal (optional) = { medal, at }: the next medal and the receipt it takes.
+export function showReceipt(rc, tableOf, best, storeName, medal, onRetry, onNext, onMenu, goal) {
   hideScreens();
   ui.hud.classList.add('off');
   ui.screen.className = 'screen receipt on';
@@ -295,6 +297,7 @@ export function showReceipt(rc, tableOf, best, storeName, medal, onRetry, onNext
   steps.push(() => {
     tableOf().forEach((r, i) => line((i + 1) + '. ' + r.name, r.total < 0 ? 'still shopping' : money(r.total), 'rank' + (r.me ? ' me' : '')));
     const bestRow = line('BEST', money(best.value), 'rank best');
+    if (goal) line(MEDAL[goal.medal] + ' AT', money(goal.at), 'rank next');       // what the next medal takes
     steps.push(() => {
       if (best.isNew) el('div', 'stamp new', 'NEW BEST!', bestRow);
       if (!onNext) el('div', 'paper-sub end', 'that was the last store. thank you for shopping!', paper);

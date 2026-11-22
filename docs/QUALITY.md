@@ -1,133 +1,140 @@
-# Quality bar and way of working
+# DOORBUSTER — Quality process v3
 
-The goal is a game the jury remembers after five minutes, with nothing that betrays a rush job. This document says how to tell that a system is done. The numbers are guidelines: if measurements show something else works better, change it and record it in `DEVLOG.md`.
+## 1. Principle
 
-## 1. Instruments: how to check yourself
+Checks exist to protect the game, not to produce reports.
 
-You do not hold the keyboard, so build your instruments in the first days.
+- **Fun** is judged by the owner's playtests.
+- **Beauty** is judged by looking at screenshots.
+- **Correctness** is guarded by one fast command.
 
-1. **Headless simulation.** Game logic (movement, collisions, pickup, AI, scoring, level data) does not depend on the DOM or WebGL and runs from Node with a fixed time step and a random seed. A script runs hundreds of runs and prints: share of finishers, stuck events, times, receipts, failures on each obstacle for each rival.
-2. **Bot player.** The same AI drives the player's cart in three modes: beginner, confident, expert. It is used to set timers and medal thresholds and to catch dead ends.
-3. **Screenshots.** A script (Playwright or similar) opens the game with parameters like `?level=2&seed=7&autoplay=1`, captures frames at set moments and catches console errors. Look at the frames yourself and compare them with `ART.md` and the images in `references/`. If the tool cannot be installed, ask the owner for screenshots.
-4. **Debug mode `?debug=1`.** Frames per second, frame time, draw calls, triangles, object count. Sliders for the `tune.json` values with a "copy JSON" button. Jump to any level, slow down time, fill the cart.
-5. **The owner's playtest** at every milestone gate. It is the only instrument for feel. Ask specific questions.
+Everything else is waste: logs of numbers, evidence folders, metric tables, repeated reviews, scripts that patch other scripts.
 
-## 2. Milestones and gates
+**Rules:**
 
-Dates are guidelines. The game must be frozen by the evening of 29 November: one more day is needed to move it into Mindblown.
+- Run `npm run check` after a meaningful set of changes, not after every edit, and always before a commit.
+- Run `npm run shots` after each visual deliverable and when a level is playable, about 3–6 times per phase. Look at every image you capture.
+- A failing check is fixed before anything else. There are no warnings: a line either passes or fails.
+- Do not add checks for things that cannot break. Do not raise the number of runs to make a flaky result pass: fix the cause.
 
-| Milestone | Dates | What is done | Gate |
-| --- | --- | --- | --- |
-| M0 Skeleton | 21–22 Nov | Page in the platform format, fixed-step loop, `tune.json` loading, platform layer with stubs, debug mode, simulation running from Node | No console errors or external requests, the simulation runs |
-| M1 Toy | 22 Nov | Empty hall with a few walls and shelves: steering, drift with boost, dash, sliding along walls, camera | Playtest: driving is fun with no goals |
-| M2 Core | 23 Nov | Sweeping, floor pickup, the tower and spills, timer, checkout and receipt, restart — on one grey-box level | Full loop "start → checkout → receipt → again"; the beginner bot finishes |
-| M3 Style | 24 Nov | The same level in its final look: materials, outlines, palette, cart, shopper, shelf, 8+ goods, floor and walls, lighting, interface | Playtest: "looks like the references"; 60 fps |
-| M4 Life | 25–26 Nov | Rivals, crowd, all dash targets, Madness, all three events | Simulation metrics from section 4; playtest: the chaos is fun and fair |
-| M5 Content | 27 Nov | Mall kit, levels 1–3 (then 4), icon teaching, medals, saves, leaderboards, mobile controls | A new person finishes level 1 with no explanation |
-| M6 Juice | 28 Nov | Sound, music, announcer, effects, interface animation, receipt | 30 seconds of footage look alive even with the sound off |
-| M7 Polish and handoff | 29 Nov | Bugs, edge cases, performance, bot-based balancing, handoff package from `MINDBLOWN.md` | The release checklist in section 6 is closed |
+## 2. `npm run check` — at most 90 seconds
 
-At each gate: stop and give a short report (what works, what is rough, the instrument numbers) and playtest questions. Examples:
+One command, four parts. The output is at most 30 lines: failures first, each with the exact reason, then one summary line per part. Exit code 1 on any failure. Parallelize the simulation with worker threads if needed to stay under 90 s.
 
-- **M1.** Five minutes without goals — did it get boring? What annoys you about the controls? On which attempt did you land a drift boost? Can you see where you are going at full speed? Does the cart feel heavy, light or just right?
-- **M2.** Did you figure out how to take goods without hints? Can you feel the difference between an empty and a full cart? Does losing goods feel unfair or deserved? Do you want to press "again"?
-- **M3.** Can you find your cart within half a second? Which object looks worse than the rest? What on screen gets in the way? Which reference does it look closest to, and what is missing?
-- **M4.** What did a rival do that made you laugh or angry? Was there a moment when you were punished unfairly? Do you notice the rivals adjusting to you? How many times did Madness trigger?
-- **M5–M6.** Where did you get bored? Where did you not understand what to do? Which moment would you show a friend?
+**1. Static** (a few seconds):
 
-## 3. Signs of a rush job that must not appear
+- the shipped game (`index.html`, `src/`) has at most 30 files, 16,000 lines in total and 900 lines per file; every file starts with its header;
+- `tune.json` follows the format and limits of `MINDBLOWN.md` §4, and every entry has a default in code;
+- no external URL in `src/` except the hosted three.js address in the platform module; no `Math.random` in logic modules; logic modules import in Node without a DOM;
+- `dist/index.html` builds and stays under 2.5 MB without three.js.
 
-- Default fonts and unstyled buttons; an interface in a different style from the 3D.
-- Silence: actions without sound, menus without music.
-- A world that does not react: you hit something and nothing moves.
-- Jittery camera, sticking on corners, falling through walls.
-- No idea what to do in the first five seconds; a wall of text instead of teaching.
-- Punishment without warning; losing control for more than a second.
-- No pause, no instant restart, no volume setting.
-- Breaks on window resize, tab switching or mobile.
-- Long loading and a blank screen at start.
-- Placeholders, debug labels, lorem ipsum, console errors.
+**2. Level validator**, for every level:
 
-## 4. Criteria per system
+- **Reachability:** every floor tile reaches a checkout.
+- **Order:** checkpoints are in route order, and every button or plate is reachable before what it opens.
+- **Pass windows:** every WIPE object on the route leaves a pass window of at least 0.6 s for a cart at 70% of top speed, or the route has a safe way around it.
+- **Loot rule:** at most 15% of the goods' value lies within sweep reach of the safe line, which is the shortest path that avoids every WIPE zone and dash target.
+- **Pace:** no stretch of the author route longer than 15 m without an object, loot or a turn.
 
-**Cart and camera**
+**3. Simulation smoke test**, in Node, for every level:
 
-- Input responds on the next frame. Behavior is identical at 60 and 144 Hz.
-- Slides along walls, does not stick on corners, does not tunnel through thin walls during a dash, never stays stuck for more than half a second.
-- At full speed it passes between two obstacles with a gap of two cart widths.
-- The difference between an empty and a full cart is felt within three seconds of driving.
-- A beginner gets the first drift tier on the second attempt.
-- The camera always shows the cart and about two seconds of road, never goes through walls, never jitters.
+- **Expert bot** × 3 seeds: finishes every time; mean time within ±20% of the level's author time; at most 1 wipeout per run on average.
+- **Beginner bot** × 3 seeds: finishes at least 2 of 3 within the timer.
+- **Rivals:**
+  - never stuck for more than 1 s (stuck = slower than 0.3 m/s while not deliberately waiting at a hazard or in a queue);
+  - pass at least 80% of hazards overall;
+  - no rival fails the same object in every run.
+- **Determinism:** the expert run with seed 1, played twice, gives the same receipt and the same event hash.
 
-**Pickup and the tower**
+**4. Browser smoke test** in Playwright's Chromium:
 
-- A beginner sweeps 10 or more goods off the first shelf without hints.
-- If the side of the cart looks like it is at the shelf, the item is taken. No visible misses.
-- An item flies in an arc in no more than a quarter of a second and lands on the tower instead of vanishing.
-- The state of the tower reads at a glance. A single hit costs no more than 40%, and spilled goods can be recovered.
-- The "careful expert" bot delivers an overloaded tower; the "sloppy" bot loses a noticeable part of it.
+- each level is loaded with `?level=N&seed=1&autoplay=expert&manual=1` and advanced 5 game seconds;
+- **fail** on any console error, failed request or request outside the page's origin;
+- **fail** when draw calls or triangles at the busiest moment exceed §6;
+- also load `?scene=lineup` once.
 
-**Dash and collisions**
+## 3. `npm run shots -- <target>` — at most 6 images
 
-- A hit counts when the objects visibly touch, with a small margin in the player's favor.
-- The response comes in the same frame: hit-stop, sound, effect, the target's reaction.
-- A ram aimed at the player is visible in advance and does not repeat while immunity lasts.
-- In a pile-up of several carts nobody jitters, flies off or passes through others.
+- **Output.** Images go to `shots/latest/` and replace the previous ones. JPEG, at most 1280 × 720, quality 85, so they are cheap to look at. One summary line per image: tier, draw calls, triangles. Frames are exact and repeatable (`manual=1`).
+- **Showcase scenes** are part of the game build. They are reached only through URL parameters and use an orbit or close-up camera:
+  - `?scene=lineup` — the cast;
+  - `?scene=faces` — the expression sheet;
+  - `?scene=kit&store=<store>` — the store kit;
+  - `?scene=cart` — upgrade tiers and cosmetics.
 
-**Madness**
+| Target | Images |
+| --- | --- |
+| `lineup` | cast close-up; crowd row; expression sheet; expressions at gameplay size; flat-ink silhouettes; cart tiers |
+| `kit:<store>` | wide establishing view; gameplay camera at the start; shelf and product close-up; hazard close-up; 320 px squint of the gameplay view |
+| `level:<n>` | doors open; three key beats from the author run; a wipeout or ram; the receipt |
+| `ui` | title; Mall Directory; Cart Customs; level intro; receipt; phone layout |
+| `cover` | title frame at 1200 × 675 and 1000 × 1000; level 1 start frame |
+| `release` | title; the screenshot moment of levels 1, 3, 4, 5 and 6 (`LEVELS.md` §5) |
 
-- A beginner reaches ×2 within the first 20 seconds of level one.
-- The "confident" bot triggers the mode 1–2 times per run.
+**After capturing:**
 
-**Rivals** — checked by simulation, 200 runs per level
+1. Look at every image against `ART.md` §9 and the references.
+2. Write at most 3 lines in `NOTES.md`: the worst problems you see.
+3. Fix them, then shoot again.
 
-- At least 98% of rivals finish without an emergency "push out". Fewer than one stuck event per 20 runs.
-- A rival passes each obstacle with a probability of 80–97% depending on skill. On levels with moving hazards someone's crash is visible in at least every second run.
-- A rival's speed is never above the player's maximum.
-- Receipts: an average rival scores 60–85% of the expert bot, the best rival 85–105% of the confident bot. The beginner bot places 2nd–4th out of four on level one.
-- Rivals ram each other at least once per run. On level one the player is rammed no more than three times.
-- After a hit, a rival is back in the race within two seconds.
+Two passes per visual deliverable is normal; stop when the next fix would be invisible at gameplay size.
 
-**Crowd**
+## 4. Reviews and subagents
 
-- Never blocks the only way through for more than a second. Knocked-down shoppers get up.
-- Does not drop the frame rate: the whole crowd is drawn in one or two draw calls.
+Only two reviewer subagents in the whole project. A reviewer gets the documents and screenshots, not the code, and returns its top 5 problems ranked by what a judge would notice. Fix the problems you agree with; note in one line why you skip any.
 
-**Levels**
+1. **End of P1: art director.** Gets `ART.md`, the references and the `lineup`, `kit:supermarket` and `level:1` shots.
+2. **P5: jury.** Gets `DESIGN.md` §9, the release shots and the simulation summary. It judges the first three minutes as one of the three judges would: gameplay, creativity, polish.
 
-- The beginner bot never drives into dead ends and finishes with at least 10 seconds to spare on level one and at least 5 on the others.
-- The expert bot with no collecting finishes a level in 55–65% of the timer.
-- Every hazard is visible at least 0.7 seconds ahead at full speed.
-- There is something for the player every 3–5 seconds; no empty stretches longer than 25 meters.
-- The checkout is reachable from any point. There are about three times as many goods as fit in the cart.
-- Each level has one new element and one screenshot moment.
+Do not delegate implementation: you hold the context, and a subagent would spend its effort rediscovering it.
 
-**Interface**
+## 5. `NOTES.md`
 
-- From loading to playing: one click and no more than three seconds. Restart: a second and a half. The receipt tally can be sped up.
-- Everything reads in an 800×450 window and on a phone. Mobile buttons sit under the thumbs.
-- Losing focus pauses the game. Resizing the window breaks nothing.
+At most 150 lines. Prune old content instead of archiving it; git keeps the history.
 
-**Sound**
+```markdown
+## STATUS (at most 10 lines)
+Phase: P2 PLAY (prompts/P2_PLAY.md) — in progress
+Done: …
+Next: …
+Open problems: …
 
-- Every action has a sound. No clicks and no clipping.
-- The music loops seamlessly and speeds up at closing time. Sound starts after the player's first action.
+## Owner feedback (verbatim, latest first, last 3 rounds)
 
-## 5. Budgets
+## Decisions (one line each)
+D63 2026-11-24 Pop-up tiles launch 6 m, not 4: the arc must clear the crate row.
 
-- **Performance.** 60 frames per second at 1080p on a laptop with integrated graphics. Guideline: up to 150 draw calls in a normal frame and up to 250 at peak, up to 300,000 triangles, frame logic within 6 ms. If a frame takes longer than 20 ms for two seconds in a row, quality drops automatically (pixel ratio, shadows, outlines on the environment).
-- **Memory.** 20 restarts in a row without memory growth and without garbage collection hitches.
-- **Loading.** Everything except three.js stays under 1.5 MB. First frame on a local server within two seconds.
-- **Code.** Limits from `CLAUDE.md` and `MINDBLOWN.md`.
-- **Browsers.** Chrome, Firefox and Safari on desktop, Chrome on Android, Safari on iPhone.
+## Known issues (at most 10)
+```
 
-## 6. Release checklist
+## 6. Budgets
 
-- [ ] The criteria in sections 3–5 are met, and the numbers are recorded in `DEVLOG.md`.
-- [ ] A new person finishes level one without a single word of explanation.
-- [ ] Within five minutes the jury will see: the crush at the start, sweeping, a ram, Madness mode, closing time and the checkout.
-- [ ] The console is clean on every level, including failure, pause and restart.
-- [ ] The game works offline and makes no external requests.
-- [ ] `tune.json` is in the platform format, with no more than 40 values.
-- [ ] The handoff package from `MINDBLOWN.md` is built and checked on a clean copy of the project.
-- [ ] Cover, square card and icon are made from game frames.
+| What | Budget |
+| --- | --- |
+| Frame on the owner's machine (RTX 4060 class) | HIGH holds 60 fps at 1920 × 1080 with headroom: frame time at most 8 ms uncapped |
+| Integrated graphics (Iris Xe / Radeon 680M class) | the automatic tier reaches 60 fps |
+| Draw calls | at most 200 in a normal frame, 300 at peak, including shadow and post passes |
+| Triangles | at most 500,000 in the main pass |
+| Frame logic (simulation, AI, animation) | at most 4 ms, shown by `?debug=1` |
+| Characters | hero and rivals 4–7k triangles, 2 draw calls each; crowd 2.5k near and 800 far, 1–2 draw calls per archetype |
+| Texture atlases | at most 4 of 2048 × 2048, generated in at most 400 ms in total during the title screen |
+| Loading | first frame within 2 s on a local server; restart within 1.5 s; 20 restarts in a row without memory growth |
+| Build | `dist/index.html` under 2.5 MB without three.js |
+
+## 7. Owner playtests
+
+- Every phase ends with three specific things for the owner to try. For example: "Play level 1 three times. Does the second swinging sign ever feel unfair?"
+- The owner's answers arrive in the message that starts the next phase. Copy them verbatim into `NOTES.md` and apply them first.
+- Owner feedback beats every number in this file.
+
+## 8. Release checklist (P5)
+
+- [ ] `npm run check` passes, and the `release` shots have been looked at.
+- [ ] On a fresh profile, the first three minutes play out as in `DESIGN.md` §9.
+- [ ] Levels 1–6 (and 7–8 if built) have medal thresholds from author runs. The author receipt is the best of the expert bot's 5 seeds, written into the level data.
+- [ ] The console is clean through wipeout, restart, pause, tab switch, window resize and the phone layout.
+- [ ] Works offline from `dist/` with no external requests.
+- [ ] Saves load before they save, and a fresh profile starts cleanly. Leaderboards: one per level plus a total, with `lower` consistent from the first submission. The sound button stays in sync with the platform.
+- [ ] Every tier is verified: HIGH on the owner's machine; `?quality=low` still looks intentional.
+- [ ] Cover, card and icon are made from game frames.
+- [ ] The handoff package from `MINDBLOWN.md` §6 is checked on a clean copy.

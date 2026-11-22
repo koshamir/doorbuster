@@ -33,7 +33,7 @@ export function rivalProfile(id) {
 
 export function makeDriver(prof) {
   return { prof, greed: prof.greed, g: prof.greed, next: 0, wobble: 0, drifting: false, driftT: 0, stuckT: 0, backT: 0, backSteer: 1, stuck: 0,
-    err: 0, turnAt: -9, warnT: 0, strikeT: 0, aimH: 0, hit: false, victim: null, mean: false, selfT: 6, photoT: 0, mood: 0, moodT: 0, wants: new Map(), shout: null,
+    err: 0, turnAt: -9, warnT: 0, strikeT: 0, aimH: 0, hit: false, hold: false, victim: null, mean: false, selfT: 6, photoT: 0, mood: 0, moodT: 0, wants: new Map(), shout: null,
     progAt: 0, progT: 0 };
 }
 
@@ -109,7 +109,7 @@ function findTarget(sim, k, ai) {
   for (const q of world.pieces) {
     if (!q.solid.on || !q.solid.dash) continue;
     const hot = q.type === 'podium';
-    if (hot ? q.good < 0 : q.type === 'glass') continue;        // drivers do not take the glass shortcuts
+    if (hot && q.good < 0) continue;
     if (q.sale && p.rival && sim.sale && sim.sale.t > 7) continue;   // the first three seconds of a flash sale are the player's
     if (navDistAt(world, q.x, q.z) > here + 3) continue;
     // Whether to go for a piece is decided once, on first sight: a driver that passes on it steers round it.
@@ -196,7 +196,7 @@ export function drive(sim, k, dt) {
     inp.gas = back ? 0 : 0.7; inp.brake = back ? 1 : 0; inp.steer = ai.backSteer; inp.drift = false;
     return;
   }
-  if (Math.abs(k.spd) < 0.8 && k.stunT <= 0) ai.stuckT += dt; else ai.stuckT = 0;
+  if (Math.abs(k.spd) < 0.8 && k.stunT <= 0 && !ai.hold) ai.stuckT += dt; else ai.stuckT = 0;      // (hold: waiting for the train is not being stuck)
   if (ai.stuckT > 0.7) {
     ai.stuckT = 0; unstick(sim, k, ai, ai.err || (sim.rng() < 0.5 ? -1 : 1));
     ai.stuck++; if (k.player) sim.stats.stuck++; else sim.stats.rivalStuck++;
@@ -218,7 +218,7 @@ export function drive(sim, k, dt) {
     const gap = k.prog - sim.player.prog, mine = k.value + k.stunts, yours = sim.player.value + sim.player.stunts;
     if (gap > 22) { pace *= 0.86; ai.g = Math.min(1, ai.g * 1.3); } else if (gap < -8 && p.char !== 'granny') { pace = Math.max(pace, 1); ai.g *= 0.8; }   // Granny never hurries
     // ...and the same with money: far richer than the player it shops less, far poorer it shops harder.
-    if (mine > yours * 1.4 + 500) ai.g *= 0.5; else if (mine < yours * 0.9 && gap > -15) ai.g = Math.min(1.3, ai.g * 1.5);
+    if (mine > yours + 100) ai.g *= 0.2; else if (mine < yours * 0.9 && gap > -15) ai.g = Math.min(1.3, ai.g * 1.5);
   }
   // Coupon Queen drops everything for a hot item: with one on the route within 70 m she stops shopping,
   // runs for it at full pace and shouts about it (a hint for the player, and a race).
@@ -229,7 +229,7 @@ export function drive(sim, k, dt) {
       const d = here - navDistAt(world, q.x, q.z);
       if (d < -2 || d > 70) continue;
       ai.g = 0; pace = p.pace;
-      if (ai.shout !== q) { ai.shout = q; sim.emit('shout', k, 0, q); }
+      if (!q.shouted) { q.shouted = true; sim.emit('shout', k, 0, q); }    // once per podium
     }
   }
 
@@ -269,15 +269,19 @@ export function drive(sim, k, dt) {
   }
   inp.gas = clamp(v / TUNE.maxspeed, 0, 1);
   inp.brake = k.spd > v + 3 ? 1 : 0;
-  // The cart train: if this cart would reach the track while the train is passing that spot, it waits.
-  // A careless driver looks less often.
+  // The cart train: a driver whose nose points at the track waits while the train is passing the
+  // spot it would cross at (a cart that has stopped reckons with the speed it will cross at, or it
+  // would roll out in front of the train). A careless driver looks less often.
+  let hold = false;
   for (const tr of sim.trains) {
-    const along = (k.x - tr.x0) * tr.dx + (k.z - tr.z0) * tr.dz, off = (k.x - tr.x0) * tr.dz - (k.z - tr.z0) * tr.dx;
-    const closing = -(k.vx * tr.dz - k.vz * tr.dx) * Math.sign(off);
-    if (along < -1 || along > tr.len + 1 || Math.abs(off) > 7 || closing < 1 || sim.rng() > p.brakes) continue;
-    const when = Math.max(0, Math.abs(off) - 1.4) / closing, at = clamp(tr.s + (tr.wait > 0 ? 0 : tr.dir * CFG.trainSpeed * when), 0, tr.len);
-    if (Math.abs(along - at + tr.dir * (CFG.trainCars - 1) * 0.75) < CFG.trainCars * 0.75 + 2.2) { inp.gas = 0; inp.brake = 1; }
+    const along = (k.x - tr.x0) * tr.dx + (k.z - tr.z0) * tr.dz, off = (k.x - tr.x0) * tr.dz - (k.z - tr.z0) * tr.dx, side = Math.sign(off);
+    const facing = -(Math.sin(k.h) * tr.dz - Math.cos(k.h) * tr.dx) * side;
+    if (along < -1 || along > tr.len + 1 || Math.abs(off) > 8 || facing < 0.3 || sim.rng() > p.brakes) continue;
+    const speed = Math.max(5, -(k.vx * tr.dz - k.vz * tr.dx) * side), when = Math.max(0, Math.abs(off) - 1.4) / speed;
+    const at = clamp(tr.s + (tr.wait > when ? 0 : tr.dir * CFG.trainSpeed * (when - Math.max(0, tr.wait))), 0, tr.len);
+    if (Math.abs(along - at + tr.dir * TRAIN_L / 2) < TRAIN_L / 2 + 1.9) { inp.gas = 0; inp.brake = 1; hold = true; }
   }
+  ai.hold = hold;
 
   // The lunge: lined up with a target and close enough. The player gets a warning first; the line
   // announced is the one to where the player's cart will be if it just carries on.
@@ -438,11 +442,12 @@ export function stepCrowd(sim, dt) {
 
 // ---- The cart train ----------------------------------------------------------------------------------
 // A string of carts that shuttles along its track (world.tracks), pausing at each end. Whoever is in
-// its way is shoved aside as by a crash. tr.s is the head's distance along the track, tr.dir its way.
-const TRAIN = { type: 'train' };
+// its way is shoved aside as by a crash. tr.s is the head's distance along the track, tr.dir its way;
+// the other carts follow the head.
+const TRAIN = { type: 'train' }, TRAIN_L = (CFG.trainCars - 1) * 1.5;     // the string's length, head to last cart
 export function spawnTrains(sim) {
   for (const t of sim.world.tracks) {
-    sim.trains.push({ x0: t.x0, z0: t.z0, dx: (t.x1 - t.x0) / t.len, dz: (t.z1 - t.z0) / t.len, len: t.len, s: sim.rng() * t.len, dir: 1, wait: 0, x: t.x0, z: t.z0 });
+    sim.trains.push({ x0: t.x0, z0: t.z0, dx: (t.x1 - t.x0) / t.len, dz: (t.z1 - t.z0) / t.len, len: t.len, s: TRAIN_L + sim.rng() * (t.len - TRAIN_L), dir: 1, wait: 0, x: t.x0, z: t.z0 });
   }
 }
 export function stepTrains(sim, dt) {
@@ -450,7 +455,8 @@ export function stepTrains(sim, dt) {
     if (tr.wait > 0) tr.wait -= dt;
     else {
       tr.s += tr.dir * CFG.trainSpeed * dt;
-      if (tr.s > tr.len || tr.s < 0) { tr.s = clamp(tr.s, 0, tr.len); tr.dir = -tr.dir; tr.wait = 0.8; }
+      // At an end of the track the last cart becomes the head: the whole string stays on the track.
+      if (tr.s > tr.len || tr.s < 0) { tr.s = clamp(tr.s, 0, tr.len) - tr.dir * TRAIN_L; tr.dir = -tr.dir; tr.wait = 1.4; }
     }
     tr.x = tr.x0 + tr.dx * tr.s; tr.z = tr.z0 + tr.dz * tr.s;
     for (const k of sim.carts) {
@@ -462,7 +468,7 @@ export function stepTrains(sim, dt) {
         if (k.immuneT > 0 || (tr.wait > 0 && Math.hypot(k.vx, k.vz) < 6)) break;   // just hit, or leaning on a standing train: pushed, no more
         k.vx = dx / d * 5 + tr.dx * tr.dir * CFG.trainSpeed; k.vz = dz / d * 5 + tr.dz * tr.dir * CFG.trainSpeed;
         k.stunT = Math.max(k.stunT, 0.4); k.turnTo = null;
-        k.immuneT = TUNE.immunity; sim.onCrash(k, 9, TRAIN);
+        k.immuneT = TUNE.immunity; sim.onCrash(k, 4, TRAIN);     // (a quarter of the goods, not the full 40%)
         break;
       }
     }

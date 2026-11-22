@@ -83,7 +83,7 @@ export const CFG = {
   jumpSpeed: 7,           // speed along a ramp needed to take off, m/s
   jumpTime: 0.9,          // seconds in the air (at top speed that is 10.8 m)
   jumpHeight: 1.7,        // how high the arc looks, metres
-  trainSpeed: 7, trainCars: 4,   // the cart train: m/s and carts in the string (1.5 m apart)
+  trainSpeed: 7, trainCars: 3,   // the cart train: m/s and carts in the string (1.5 m apart)
   countdown: 2.4,         // seconds from the click to GO
   camFollow: 6.5,         // how fast the camera's yaw follows the cart, 1/s (lag at full lock is about 14 degrees)
   // Madness: the meter runs over four segments (0..4); a full one is MADNESS mode
@@ -93,7 +93,7 @@ export const CFG = {
   madDrift: 0.3,          // gain per spark tier when a drift is released into its boost
   // scoring
   listBonus: 200,         // dollars for bringing all three list items to the checkout
-  stunts: { cleansweep: 50, strike: 150, ram: 75, takedown: 200, shave: 10, smash: 25, jump: 250, dodge: 40, selfie: 150 },
+  stunts: { cleansweep: 50, strike: 150, ram: 75, takedown: 200, shave: 10, smash: 25, jump: 250, dodge: 40, selfie: 150, glass: 100 },
 };
 
 // ---- Palette (ART.md section 3). Stored as sRGB hex; rgb() converts to 0..1 floats. ----------

@@ -37,7 +37,7 @@ export const PIECES = {
   X: { type: 'tree', r: 1.7, nav: 1 },
   C: { type: 'counter', hx: 0.7, hz: 1, nav: 1 },
   p: { type: 'plant', r: 0.5, nav: 1 },
-  n: { type: 'bench', hx: 0.9, hz: 0.45, nav: 1 },
+  n: { type: 'bench', hx: 0.9, hz: 0.45, low: 1, nav: 1 },
   t: { type: 'table', r: 0.6, soft: 1 },
   b: { type: 'boxes', r: 0.55, soft: 1 },
   m: { type: 'mannequin', r: 0.4, soft: 1 },

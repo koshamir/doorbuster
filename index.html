@@ -23,7 +23,8 @@
   body { font-family: "Arial Black", "Segoe UI Black", "Helvetica Neue", Impact, system-ui, sans-serif; color: var(--ink);
     -webkit-user-select: none; user-select: none; touch-action: none; -webkit-tap-highlight-color: transparent; }
   #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
-  #ui { position: fixed; inset: 0; pointer-events: none; font-size: calc(var(--u) * 1.6); }
+  #ui { position: fixed; inset: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+    pointer-events: none; font-size: calc(var(--u) * 1.6); }
   b { font-weight: 900; }
 
   /* ---- in-run screen ---- */
@@ -43,9 +44,10 @@
   .place { position: absolute; top: calc(2.2% + 3.5em); right: 2.6%; background: var(--night); color: #fff; padding: .12em .55em; border-radius: .4em;
     font-size: 1.25em; transform: rotate(1.5deg); opacity: 0; }
   .place.in { opacity: 1; } .place.first { background: var(--sale); color: var(--night); }
-  .pausebtn { position: absolute; top: calc(2.2% + 6.4em); right: 2.6%; width: 2.3em; height: 2.3em; font: inherit; font-size: .9em; letter-spacing: .1em; color: #fff;
+  .pausebtn { position: absolute; top: calc(2.2% + 8em); right: 2.6%; width: 2.3em; height: 2.3em; font: inherit; font-size: .9em; letter-spacing: .1em; color: #fff;
     background: var(--night); border: 0; border-radius: .5em; opacity: .8; pointer-events: auto; cursor: pointer; }
-  .meter { position: absolute; top: 2.2%; left: 2%; transform: rotate(-1.5deg); display: flex; align-items: center; gap: .3em; background: var(--night);
+  .touching .pausebtn { min-width: 44px; min-height: 44px; }
+  .meter { position: absolute; top: calc(2.2% + .8em); left: 2%; transform: rotate(-1.5deg); display: flex; align-items: center; gap: .3em; background: var(--night);
     color: #fff; padding: .35em .6em; border-radius: .45em; box-shadow: 0 .22em 0 rgba(30, 27, 46, .45); }
   .meter .lbl { position: absolute; left: .7em; top: -1.5em; color: #fff; opacity: 1; font-size: max(.55em, 9px); text-shadow: 0 .12em 0 var(--night); -webkit-text-stroke: .25em var(--night); paint-order: stroke fill; }
   .seg { width: 1.25em; height: .95em; background: #4A3D66; border-radius: .2em; overflow: hidden; }
@@ -56,20 +58,21 @@
   .hud.mad .seg i { background: var(--pink); } .hud.mad .meter b { color: var(--pink); }
   .hud.mad::after { content: ""; position: absolute; inset: 0; border: 1em solid; border-image: repeating-linear-gradient(45deg, var(--pink) 0 1.2em, var(--sale) 1.2em 2.4em) 40;
     animation: wild .22s infinite alternate; }
-  .list { position: absolute; top: calc(2.2% + 3.2em); left: 2.2%; display: flex; gap: .35em; }
+  .list { position: absolute; top: calc(2.2% + 4em); left: 2.2%; display: flex; gap: .35em; }
   .list div { position: relative; width: 2.3em; height: 2.3em; background: var(--paper) center / 86% no-repeat; border: .14em solid var(--night); border-radius: .4em;
     box-shadow: 0 .16em 0 var(--night); }
   .list div.got { background-color: var(--teal); animation: bump .25s; }
   .list div.got::after { content: ""; position: absolute; right: .2em; bottom: .3em; width: .45em; height: .85em; border: solid var(--night); border-width: 0 .24em .24em 0; transform: rotate(40deg); }
-  .news { position: absolute; top: calc(2.2% + 4.4em); left: 50%; transform: translate(-50%, -40%) scale(.8); opacity: 0; background: var(--paper); max-width: 86vw;
-    border: .16em solid var(--night); border-radius: .5em; padding: .3em 1em .35em; box-shadow: 0 .22em 0 var(--night); text-align: center; line-height: 1.1;
+  /* the announcer's line has its own place, at the left under the list: pop-up words, prices and the arrow never share it */
+  .news { position: absolute; top: 25%; left: 2%; transform-origin: 0 50%; transform: scale(.7); opacity: 0; background: var(--paper); max-width: min(34vw, 25em);
+    border: .16em solid var(--night); border-radius: .5em; padding: .3em .9em .35em; box-shadow: 0 .22em 0 var(--night); text-align: left; line-height: 1.1;
     transition: transform .2s cubic-bezier(.3, 1.7, .5, 1), opacity .15s; }
-  .news.in { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  .news.in { opacity: 1; transform: scale(1); }
+  @media (max-aspect-ratio: 1/1) { .news { top: 22%; left: 4%; right: 4%; max-width: none; text-align: center; transform-origin: 50% 50%; } }
   .news b { display: block; font-size: 1.5em; color: var(--danger); }
   .news span { font: 700 .8em/1.2 system-ui, "Segoe UI", sans-serif; }
   .hud-pop { position: absolute; top: 13.5%; left: 50%; transform: translateX(-50%) rotate(-3deg) scale(.4); opacity: 0; background: var(--sale); color: var(--night);
     border: .09em solid var(--night); border-radius: .22em; padding: .02em .4em; box-shadow: 0 .1em 0 var(--night); font-size: 2.5em; white-space: nowrap; }
-  .hud.newsy .hud-pop { top: 28%; }
   .hud-pop.in { opacity: 1; transform: translateX(-50%) rotate(-3deg) scale(1); transition: transform .16s cubic-bezier(.3, 1.9, .5, 1), opacity .06s; }
   .hud-pop.bad { background: var(--danger); color: #fff; } .hud-pop.good { background: var(--teal); } .hud-pop.hot { background: var(--pink); color: #fff; }
   .hud-count { position: absolute; left: 0; right: 0; top: 28%; text-align: center; font-size: 9em; color: #fff; opacity: 0; letter-spacing: .02em;
@@ -157,7 +160,8 @@
   .line.best { margin-top: .5em; }
   .stamp { position: absolute; right: -1.2em; top: -1.4em; transform: rotate(9deg); color: var(--danger); border: .16em solid var(--danger); border-radius: .3em;
     padding: 0 .35em; font: 900 1.25em/1.3 "Arial Black", Impact, sans-serif; background: var(--paper); animation: pop .25s both; }
-  .line.total .stamp { right: auto; left: 34%; top: -.15em; font-size: .62em; border-color: currentColor; }
+  .line.total .stamp { right: auto; left: 29%; top: -.7em; font-size: .9em; transform: rotate(-7deg); border-color: currentColor; }
+  .line.next { opacity: .7; }
   .stamp.m1 { color: #A8591B; } .stamp.m2 { color: #5F6C7B; } .stamp.m3 { color: #B88700; } .stamp.m4 { color: var(--paper); background: var(--night); }
   @keyframes throb { from { transform: translateX(-50%) rotate(-1.5deg) scale(1); } to { transform: translateX(-50%) rotate(-1.5deg) scale(1.07); } }
   @keyframes throb2 { from { transform: scale(1); } to { transform: scale(1.06); } }

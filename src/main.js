@@ -37,7 +37,7 @@ const game = {
   probe: null, gain: 0, gainT: 0, gainList: false, v: null, said: {},
   icons: {},                      // pictures of goods for the list, by id
   mark: null, markT: 0, markText: '',   // where the arrow points (a piece or a lane), for how long, its word
-  warner: null, dodgeHint: false, rammed: false, frozen: false, clock: 0, steered: 0, tagAt: -9, aim: { x: 0, z: 0, fx: 0, fz: 0, left: 0 },
+  warner: null, dodgeHint: false, glassT: 0, rammed: false, frozen: false, clock: 0, steered: 0, tagAt: -9, aim: { x: 0, z: 0, fx: 0, fz: 0, left: 0 },
 };
 let save = null;                  // platform.progress: { best, medals, unlocked, fails, seen, music, sfx, shake }
 
@@ -45,7 +45,7 @@ const KEYS = {
   ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'gas', KeyW: 'gas',
   ArrowDown: 'brake', KeyS: 'brake', Space: 'drift', ShiftLeft: 'dash', ShiftRight: 'dash',
 };
-const WORDS = { cleansweep: 'CLEAN SWEEP', strike: 'STRIKE!', ram: 'RAM!', takedown: 'TAKEDOWN!', shave: 'CLOSE SHAVE', smash: 'SMASH!', jump: 'BIG AIR', dodge: 'DODGED!' };
+const WORDS = { cleansweep: 'CLEAN SWEEP', strike: 'STRIKE!', ram: 'RAM!', takedown: 'TAKEDOWN!', shave: 'CLOSE SHAVE', smash: 'SMASH!', jump: 'BIG AIR', dodge: 'DODGED!', glass: 'WINDOW SHOPPING!' };
 
 // Builds the level. quick = a restart: shorter countdown, straight into play.
 function startLevel(quick) {
@@ -57,7 +57,7 @@ function startLevel(quick) {
   game.view = buildScene(game.sim);
   setList((def.list || []).map((id) => game.icons[id] || (game.icons[id] = goodIcon(GOOD[id]))));
   game.hitstop = 0; game.slowT = 0; game.gain = 0; game.keys = {}; game.inq.length = 0; game.said = {};
-  game.mark = null; game.markT = 0; game.warner = null; game.frozen = false; game.paused = false;
+  game.mark = null; game.markT = 0; game.warner = null; game.frozen = false; game.paused = false; game.glassT = 0;
   gfx.u.uTintAmt.value = 0;
   gfx.cam.ready = false;
   gfx.cam.shake = 0;
@@ -74,6 +74,7 @@ function title() {
   game.state = 'title';
   const cards = save.unlocked > 1 || save.best[LEVELS[1].id] ? LEVELS.slice(1).map((d, i) => ({ name: d.name, medal: save.medals[d.id] || 0,
     best: save.best[d.id] || 0, locked: i + 1 > save.unlocked, on: i + 1 === game.level })) : null;
+  gfx.cam.lead = cards ? -1.8 : 0.5;                   // with the loyalty card on screen the cart stands above it
   showTitle(LEVELS[game.level].name, () => play(false), cards, (i) => { game.level = i + 1; title(); });
 }
 function pause(on) {
@@ -85,7 +86,7 @@ function pause(on) {
       resume: () => pause(false), restart: () => { pause(false); play(true); }, menu: save.unlocked > 1 ? () => { pause(false); title(); } : null,
       sound: (v) => platform.setSound(v),
       music: (v) => { save.music = v; setVolumes(save.music, save.sfx); platform.save(); },
-      sfx: (v) => { save.sfx = v; setVolumes(save.music, save.sfx); platform.save(); },
+      sfx: (v) => { save.sfx = v; setVolumes(save.music, save.sfx); audioCue('scan', 4); platform.save(); },     // (a beep to set it by)
       shake: (v) => { TUNE.shake = save.shake = v; platform.save(); },
     });
   } else {
@@ -136,14 +137,16 @@ function finish() {
   showReceipt(p.receipt, () => {
     game.frozen = true;
     return settle(sim).map((k) => ({ name: k.player ? 'YOU' : k.def.name, total: k.receipt ? k.receipt.total : -1, me: k.player }));
-  }, { value: Math.max(prev, total), isNew: isNew && prev > 0 }, (def.zones[0] || {}).name || def.name, medal, () => play(true),
-  game.level >= 1 && game.level < LAST ? next : null, save.unlocked > 1 ? title : null);
+  }, { value: Math.max(prev, total), isNew: isNew && prev > 0 }, def.name, medal, () => play(true),
+  game.level >= 1 && game.level < LAST ? next : null, save.unlocked > 1 ? title : null,
+  medal < 3 && def.medals ? { medal: medal + 1, at: def.medals[medal - 1] } : null);      // (the Black Card stays a secret)
 }
 function next() { game.level = Math.min(LAST, game.level + 1); play(false); }
 
 // Presentation of one simulation event: sound, particles, scene reactions, interface, platform calls.
 function onEvent(e) {
   const sim = game.sim, p = sim.player, mine = e.cart === p, k = e.cart;
+  const dashed = () => { if (!save.seen.dash && !p.ai) { save.seen.dash = true; platform.save(); } };   // the dash hint retires when a dash has hit something
   if (game.probe && (mine || e.ref === p)) game.probe.log.push([e.type + (mine ? '' : '<'), +sim.t.toFixed(3)]);     // for the capture tool
   audioEvent(e, sim);
   const shake = eventFx(e);
@@ -172,12 +175,12 @@ function onEvent(e) {
     case 'full': announce('CART FULL!', 'Only pricier goods fit now. They push the cheap ones out.'); break;
     case 'rocket': popWord('ROCKET START!', 'good'); break;
     case 'bonk': popWord('TOO LIGHT!', 'bad'); break;
-    case 'hot': popWord('HOT ITEM!', 'hot'); game.hitstop = 0.05; if (game.mark === e.ref) game.markT = 0; break;
-    case 'smash': case 'glass': game.hitstop = 0.04; break;
-    case 'dash': if (!save.seen.dash && !p.ai) { save.seen.dash = true; platform.save(); } break;
+    case 'hot': popWord('HOT ITEM!', 'hot'); game.hitstop = 0.05; dashed(); if (game.mark === e.ref) game.markT = 0; break;
+    case 'smash': case 'glass': game.hitstop = 0.04; game.glassT = 0; dashed(); break;
+    case 'bump': if (e.ref && e.ref.type === 'glass') game.glassT = 3; break;       // bounced off a shop window: show the key that opens it
     case 'drift': if (!save.seen.drift && !p.ai) { save.seen.drift = true; platform.save(); } break;
     case 'ram':
-      game.hitstop = 0.08;
+      game.hitstop = 0.08; dashed();
       if (!game.rammed) { game.rammed = true; game.slowT = 0.5; }      // the first ram is shown in slow motion
       break;
     case 'madmode': if (e.value) { popWord('MADNESS!', 'hot'); game.hitstop = 0.1; } break;
@@ -242,7 +245,9 @@ function pointers(dt) {
   let keys = null;
   if (playing && !p.ai && !game.custom) {
     const seen = save.seen, fx = Math.sin(p.h), fz = Math.cos(p.h), ahead = (q, far) => { const dx = q.x - p.x, dz = q.z - p.z, d = dx * fx + dz * fz; return d > 2 && d < far && Math.abs(dx * fz - dz * fx) < 4; };
+    if (game.glassT > 0) game.glassT -= dt;
     if (game.warner && game.dodgeHint) keys = game.touch ? ['◀', '▶'] : ['A', 'D'];
+    else if (game.glassT > 0) keys = [game.touch ? 'DASH' : 'SHIFT'];
     else if (!seen.drive) { keys = game.touch ? ['◀', '▶'] : ['A', 'D', 'W']; if (game.steered > 90) { seen.drive = true; platform.save(); } }
     else if (!seen.dash && sim.world.pieces.some((q) => q.solid.on && q.solid.dash && ahead(q, 16))) keys = [game.touch ? 'DASH' : 'SHIFT'];
     else if (!seen.drift && Math.abs(p.spd) > 7 && sim.world.pieces.some((q) => q.type === 'display' && ahead(q, 16))) keys = [game.touch ? 'DRIFT' : 'SPACE'];

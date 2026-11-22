@@ -394,10 +394,10 @@ export function pieceGeometry(type) {
     addBox(b, 0.7, 0.5, 0.6, PAL.brown, { bevel: 0.08, top: PAL.wall });
     place(b, 0.08, 0.5, 0, 0.5); addBox(b, 0.5, 0.4, 0.44, PAL.brown, { bevel: 0.08, top: PAL.wall });
   } else if (type === 'glass') {                    // a shop window across a doorway: frame, pane, glare, a SALE sticker on both sides
-    place(b, 0, 0, 0); addBox(b, 2.0, 0.2, 0.3, PAL.white, { bevel: 0.2 });
-    place(b, 0, 2.0, 0); addBox(b, 2.0, 0.2, 0.3, PAL.white, { bevel: 0.2 });
-    place(b, 0, 0.2, 0); addBox(b, 1.96, 1.8, 0.1, PAL.sky, { bevel: 0 });
-    for (const [x, zz] of [[-0.45, 0.06], [-0.2, 0.06], [0.45, -0.06], [0.2, -0.06]]) { place(b, x, 0.25, zz, 0, 0, 0.5); addBox(b, 0.08, 1.5, 0.02, PAL.white, { bevel: 0 }); }
+    place(b, 0, 0, 0); addBox(b, 2.0, 0.2, 0.3, PAL.walltop, { bevel: 0.2 });
+    place(b, 0, 2.0, 0); addBox(b, 2.0, 0.2, 0.3, PAL.walltop, { bevel: 0.2 });
+    place(b, 0, 0.2, 0); addBox(b, 1.96, 1.8, 0.1, PAL.white, { bevel: 0 });        // (a white pane in a dark frame: nothing like the blue of water)
+    for (const [x, zz] of [[-0.45, 0.06], [-0.2, 0.06], [0.45, -0.06], [0.2, -0.06]]) { place(b, x, 0.25, zz, 0, 0, 0.5); addBox(b, 0.08, 1.5, 0.02, PAL.sky, { bevel: 0 }); }
     for (const zz of [0.07, -0.07]) { place(b, 0, 0.9, zz); addBox(b, 0.9, 0.42, 0.03, PAL.danger, { bevel: 0.2 }); place(b, 0, 1.03, zz * 1.2); addBox(b, 0.6, 0.12, 0.03, PAL.white, { bevel: 0 }); }
   } else if (type === 'star') {                     // the gold star that bobs over a hot item: four spikes and a core
     for (let i = 0; i < 4; i++) { place(b, 0, 0, 0, 0, 0, i * Math.PI / 2); addCyl(b, 0.17, 0, 0.5, PAL.hot, { seg: 4 }); }

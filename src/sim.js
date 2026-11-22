@@ -294,6 +294,7 @@ function smash(sim, k, solid) {
   } else if (solid.type === 'glass') {              // the window shatters and the short way is open to everyone
     sim.world.block[p.r * sim.world.cols + p.c] = 0;
     navBuild(sim.world);
+    stunt(sim, k, 'glass', p.x, p.z);
     madGain(sim, k, 0.4);
     sim.emit('glass', k, 0, p);
   } else {                                           // can pyramid, gift pile, cardboard stand: a burst of goods

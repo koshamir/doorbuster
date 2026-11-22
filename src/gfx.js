@@ -79,7 +79,8 @@ void main() { vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Positio
 const FLOOR_FS = `
 // One texel of uMap per tile: r = store colour index / 8, g = decal / 16 (1-4 arrow east, south, west,
 // north; 5 checkout hatch; 6 start grid; 7 closed lane; 8-11 travelator east, south, west, north;
-// 12 wet floor; 13 train track; 14 lane about to close), a = 1 on floor and 0 on void.
+// 12 wet floor; 13 train track; 14 lane about to close), b = 1 for a belt that runs against the route
+// or a track that runs north-south, a = 1 on floor and 0 on void.
 uniform sampler2D uMap; uniform vec2 uMapSize; uniform vec3 uZone[6];
 uniform vec3 uFloor; uniform vec3 uGrout; uniform vec3 uInk; uniform vec3 uShade; uniform vec3 uClosed;
 uniform float uTile; uniform vec3 uTint; uniform float uTintAmt; uniform float uTime; uniform vec3 uBelt; uniform vec3 uWet;
@@ -114,7 +115,7 @@ void main() {
     vec2 dir = d < 8.5 ? vec2(1.0, 0.0) : d < 9.5 ? vec2(0.0, 1.0) : d < 10.5 ? vec2(-1.0, 0.0) : vec2(0.0, -1.0);
     float along = dot(g, dir) - uTime * 2.5, across = abs(dot(f - 0.5, vec2(-dir.y, dir.x)));
     float v = abs(fract(along * 1.5) - 0.5 + across * 0.7);
-    c = mix(uBelt, vec3(1.0), (1.0 - smoothstep(0.09, 0.09 + w.x * 2.0, v)) * step(across, 0.36) * 0.9 * far);
+    c = mix(uBelt, t.b > 0.5 ? uClosed : vec3(1.0), (1.0 - smoothstep(0.09, 0.09 + w.x * 2.0, v)) * step(across, 0.36) * 0.9 * far);   // red arrows: this belt runs against the route
     c = mix(c, uInk, step(0.44, across) * 0.7);                      // the belt's rails
   } else if (d > 11.5 && d < 12.5) {                                 // wet floor: a blue sheen with glints
     c = mix(c, uWet, 0.5);
@@ -123,8 +124,10 @@ void main() {
   } else if (d > 13.5) {                                             // a lane about to close: its hatching flashes red
     c = mix(mix(uZone[3], uInk, step(0.5, fract((f.x + f.y) * 2.0))), c, 0.25);
     c = mix(c, uClosed, step(0.5, fract(uTime * 4.0)) * 0.65);
-  } else if (d > 12.5) {                                             // the cart train's track: dark sleepers
-    c = mix(c, uInk, step(0.5, fract((g.x + g.y) * 2.0)) * 0.3 + 0.12);
+  } else if (d > 12.5) {                                             // the cart train's track: two rails over sleepers (t.b: it runs north-south)
+    vec2 q = t.b > 0.5 ? f.yx : f.xy;
+    float rail = step(abs(abs(q.y - 0.5) - 0.25), 0.045), tie = step(0.55, fract(q.x * 3.0)) * step(abs(q.y - 0.5), 0.38);
+    c = mix(c, uInk, max(rail * 0.85, tie * 0.42) * far + 0.07);
   }
   // a hard-edged shadow where the floor meets a wall (the same graphic cut as the shadows under things)
   float sh = 0.0;
@@ -298,7 +301,7 @@ export function updateCamera(k, alpha, dt, towerHeight, world, orbit, intro = 0,
   // The look point keeps the cart in the lower third of the frame; in a dash or boost the camera
   // hangs back a little, so the cart surges up the screen.
   const desk = aside !== undefined ? cam.lift : 0;      // eases in with the tilt
-  const lead = title ? 0.5 : (back - height / Math.tan(pitch + 0.2) - 1.1 * cam.punch) * (1 - 0.7 * desk);
+  const lead = title ? cam.lead || 0.5 : (back - height / Math.tan(pitch + 0.2) - 1.1 * cam.punch) * (1 - 0.7 * desk);
   const lx = x + fx * lead - fz * (aside || 0) * desk, lz = z + fz * lead + fx * (aside || 0) * desk;
   let sx = 0, sy = 0;
   if (cam.shake > 0.001 && TUNE.shake) {                // trauma-based shake: offset grows with trauma squared

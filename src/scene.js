@@ -31,6 +31,9 @@ function floorMap(world) {
     const k = world.plan[Math.floor(i / cols)][i % cols];
     data[i * 4] = Math.round((zone.color || 0) / 8 * 255);
     data[i * 4 + 1] = (world.laneOf[i] >= 0 ? 5 : world.belt[i] ? 7 + world.belt[i] : world.wet[i] ? 12 : k === '=' ? 13 : 0) * 16;
+    // blue: a belt that runs against the route (its arrows are red), or a track that runs north-south
+    const b = world.belt[i], to = b ? i + (b === 1 ? 1 : b === 3 ? -1 : b === 2 ? cols : -cols) : -1, line = world.plan[Math.floor(i / cols)];
+    data[i * 4 + 2] = (b ? world.nav[to] > world.nav[i] : k === '=' && line[i % cols - 1] !== '=' && line[i % cols + 1] !== '=') ? 255 : 0;
     data[i * 4 + 3] = world.floor[i] ? 255 : 0;
   }
   // Chevrons along the route: walk the navigation field from the start and paint every third tile.
@@ -165,7 +168,7 @@ export function buildScene(sim) {
   view.fixed = view.shadowN;
   view.root.add(new THREE.Mesh(toGeometry(fb), [M.toon, M.lineThin]));
   // The cart train: a string of steel carts.
-  const carGeo = sim.trains.length ? cartGeometry(PAL.steel) : null;
+  const carGeo = sim.trains.length ? cartGeometry(PAL.danger) : null;
   for (const tr of sim.trains) {
     const cars = [];
     for (let i = 0; i < CFG.trainCars; i++) { const m = new THREE.Mesh(carGeo, [M.toon, M.lineThin]); view.root.add(m); cars.push(m); }
@@ -445,8 +448,11 @@ export function syncScene(view, sim, alpha, dt) {
   view.counts.fill(0);
   view.shadowN = view.fixed;
   view.glowN = 0;
+  const lure = sim.stats.taken === 0 && sim.t > 0;     // until the player's first item, the goods on the shelves nearby hop for attention
   for (const it of world.items) {
-    if (!it.taken) putGood(view, it.good, it.x, 0.5, it.z, Math.atan2(it.nx, it.nz), 1, 0, 0);
+    if (it.taken) continue;
+    const hop = lure && Math.abs(it.x - p.x) < 9 && Math.abs(it.z - p.z) < 22 ? Math.max(0, Math.sin(view.time * 9 + it.x * 1.3 + it.z * 1.7)) * 0.16 : 0;
+    putGood(view, it.good, it.x, 0.5 + hop, it.z, Math.atan2(it.nx, it.nz), 1, 0, 0);
   }
   for (const d of world.drops) {
     if (!d.live) continue;
@@ -497,7 +503,7 @@ export function syncScene(view, sim, alpha, dt) {
       m.rotation.y = a + Math.sin(view.time * 9 + i) * 0.04;
       putShadow(view, m.position.x, m.position.z, 0.75, 0.95, a);
     });
-    if (tr.wait <= 0) putShadow(view, tr.x + tr.dx * tr.dir * 4, tr.z + tr.dz * tr.dir * 4, 0.7, 3.2, a);
+    if (tr.wait <= 0) putShadow(view, tr.x + tr.dx * tr.dir * 5, tr.z + tr.dz * tr.dir * 5, 0.7, 4.4, a);      // 0.8 s of warning at its 7 m/s
   }
   gfx.mats.floor.uniforms.uTime.value = view.time;
   for (const [e, f] of view.flights) if (f.seen !== view.frame) view.flights.delete(e);   // spilled before it landed
