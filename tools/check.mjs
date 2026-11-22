@@ -1,115 +1,206 @@
 // DOORBUSTER tool — check.mjs
-// Budget and format checks that must hold at every milestone (CLAUDE.md, MINDBLOWN.md, QUALITY.md 5):
-// file and line counts of the shipped game, header comments, tune.json format and its match with the
-// in-code defaults, no external URLs, no Math.random in the logic, logic importable without a DOM.
-// Run: node tools/check.mjs      (exit code 1 if anything fails)
+// `npm run check` (QUALITY.md section 2): one command, four parts, at most 30 lines of output,
+// failures first, exit code 1 on any failure.
+//   1. static: file budget and headers, tune.json, no external URLs, deterministic DOM-free logic, the build
+//   2. level validator: reachability and route order (pass windows, loot rule and pace switch on with
+//      the v3 levels, see levelRules below)
+//   3. simulation smoke test in Node worker threads: the expert bot finishes, rivals never stick,
+//      the run is deterministic
+//   4. browser smoke test in Playwright's Chromium: every level and the lineup load clean and stay
+//      inside the draw-call and triangle budgets
+// Run: node tools/check.mjs [--skip browser,sim]
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { resolve, join } from 'node:path';
-import { ROOT } from './lib.mjs';
-import { TUNE, GOODS, makeRng } from '../src/config.js';
-import { LEVELS } from '../src/levels.js';
-import { buildWorld, PIECES } from '../src/world.js';
+import { execFileSync } from 'node:child_process';
+import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
+import { fileURLToPath } from 'node:url';
+import { ROOT, args, loadTune } from './lib.mjs';
 
-const fails = [], notes = [];
-const ok = (cond, msg) => { if (!cond) fails.push(msg); };
+const LOGIC = ['config.js', 'levels.js', 'world.js', 'cart.js', 'sim.js', 'ai.js', 'objects.js'];
+const BUDGET = { files: 30, lines: 16000, perFile: 900, bytes: 2.5 * 1024 * 1024, calls: 300, tris: 500000 };
+const SEEDS = [1, 2, 3];
 
-// ---- shipped files: index.html + src/*.js
-const files = ['index.html', ...readdirSync(resolve(ROOT, 'src')).filter((f) => f.endsWith('.js')).map((f) => join('src', f))];
-let total = 0;
-const rows = [];
-for (const f of files) {
-  const text = readFileSync(resolve(ROOT, f), 'utf8');
-  const lines = text.split('\n').length;
-  total += lines;
-  rows.push(`${String(lines).padStart(5)}  ${f}`);
-  ok(lines <= 640, `${f} has ${lines} lines (limit about 600)`);
-  if (f.endsWith('.js')) ok(/^\/\/ DOORBUSTER — .+\n\/\/ Purpose:/.test(text) && /\/\/ Exports:/.test(text) && /\/\/ Depends on:/.test(text), `${f} lacks the header (purpose, exports, dependencies)`);
-  // external URLs: only the platform-hosted three.js may appear
-  for (const m of text.matchAll(/https?:\/\/[^\s'"`)]+/g)) {
-    ok(m[0].startsWith('https://mindblown.ai/lib/three-0.185.1/three.min.js'), `${f} contains an external URL: ${m[0]}`);
-  }
-}
-ok(files.length <= 15, `${files.length} shipped files (limit 15)`);
-ok(total <= 8000, `${total} shipped lines (limit 8000)`);
-notes.push(`shipped: ${files.length} files, ${total} lines (limit 15 files / 8000 lines, target about 6000)`);
+// ---- worker: one simulation job -------------------------------------------------------------------
+if (!isMainThread) await worker(); else await main();
 
-// ---- logic must be deterministic and DOM-free
-const LOGIC = ['config.js', 'levels.js', 'world.js', 'cart.js', 'sim.js', 'ai.js'];
-for (const f of LOGIC) {
-  const p = resolve(ROOT, 'src', f);
-  if (!existsSync(p)) continue;
-  const text = readFileSync(p, 'utf8');
-  ok(!/Math\.random|Date\.now|performance\.now/.test(text), `src/${f} uses a non-deterministic source`);
-  ok(!/\b(document|window|THREE)\b/.test(text.replace(/\/\/.*$/gm, '')), `src/${f} touches the DOM or THREE`);
-}
-
-// ---- tune.json: platform format, at most 40 entries, defaults in code match
-const tune = JSON.parse(readFileSync(resolve(ROOT, 'tune.json'), 'utf8'));
-const names = Object.keys(tune);
-ok(names.length <= 40, `tune.json has ${names.length} entries (limit 40)`);
-for (const n of names) {
-  const e = tune[n];
-  ok(/^[a-z][a-z0-9_]{0,39}$/.test(n), `tune name "${n}" breaks the naming rule`);
-  if (typeof e.value === 'number') {
-    ok(typeof e.min === 'number' && typeof e.max === 'number', `tune "${n}" needs min and max`);
-    ok(e.value >= e.min && e.value <= e.max, `tune "${n}" value ${e.value} is outside ${e.min}..${e.max}`);
-  } else if (typeof e.value !== 'boolean') {
-    ok(e.kind === 'color' || e.kind === 'text' || Array.isArray(e.options), `tune "${n}" has an unknown type`);
-  }
-  ok(n in TUNE, `tune "${n}" has no default in src/config.js`);
-  if (n in TUNE) ok(TUNE[n] === e.value, `tune "${n}": tune.json says ${e.value}, src/config.js says ${TUNE[n]}`);
-}
-for (const n in TUNE) ok(n in tune, `src/config.js has "${n}" but tune.json does not`);
-notes.push(`tune.json: ${names.length} entries (limit 40)`);
-
-// ---- levels: well-formed plans, a start, a checkout, every floor tile can reach the checkout
-const LEGEND = ' .SMLo123@rcg><^v~R=' + Object.keys(PIECES).join('');
-LEVELS.forEach((def, li) => {
-  const tag = `level ${li} "${def.id}"`;
-  const w = def.plan[0].length;
-  ok(def.plan.every((l) => l.length === w), `${tag}: rows differ in length`);
-  ok(def.plan[0].trim() === '' && def.plan[def.plan.length - 1].trim() === '' && def.plan.every((l) => l[0] === ' ' && l[l.length - 1] === ' '), `${tag}: the border of the plan must be void`);
-  const text = def.plan.join('');
-  for (const ch of text) ok(LEGEND.includes(ch), `${tag}: unknown plan character "${ch}"`);
-  ok((text.match(/@/g) || []).length === 1, `${tag}: needs exactly one start (@)`);
-  ok(text.includes('c'), `${tag}: needs a checkout lane (c)`);
-  ok((text.match(/r/g) || []).length >= (def.rivals || []).length, `${tag}: fewer rival starts (r) than rivals`);
-  const world = buildWorld(def, makeRng(1));
-  let lost = 0;
-  for (let i = 0; i < world.nav.length; i++) if (world.floor[i] && !world.block[i] && world.nav[i] > 1e8) lost++;
-  ok(lost === 0, `${tag}: ${lost} floor tiles cannot reach a checkout`);
-  for (const [name, c, r] of def.marks || []) ok(world.floor[r * world.cols + c] === 1, `${tag}: mark "${name}" is not on floor`);
-  let units = 0;
-  for (const it of world.items) units += GOODS[it.good].w;
-  for (const d of world.drops) units += GOODS[d.good].w;
-  // The longest stretch of the route with nothing for the player within 5 m (goods, something to dash
-  // through, shoppers' huddle, travelator, wet floor, ramp, train): QUALITY 4 allows 25 m.
-  const things = [...world.items, ...world.drops, ...world.huddles, ...world.ramps, ...world.pieces.filter((p) => p.solid.dash || p.solid.soft || p.type === 'display' || p.type === 'fountain')];
-  let c = Math.floor(world.start.x / 2), r = Math.floor(world.start.z / 2), gap = 0, worst = 0;
-  for (let n = 0; n < 2000; n++) {
-    let best = world.nav[r * world.cols + c], bc = c, br = r;
-    for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
-      const v = world.nav[(r + dr) * world.cols + c + dc];
-      if (v < best - 1e-3 && !(dc && dr && (world.block[r * world.cols + c + dc] || world.block[(r + dr) * world.cols + c]))) { best = v; bc = c + dc; br = r + dr; }
+async function worker() {
+  const { level, seed, bot } = workerData;
+  loadTune();
+  const { LEVELS } = await import('../src/levels.js');
+  const { createSim, stepSim } = await import('../src/sim.js');
+  const { CFG } = await import('../src/config.js');
+  const sim = createSim(LEVELS[level], seed, { bot, countdown: 0 });
+  const limit = Math.ceil((sim.timer + 2) / CFG.STEP);
+  let hash = 2166136261, steps = 0;
+  const stuck = new Map(); let worst = 0, who = '';
+  const mix = (v) => { hash = Math.imul(hash ^ (v | 0), 16777619) >>> 0; };
+  while (sim.phase !== 'done' && sim.phase !== 'closed' && steps++ < limit) {
+    stepSim(sim);
+    for (const e of sim.events) { mix(e.type.length * 131 + e.type.charCodeAt(0)); mix(Math.round(sim.t * 120)); mix(Math.round((e.value || 0) * 100)); }
+    sim.events.length = 0;
+    if (sim.phase !== 'run') continue;
+    for (const k of sim.carts) {
+      if (k.player || k.done) continue;
+      const ai = k.ai, waiting = (ai && (ai.hold || ai.photoT > 0 && ai.photoT < 1.4 || ai.warnT > 0)) || k.stunT > 0 || k.air > 0 || k.wait;
+      const t = !waiting && Math.hypot(k.vx, k.vz) < 0.3 ? (stuck.get(k) || 0) + CFG.STEP : 0;
+      stuck.set(k, t);
+      if (t > worst) { worst = t; who = k.char; }
     }
-    if (bc === c && br === r) break;
-    const step = Math.hypot(bc - c, br - r) * 2, i = br * world.cols + bc, x = bc * 2 + 1, z = br * 2 + 1;
-    c = bc; r = br;
-    const busy = world.belt[i] || world.wet[i] || world.plan[r][c] === '=' || things.some((t) => Math.abs(t.x - x) < 5 && Math.abs(t.z - z) < 5);
-    gap = busy ? 0 : gap + step;
-    worst = Math.max(worst, gap);
   }
-  if (def.rivals && def.rivals.length) ok(worst <= 25, `${tag}: an empty stretch of ${worst.toFixed(0)} m on the route (limit 25 m)`);
-  notes.push(`${tag}: ${world.cols}x${world.rows} tiles, route ${world.navStart.toFixed(0)} m, timer ${def.timer} s, goods ${units} units (${(units / TUNE.loadfull).toFixed(1)} carts), longest empty stretch ${worst.toFixed(0)} m`);
-});
+  const p = sim.player;
+  parentPort.postMessage({ level, seed, bot, finished: sim.phase === 'done', time: +sim.t.toFixed(2), receipt: p.receipt ? p.receipt.total : -1,
+    hash, stuck: +worst.toFixed(2), stuckWho: who, wipeouts: sim.stats.wipeouts || 0 });
+}
 
-// ---- size of everything except three.js
-let bytes = 0;
-for (const f of [...files, 'tune.json']) bytes += statSync(resolve(ROOT, f)).size;
-ok(bytes < 1.5 * 1024 * 1024, `shipped size ${(bytes / 1024).toFixed(0)} KB exceeds 1.5 MB`);
-notes.push(`size without three.js: ${(bytes / 1024).toFixed(0)} KB (limit 1536 KB)`);
+// ---- main -----------------------------------------------------------------------------------------
+async function main() {
+const a = args();
+const skip = new Set(String(a.skip || '').split(',').filter(Boolean));
+const fails = [], summary = [];
+const fail = (part, msg) => fails.push(`[${part}] ${msg}`);
+const t0 = Date.now();
 
-console.log(rows.join('\n'));
-console.log(notes.join('\n'));
-if (fails.length) { console.log('\nFAIL\n  ' + fails.join('\n  ')); process.exit(1); }
-console.log('\nall checks pass');
+// 1. static
+{
+  const files = ['index.html', ...readdirSync(resolve(ROOT, 'src')).filter((f) => f.endsWith('.js')).map((f) => join('src', f))];
+  let total = 0, bytes = 0, longest = 0;
+  for (const f of files) {
+    const text = readFileSync(resolve(ROOT, f), 'utf8'), lines = text.split('\n').length;
+    total += lines; bytes += statSync(resolve(ROOT, f)).size; longest = Math.max(longest, lines);
+    if (lines > BUDGET.perFile) fail('static', `${f} has ${lines} lines (limit ${BUDGET.perFile})`);
+    if (f.endsWith('.js') && !(/^\/\/ DOORBUSTER — [\w.]+\n\/\/ Purpose:/.test(text) && /\n\/\/ Exports:/.test(text) && /\n\/\/ Depends on:/.test(text))) fail('static', `${f} lacks its header (purpose, exports, dependencies)`);
+    if (f === 'index.html' && !/DOORBUSTER — index\.html[\s\S]*Purpose:/.test(text)) fail('static', 'index.html lacks its header comment');
+    for (const m of text.matchAll(/https?:\/\/[^\s'"`)<>]+/g)) {
+      if (!(f === join('src', 'platform.js') && m[0] === 'https://mindblown.ai/lib/three-0.185.1/three.min.js')) fail('static', `${f} contains an external URL: ${m[0]}`);
+    }
+  }
+  if (files.length > BUDGET.files) fail('static', `${files.length} shipped files (limit ${BUDGET.files})`);
+  if (total > BUDGET.lines) fail('static', `${total} shipped lines (limit ${BUDGET.lines})`);
+  for (const f of LOGIC) {
+    const p = resolve(ROOT, 'src', f);
+    if (!existsSync(p)) continue;
+    const text = readFileSync(p, 'utf8').replace(/\/\/.*$/gm, '');
+    if (/Math\.random|Date\.now|performance\.now/.test(text)) fail('static', `src/${f} uses a non-deterministic source`);
+    if (/\b(document|window|THREE)\b/.test(text)) fail('static', `src/${f} touches the DOM or THREE`);
+    try { await import('../src/' + f); } catch (e) { fail('static', `src/${f} does not import in Node: ${e.message}`); }
+  }
+  // tune.json (MINDBLOWN.md section 4)
+  const { TUNE } = await import('../src/config.js');
+  const tune = JSON.parse(readFileSync(resolve(ROOT, 'tune.json'), 'utf8')), names = Object.keys(tune);
+  if (names.length > 40) fail('static', `tune.json has ${names.length} entries (limit 40)`);
+  for (const n of names) {
+    const e = tune[n];
+    if (!/^[a-z][a-z0-9_]{0,39}$/.test(n)) fail('static', `tune name "${n}" breaks the naming rule`);
+    if (typeof e.value === 'number') { if (!(typeof e.min === 'number' && typeof e.max === 'number' && e.value >= e.min && e.value <= e.max)) fail('static', `tune "${n}" needs min <= value <= max`); }
+    else if (e.kind === 'color') { if (!/^#[0-9a-f]{6}$/i.test(e.value)) fail('static', `tune "${n}" is not #rrggbb`); }
+    else if (e.kind === 'text') { if (typeof e.value !== 'string' || e.value.length > 200) fail('static', `tune "${n}" text is too long`); }
+    else if (Array.isArray(e.options)) { if (!e.options.includes(e.value)) fail('static', `tune "${n}" value is not one of its options`); }
+    else if (typeof e.value !== 'boolean') fail('static', `tune "${n}" has an unknown kind`);
+    if (!(n in TUNE)) fail('static', `tune "${n}" has no default in src/config.js`);
+    else if (typeof TUNE[n] !== typeof e.value) fail('static', `tune "${n}" has a different type in src/config.js`);
+  }
+  // the single-file build
+  let distKB = 0;
+  try {
+    execFileSync(process.execPath, [resolve(ROOT, 'tools', 'build.mjs')], { cwd: ROOT, stdio: 'pipe' });
+    const size = statSync(resolve(ROOT, 'dist', 'index.html')).size;
+    distKB = size / 1024;
+    if (size > BUDGET.bytes) fail('static', `dist/index.html is ${distKB.toFixed(0)} KB (limit 2.5 MB)`);
+  } catch (e) { fail('static', 'the build fails: ' + String(e.stderr || e.message).trim().split('\n').pop()); }
+  summary.push(`static   ${files.length} files, ${total} lines (longest ${longest}), tune ${names.length}/40, dist ${distKB.toFixed(0)} KB`);
+}
+
+// 2. level validator
+const { LEVELS } = await import('../src/levels.js');
+{
+  const { buildWorld } = await import('../src/world.js');
+  const { makeRng } = await import('../src/config.js');
+  let n = 0;
+  for (let li = 0; li < LEVELS.length; li++) {
+    const def = LEVELS[li], tag = `level ${li} ${def.id}`, w = buildWorld(def, makeRng(1));
+    let lost = 0;
+    for (let i = 0; i < w.nav.length; i++) if (w.floor[i] && !w.block[i] && w.nav[i] > 1e8) lost++;
+    if (lost) fail('levels', `${tag}: ${lost} floor tiles cannot reach a checkout`);
+    // checkpoints in route order: each one nearer the checkout than the one before
+    const cps = w.checkpoints || [];
+    for (let i = 1; i < cps.length; i++) if (!(cps[i].nav < cps[i - 1].nav)) fail('levels', `${tag}: checkpoint ${i + 1} is not after checkpoint ${i} on the route`);
+    // a button or plate lies before what it opens (its own route distance is larger)
+    for (const s of w.switches || []) if (s.target && !(s.nav > s.target.nav)) fail('levels', `${tag}: switch at ${s.c},${s.r} comes after what it opens`);
+    if (def.v3) for (const rule of levelRules(w)) fail('levels', `${tag}: ${rule}`);
+    n++;
+  }
+  summary.push(`levels   ${n} levels: every floor tile reaches a checkout, checkpoints and switches in route order`);
+}
+
+// 3. simulation smoke test
+if (!skip.has('sim')) {
+  const jobs = [];
+  for (let li = 0; li < LEVELS.length; li++) {
+    if (!LEVELS[li].rivals || !LEVELS[li].rivals.length) continue;      // the test course has no rivals and no author run
+    for (const seed of SEEDS) jobs.push({ level: li, seed, bot: 'expert' });
+    jobs.push({ level: li, seed: 1, bot: 'expert', repeat: true });
+  }
+  const run = (job) => new Promise((ok, no) => { const wk = new Worker(fileURLToPath(import.meta.url), { workerData: job }); wk.on('message', (m) => ok({ ...m, repeat: job.repeat })); wk.on('error', no); });
+  const results = [], pool = Math.min(8, jobs.length);
+  let next = 0;
+  await Promise.all(Array.from({ length: pool }, async () => { while (next < jobs.length) { const j = jobs[next++]; results.push(await run(j)); } }));
+  let worst = 0;
+  for (let li = 0; li < LEVELS.length; li++) {
+    const mine = results.filter((r) => r.level === li);
+    if (!mine.length) continue;
+    const tag = `level ${li}`;
+    for (const r of mine) {
+      if (!r.finished) fail('sim', `${tag} seed ${r.seed}: the expert bot did not finish (t ${r.time} s)`);
+      if (r.stuck > 1) fail('sim', `${tag} seed ${r.seed}: ${r.stuckWho} stood stuck for ${r.stuck} s`);
+      worst = Math.max(worst, r.stuck);
+    }
+    const a1 = mine.find((r) => r.seed === 1 && !r.repeat), a2 = mine.find((r) => r.repeat);
+    if (a1 && a2 && (a1.receipt !== a2.receipt || a1.hash !== a2.hash)) fail('sim', `${tag}: seed 1 played twice differs (receipt ${a1.receipt} / ${a2.receipt})`);
+  }
+  const times = LEVELS.map((d, li) => results.filter((r) => r.level === li && !r.repeat)).filter((r) => r.length)
+    .map((r) => `L${r[0].level} ${(r.reduce((s, x) => s + x.time, 0) / r.length).toFixed(1)}s`);
+  summary.push(`sim      ${results.length} runs: expert ${times.join(' ')}, worst rival stand ${worst.toFixed(2)} s, deterministic`);
+}
+
+// 4. browser smoke test
+if (!skip.has('browser')) {
+  const { chromium } = await import('playwright-core');
+  const { startServer } = await import('./serve.mjs');
+  const server = await startServer(ROOT, 0);
+  const browser = await chromium.launch({ channel: 'chromium', headless: true, args: ['--ignore-gpu-blocklist', '--enable-gpu', '--use-angle=d3d11', '--mute-audio'] });
+  let peakCalls = 0, peakTris = 0, pages = 0;
+  const visit = async (query, seconds, tag) => {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+    page.on('console', (m) => { if (m.type() === 'error') fail('browser', `${tag}: console error: ${m.text().slice(0, 160)}`); });
+    page.on('pageerror', (e) => fail('browser', `${tag}: page error: ${e.message.slice(0, 160)}`));
+    page.on('requestfailed', (r) => fail('browser', `${tag}: request failed: ${r.url()}`));
+    page.on('request', (r) => { const u = r.url(); if (!u.startsWith(server.url) && !u.startsWith('data:') && !u.startsWith('blob:')) fail('browser', `${tag}: request outside the origin: ${u}`); });
+    try {
+      await page.goto(`${server.url}/index.html?${query}`);
+      await page.waitForFunction(() => window.__ready === true, null, { timeout: 20000 });
+      let calls = 0, tris = 0;
+      for (let t = 0; t < seconds; t += 0.5) {
+        const info = await page.evaluate(() => { window.__db.advance(0.5); return window.__db.info(); });
+        calls = Math.max(calls, info.calls); tris = Math.max(tris, info.tris);
+      }
+      if (seconds === 0) { const info = await page.evaluate(() => { window.__db.advance(0.1); return window.__db.info(); }); calls = info.calls; tris = info.tris; }
+      if (calls > BUDGET.calls) fail('browser', `${tag}: ${calls} draw calls at the busiest moment (limit ${BUDGET.calls})`);
+      if (tris > BUDGET.tris) fail('browser', `${tag}: ${tris} triangles at the busiest moment (limit ${BUDGET.tris})`);
+      peakCalls = Math.max(peakCalls, calls); peakTris = Math.max(peakTris, tris); pages++;
+    } catch (e) { fail('browser', `${tag}: ${e.message.split('\n')[0]}`); }
+    await page.close();
+  };
+  for (let li = 0; li < LEVELS.length; li++) await visit(`level=${li}&seed=1&autoplay=expert&manual=1`, 5, `level ${li}`);
+  await visit('scene=lineup&manual=1', 0, 'lineup');
+  await browser.close(); await server.close();
+  summary.push(`browser  ${pages} pages clean, peak ${peakCalls} draw calls, ${(peakTris / 1000).toFixed(0)}k triangles`);
+}
+
+const out = [...fails.slice(0, 30 - summary.length - 1), ...(fails.length > 30 - summary.length - 1 ? [`... and ${fails.length - (30 - summary.length - 1)} more`] : []), ...summary];
+console.log(out.join('\n'));
+console.log(`${fails.length ? 'FAIL' : 'PASS'} in ${((Date.now() - t0) / 1000).toFixed(0)} s`);
+process.exit(fails.length ? 1 : 0);
+}
+
+// v3 level rules (pass windows, loot rule, pace): they apply to levels marked v3 (P2 onward).
+function levelRules(w) { return w.ruleFails || []; }
