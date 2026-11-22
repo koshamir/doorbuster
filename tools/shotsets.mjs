@@ -4,11 +4,14 @@
 // ({ from, frames, dt, cols, cell } consecutive frames into one contact sheet), script (timed keys:
 // [time, key, value] with key in left/right/gas/brake/drift/dash), viewport [w, h], squint (also a
 // 320 px wide copy of the last shot), realtime (seconds of real-time frame-rate sampling after GO),
-// room ([cols, rows]: an empty test room built by the tool instead of a level), until (run on until
+// room ([cols, rows]: an empty test room built by the tool instead of a level; put = extra plan
+// characters in it as [char, tiles ahead of the start, tiles to its right]), until (run on until
 // the game reaches a state, then screenshot), plain (seconds to wait on the untouched page),
-// platform (serve as play.mindblown.ai with a recording stand-in for the SDK), after (page script
+// platform (serve as play.mindblown.ai with a recording stand-in for the SDK), setup (page script
+// run before the timeline), after (page script
 // whose result is added to the summary). strip.around = 'crash' centres the strip on that event of
-// the player's cart (strip.before seconds earlier; the scenario is played once first to find it).
+// the player's cart (strip.before seconds earlier; the scenario is played once first to find it);
+// 'ram<' is the same event done to the player by someone else.
 
 const l0 = 'level=0&seed=1';
 const l1 = 'level=1&seed=3';
@@ -68,6 +71,25 @@ export const SETS = {
     { name: 'small', query: l1 + '&autoplay=confident', viewport: [800, 450], shots: [9] },
     { name: 'phone', query: l1 + '&autoplay=confident', viewport: [390, 844], shots: [9] },
     { name: 'realtime', query: l1 + '&autoplay=expert', realtime: 10 },
+  ],
+  m4: [
+    { name: 'title', query: l1, plain: 1.2 },
+    { name: 'start', query: l1 + '&autoplay=confident', shots: [-1.5, 0.3, 1.2, 2.5, 4], strip: { from: -0.1, frames: 8, dt: 0.12 }, squint: true },
+    { name: 'run', query: l1 + '&autoplay=confident', shots: [7, 11, 15, 19, 23, 27, 31, 35, 39, 43], squint: true, until: 'receipt' },
+    { name: 'ram', query: l1 + '&autoplay=expert', strip: { around: 'ram', before: 0.25, frames: 8, dt: 0.0667, within: 50 } },
+    { name: 'rammed', query: l1 + '&autoplay=confident', strip: { around: 'ram<', before: 0.7, frames: 8, dt: 0.1, within: 50 } },
+    { name: 'smash', room: yard, put: [['P', 12, 0]], script: [[0, 'gas', true], [1.72, 'dash', true]], strip: { from: 1.75, frames: 8, dt: 0.0667 } },
+    { name: 'hot', query: l1 + '&autoplay=expert', strip: { around: 'hot', before: 0.3, frames: 8, dt: 0.0833, within: 60 } },
+    { name: 'madness', query: l1 + '&autoplay=expert', strip: { around: 'madmode', before: 0.2, frames: 8, dt: 0.25, within: 70 } },
+    { name: 'flash', query: l1 + '&autoplay=confident', strip: { around: 'flash', before: 0.1, frames: 8, dt: 0.4, within: 40 } },
+    { name: 'strike', room: yard, put: [['g', 12, 0]], script: [[0, 'gas', true], [1.72, 'dash', true]], strip: { from: 1.7, frames: 8, dt: 0.0833 } },
+    { name: 'crowd', room: yard, put: [['g', 12, 0]], script: [[0, 'gas', true]], strip: { from: 1.9, frames: 8, dt: 0.1 } },
+    // closing time with the beginner still on the road: the same run with the doors closing 20 s sooner
+    { name: 'closing', query: l1 + '&autoplay=beginner', setup: 'window.__db.game.sim.timer = 52', shots: [36, 38, 42, 46, 49], strip: { from: 46.5, frames: 8, dt: 0.5 } },
+    { name: 'closed', query: l1, script: [], until: 'closed', wait: 600 },
+    { name: 'small', query: l1 + '&autoplay=confident', viewport: [800, 450], shots: [9, 26] },
+    { name: 'phone', query: l1 + '&autoplay=confident', viewport: [390, 844], shots: [9, 26] },
+    { name: 'realtime', query: l1 + '&autoplay=expert', realtime: 12 },
   ],
   // The single-file build: run with --root dist
   dist: [

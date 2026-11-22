@@ -21,7 +21,7 @@ const LOUD = { take: 1, stunt: 1, crash: 1, ram: 1, bowl: 1, boost: 1, smash: 1,
 // Watches one run step by step: quiet stretches for the player, where the rivals are, how fast they
 // go and how long they take to get going again after a hit.
 function watcher() {
-  const w = { quietMax: 0, quiet: [], last: 0, near: 0, samples: 0, gaps: [], rivalMax: 0, recover: [], hitAt: new Map(), seen: {} };
+  const w = { quietMax: 0, quiet: [], last: 0, near: 0, samples: 0, gaps: [], rivalMax: 0, recover: [], hitAt: new Map(), seen: {}, worstLoss: 0 };
   w.onStep = (sim) => {
     if (sim.phase !== 'run') return;
     const p = sim.player;
@@ -29,6 +29,7 @@ function watcher() {
       w.seen[e.type] = (w.seen[e.type] || 0) + 1;
       const mine = e.cart === p || e.ref === p || e.type === 'flash' || e.type === 'closing' || e.type === 'lanewarn' || e.type === 'laneclose';
       if (LOUD[e.type] && mine && sim.t > 1) { const g = sim.t - w.last; if (g > 0.05) w.quiet.push(g); w.quietMax = Math.max(w.quietMax, g); w.last = sim.t; }
+      if (e.type === 'spill' && e.ref.crash) w.worstLoss = Math.max(w.worstLoss, e.ref.lost / (e.cart.value + e.ref.lost));
       if (e.type === 'stunt') w.seen['stunt:' + e.ref.name + (e.cart === p ? '' : ':rival')] = (w.seen['stunt:' + e.ref.name + (e.cart === p ? '' : ':rival')] || 0) + 1;
     }
     for (const k of sim.carts) {
@@ -72,7 +73,7 @@ for (const li of levels) {
     rows2.push([name, med(fin.map((r) => P(r).receipt.total)), max(fin.map((r) => P(r).receipt.total)), mean(fin.map((r) => P(r).receipt.items)),
       mean(fin.map((r) => P(r).receipt.time)), mean(fin.map((r) => P(r).receipt.stunts)), pct(fin.filter((r) => P(r).receipt.list > 0).length / Math.max(1, fin.length)),
       mean(res.map((r) => r.sim.stats.taken)), mean(res.map((r) => r.sim.stats.spilled)), mean(fin.map((r) => P(r).load)) / TUNE.loadfull,
-      mean(res.map((r) => r.sim.stats.firstShelf)), Math.min(...res.map((r) => r.sim.stats.firstShelf))]);
+      mean(res.map((r) => r.sim.stats.firstShelf)), pct(res.filter((r) => r.sim.stats.firstShelf >= 10).length / runs), pct(max(res.map((r) => r.w.worstLoss)))]);
     // Madness, crowd, rams and the rhythm of the run, as the player meets them
     const S = (key) => res.map((r) => r.sim.stats[key]), seen = (key) => mean(res.map((r) => r.w.seen[key] || 0));
     const x2 = res.map((r) => r.sim.stats.x2At).filter((t) => t >= 0);
@@ -87,7 +88,7 @@ for (const li of levels) {
   if (def.marks) table('  obstacles — clean passes (no crash, no stuck) and median seconds for the stretch', ['bot', ...def.marks.map((m) => m[0])], markRows);
   console.log(`  logic cost: ${mean(cost).toFixed(1)} microseconds per step, ${(mean(cost) * 2 / 1000).toFixed(3)} ms per 60 Hz frame (budget 6 ms)`);
   table('  receipts and loot',
-    ['bot', 'median $', 'best $', 'items $', 'time $', 'stunts $', 'list done', 'taken', 'spilled', 'load x full', 'first shelf avg', 'first shelf min'], rows2);
+    ['bot', 'median $', 'best $', 'items $', 'time $', 'stunts $', 'list done', 'taken', 'spilled', 'load x full', 'first shelf avg', '10+ off first shelf', 'worst crash loss ($ share)'], rows2);
   if (a.alone || !(def.rivals || []).length) continue;
   table('  the player\'s run (Madness, rams, crowd, rhythm) — per run',
     ['bot', 'x2 by 20 s', 'x2 at (median s)', 'modes', '1-2 modes', 'rammed', 'rammed max', 'rams', 'takedowns', 'strikes', 'shaves', 'sweeps', 'smashes', 'hot', 'bowled',

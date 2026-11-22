@@ -39,7 +39,7 @@ export function makeCart(id, charId, x, z, h) {
     gasAt: -9, gasWas: false, rocket: false,           // when the accelerator went down (rocket start)
     ramCd: 0, ramT: 0, rammedBy: null, down: false, spinT: 0,   // rams given and taken
     grudge: null, grudgeT: 0,                 // who rammed this cart, remembered for five seconds
-    dashKnocks: 0, shaveT: 0, crashes: 0,     // shoppers bowled over in this dash; close-shave throttle; crash count
+    dashKnocks: 0, shaveT: 0, crashes: 0, fullSaid: false,     // shoppers bowled over in this dash; close-shave throttle; crash count
     done: false, doneT: 0, lane: -1, place: 1, prog: 0, receipt: null,
     input: makeInput(), ai: null,
   };
@@ -82,7 +82,7 @@ function helperYaw(k, inp, world) {
   // About to hit something nearly head-on: lean toward the side that glances off; if only one side
   // of the cart's path is blocked (a corner, a shelf end), swerve past it. Checked every third step.
   if (k.helpN++ % 3) return k.help;
-  k.help = 0;
+  k.help = sweepLane(k, world, fx, fz);
   const reach = k.spd * CFG.assistLook, air = k.air > 0;
   for (let d = 0.4; d <= reach; d += 0.4) {
     const cx = k.x + fx * d, cz = k.z + fz * d;
@@ -104,6 +104,28 @@ function helperYaw(k, inp, world) {
     break;
   }
   return k.help;
+}
+
+// The third helper: running along a stocked shelf, the cart settles into the sweeping lane (a hand's
+// width off the shelf) and holds it, unless the driver steers away. Returns a yaw rate.
+function sweepLane(k, world, fx, fz) {
+  for (const s of world.shelves) {
+    if (s.stock <= 0) continue;
+    const along = s.horiz ? k.x - s.x : k.z - s.z, half = s.horiz ? s.hx : s.hz;
+    if (Math.abs(along) > half - 1.2) continue;                         // not beside it, or near an end (ends are walls)
+    const off = s.horiz ? k.z - s.z : k.x - s.x, side = off < 0 ? 0 : 1;
+    const gap = Math.abs(off) - (s.horiz ? s.hz : s.hx) - CFG.CART_R;
+    if (!s.sides[side] || gap < -0.2 || gap > CFG.sweepReach) continue;
+    const run = s.horiz ? fx : fz;                                      // how parallel the cart is to the shelf
+    if (Math.abs(run) < 0.8) continue;
+    // steer so the gap closes to sweepHold: positive `to` turns the nose toward the shelf
+    const drift = (s.horiz ? fz : fx) * (off < 0 ? 1 : -1);             // nose component toward the shelf
+    const want = clamp((gap - CFG.sweepHold) * 0.6, -0.25, 0.3), to = clamp((want - drift) * 4, -1, 1);
+    const turn = (s.horiz ? (off < 0 ? -1 : 1) : (off < 0 ? 1 : -1)) * Math.sign(run);   // which yaw sign points at the shelf
+    if (k.steer * turn * to < -0.25) return 0;                          // never fight the driver
+    return turn * to * CFG.sweepYaw;
+  }
+  return 0;
 }
 
 // The helper while drifting: if the path is about to run nearly head-on into something, open or

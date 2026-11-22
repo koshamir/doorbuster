@@ -195,7 +195,7 @@ function buildShelves(world, ch, open, rng) {
     const cz = horiz ? (r + 0.5) * T + shift : (r + len / 2) * T;
     const shelf = {
       x: cx, z: cz, hx: horiz ? along / 2 : depth / 2, hz: horiz ? depth / 2 : along / 2,
-      horiz, len, kind: k, island: len <= 2 && a && b, zone: world.zone[r * cols + c], sides: [a, b],
+      horiz, len, kind: k, island: len <= 2 && a && b, zone: world.zone[r * cols + c], sides: [a, b], stock: 0,
     };
     shelf.solid = addSolid(world, { x: cx, z: cz, r: 0, hx: shelf.hx, hz: shelf.hz, type: 'shelf', on: true, shelf });
     world.shelves.push(shelf);
@@ -244,7 +244,7 @@ function newGroup(world, shelf) {
 }
 function addItem(world, group, good, x, z, nx, nz) {
   const item = { x, z, y: 0.55, nx, nz, good, group, taken: false };
-  world.groups[group].left++; world.groups[group].total++;
+  world.groups[group].left++; world.groups[group].total++; world.groups[group].shelf.stock++;
   const c = Math.floor(x / T), r = Math.floor(z / T);
   world.itemCells[r * world.cols + c].push(world.items.length);
   world.items.push(item);

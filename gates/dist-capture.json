@@ -1,0 +1,30 @@
+{
+  "set": "dist",
+  "summary": [
+    {
+      "name": "dist_bot",
+      "loadMs": 650,
+      "t": 42.08,
+      "phase": "done",
+      "items": 29,
+      "value": 4667,
+      "calls": 48,
+      "tris": 115624,
+      "gpu": "NVIDIA GeForce RTX 4060",
+      "cam": {
+        "cartX": [
+          -0.04,
+          0.03
+        ],
+        "cartY": [
+          -0.4,
+          -0.13
+        ],
+        "floorAheadSec": 1.86,
+        "yawRev": 0.98,
+        "lift": 0
+      }
+    }
+  ],
+  "problems": []
+}

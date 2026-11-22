@@ -17,6 +17,7 @@ const wrap = (x) => Math.atan2(Math.sin(x), Math.cos(x));
 function make(def, load = 0, bot) {
   const sim = createSim(def || room(), 1, { countdown: 0, bot });
   sim.player.load = load;
+  sim.player.rocket = true;                      // the maneuvers are measured without the rocket start
   return sim;
 }
 // Steps the sim for `seconds` holding `keys` ({ steer, gas, brake, drift, dash }); calls each(sim, i) per step.
@@ -324,27 +325,34 @@ if (want('sweep')) {
     ['speed m/s', 'gap 0 (touching)', 'gap 0.2', 'gap 0.4', 'gap 0.6', 'gap 0.8', 'gap 1.0'], rows);
 }
 
-// ---- spill: one hit costs at most spillmax, goods can be recovered ----------------------------------------
+// ---- spill: one hit costs at most spillmax (in goods and in dollars), goods can be recovered -------------
+// A head-on crash at top speed, measured at the first hit only; then the driver turns round and
+// chases the goods for as long as they lie there. Loads stay inside what a cart can hold.
 if (want('spill')) {
   const rows = [];
-  for (const n of [2, 6, 20, 40]) {
+  for (const n of [4, 10, 18, 28]) {
     const sim = make(room(40, 20)), p = sim.player;
     giveGoods(sim, p, n);
-    const had = p.tower.length;
+    const had = p.tower.length, worth = p.value, units = p.load;
     launch(sim, 60, p.z, Math.PI / 2, TUNE.maxspeed);
-    hold(sim, 2.2, { gas: 1 });                      // straight into the east wall
-    const lost = had - p.tower.length, onFloor = sim.world.drops.filter((d) => d.live).length;
-    for (let i = 0; i < 4 * 120; i++) {              // turn round and drive back through the spill
+    let goods = 0, dollars = 0;
+    for (let i = 0; i < 2.2 * 120 && !goods; i++) {  // straight into the east wall, up to the first hit
+      p.input.gas = 1; stepSim(sim);
+      for (const e of sim.events) if (e.type === 'spill' && e.cart === p) { goods = e.value; dollars = e.ref.lost; }
+      sim.events.length = 0;
+    }
+    const after = p.tower.length;
+    for (let i = 0; i < TUNE.recollect * 120; i++) { // turn round and chase the goods while they last
       const d = sim.world.drops.find((q) => q.live);
       if (!d) break;
       const err = wrap(Math.atan2(d.x - p.x, d.z - p.z) - p.h), inp = p.input;
       inp.steer = Math.max(-1, Math.min(1, err * 2.5)); inp.gas = Math.abs(err) > 1 ? 0.4 : 0.8; inp.brake = 0;
-      stepSim(sim);
+      stepSim(sim); sim.events.length = 0;
     }
-    rows.push([had, lost, (lost / had * 100).toFixed(0) + '%', onFloor, p.tower.length - (had - lost), sim.stats.crashes]);
+    rows.push([had, units, goods, (goods / had * 100).toFixed(0) + '%', '$' + dollars + ' of $' + worth, (dollars / worth * 100).toFixed(0) + '%', p.tower.length - after]);
   }
-  table('Spill — head-on crash at top speed, then driving back over the goods within ' + TUNE.recollect + ' s (limit ' + TUNE.spillmax * 100 + '% per hit)',
-    ['items before', 'spilled', 'share', 'on the floor', 'recovered', 'crashes'], rows);
+  table('Spill — a head-on crash at top speed: what the first hit costs (limit ' + TUNE.spillmax * 100 + '% in goods and in dollars), and what a chase of ' + TUNE.recollect + ' s brings back',
+    ['goods before', 'load units', 'spilled', 'share of goods', 'dollars lost', 'share of dollars', 'recovered'], rows);
 }
 
 // ---- a beginner's first drifts: sloppy timing in a 10 m corridor with a 90-degree corner ----------------
@@ -356,6 +364,7 @@ if (want('beginner')) {
     let ok = 0, crashed = 0, long = 0, okLong = 0, clean = 0; const tiers = [0, 0, 0, 0], N = 300;
     for (let i = 0; i < N; i++) {
       const sim = createSim(def, i + 1, { countdown: 0, bot: 'beginner' });
+      sim.player.rocket = true;
       const p = sim.player, inp = p.input;
       p.load = load;
       const drv = p.ai; p.ai = null;                 // scripted hands first, the beginner bot afterwards

@@ -2,7 +2,7 @@
 // Purpose: every shared constant in one place: tune defaults (a mirror of tune.json), fixed
 //          constants that do not fit in the 40 platform values, the palette, the goods catalogue,
 //          the characters, small math helpers and the seeded random generator.
-// Exports: TUNE, applyTune, CFG, PAL, rgb, GOODS, GOOD, POOLS, CHARS, makeRng, clamp, lerp,
+// Exports: TUNE, applyTune, CFG, PAL, rgb, mix, GOODS, GOOD, POOLS, CHARS, makeRng, clamp, lerp,
 //          wrapAngle, approach
 // Depends on: nothing. Safe to import from Node (no DOM, no THREE).
 
@@ -70,6 +70,9 @@ export const CFG = {
   wetGrip: 1.2,           // side grip on a wet floor
   assistLook: 0.45,       // seconds ahead the wall-avoid helper looks
   assistYaw: 0.7,         // strongest helper yaw, rad/s
+  sweepReach: 1.5,        // the sweep-lane helper works within this gap to a stocked shelf, metres
+  sweepHold: 0.25,        // the gap it holds, metres
+  sweepYaw: 0.6,          // its strongest yaw, rad/s
   pinYaw: 4.5,            // how fast a cart pinned nose-first swings along the wall, rad/s
   pinPatience: 0.3,       // seconds of pushing with no movement before the cart backs out by itself
   backTime: 0.32, backSpeed: 3.5, backYaw: 2.8,   // the automatic back-out: seconds, m/s, rad/s
@@ -78,7 +81,7 @@ export const CFG = {
   // Madness: the meter runs over four segments (0..4); a full one is MADNESS mode
   madWait: 2.5,           // seconds without a gain before the meter starts to drain
   madDrain: 0.12,         // segments per second once it drains
-  madTake: { S: 0.047, M: 0.082, L: 0.17, H: 0.45 },   // gain per item taken, by size (a chain of takes adds up to double)
+  madTake: { S: 0.04, M: 0.09, L: 0.2, H: 0.5 },   // gain per item taken, by size (a chain of takes adds up to half as much again)
   madDrift: 0.3,          // gain per spark tier when a drift is released into its boost
   // scoring
   listBonus: 200,         // dollars for bringing all three list items to the checkout
@@ -87,7 +90,7 @@ export const CFG = {
 
 // ---- Palette (ART.md section 3). Stored as sRGB hex; rgb() converts to 0..1 floats. ----------
 export const PAL = {
-  floor: 0xF3E9DC, grout: 0xE6D8C5, wall: 0xFFF6EA, walltop: 0x3A2B52, white: 0xFFFFFF, steel: 0xDDE3EA,
+  floor: 0xF3E9DC, grout: 0xE6D8C5, wall: 0xFFF6EA, walltop: 0x5B4A78, white: 0xFFFFFF, steel: 0xDDE3EA,
   night: 0x1E1B2E, sale: 0xFFD23F, danger: 0xFF3B4E, player: 0xFF4FA3,
   list: 0x00D1C1, hot: 0xFFC800, outline: 0x2A1A3A,
   zones: [0x8EE3C8, 0xFF8A7A, 0x7CC6FE, 0xFFD166],
@@ -100,6 +103,11 @@ export const PAL = {
 };
 export function rgb(hex) {
   return [(hex >> 16 & 255) / 255, (hex >> 8 & 255) / 255, (hex & 255) / 255];
+}
+// A colour between two palette colours (t = 0 gives a, 1 gives b), as a hex number.
+export function mix(a, b, t) {
+  const ch = (s) => Math.round((a >> s & 255) * (1 - t) + (b >> s & 255) * t);
+  return ch(16) << 16 | ch(8) << 8 | ch(0);
 }
 
 // ---- Goods. size: S small, M medium, L large, H hot. w = weight units, slots = tower cells. ----

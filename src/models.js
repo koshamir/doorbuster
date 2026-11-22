@@ -10,7 +10,7 @@
 // as clean planes) and `onormal`, a smoothed normal shared by all vertices at one position, which the
 // outline pass uses to push the hull out without gaps.
 
-import { PAL, GOODS, rgb } from './config.js';
+import { PAL, GOODS, rgb, mix } from './config.js';
 
 export function makeBuilder() {
   return { pos: [], nor: [], col: [], out: [], m: [1, 0, 0, 0, 1, 0, 0, 0, 1], t: [0, 0, 0] };
@@ -157,13 +157,15 @@ export function toGeometry(b) {
 // The cart: an open basket with thick walls, a chunky rim and ribs, big wheels and a handle.
 // The basket floor is at y = 0.48; goods stack from there.
 export function cartGeometry(color) {
-  const b = makeBuilder();
+  const b = makeBuilder(), dark = mix(color, PAL.outline, 0.45), light = mix(color, PAL.white, 0.42);
   place(b, 0, 0.26, 0); addBox(b, 0.84, 0.12, 1.3, PAL.night, { bevel: 0.3 });            // chassis
-  place(b, 0, 0.38, 0); addBox(b, 1.0, 0.1, 1.4, color, { bevel: 0.2 });                  // basket floor
+  place(b, 0, 0.38, 0); addBox(b, 1.0, 0.1, 1.4, color, { bevel: 0.2, top: dark });       // basket floor, dark inside
   for (const x of [-0.46, 0.46]) { place(b, x, 0.42, 0); addBox(b, 0.1, 0.52, 1.4, color, { bevel: 0.2 }); }
   for (const z of [-0.66, 0.66]) { place(b, 0, 0.42, z); addBox(b, 0.84, 0.52, 0.1, color, { bevel: 0.2 }); }
-  for (const x of [-0.49, 0.49]) { place(b, x, 0.9, 0); addBox(b, 0.18, 0.15, 1.58, color, { bevel: 0.3 }); }       // rim, in the cart's colour
-  for (const z of [-0.7, 0.7]) { place(b, 0, 0.9, z); addBox(b, 0.84, 0.15, 0.18, color, { bevel: 0.3 }); }
+  for (const x of [-0.4, 0.4]) { place(b, x, 0.48, 0); addBox(b, 0.03, 0.42, 1.22, dark, { bevel: 0 }); }           // the inside is darker: an empty cart reads as a basket
+  for (const z of [-0.6, 0.6]) { place(b, 0, 0.48, z); addBox(b, 0.8, 0.42, 0.03, dark, { bevel: 0 }); }
+  for (const x of [-0.49, 0.49]) { place(b, x, 0.9, 0); addBox(b, 0.22, 0.17, 1.62, light, { bevel: 0.3 }); }      // a chunky lighter rim
+  for (const z of [-0.71, 0.71]) { place(b, 0, 0.9, z); addBox(b, 0.84, 0.17, 0.22, light, { bevel: 0.3 }); }
   for (const z of [-0.4, 0, 0.4]) for (const x of [-0.53, 0.53]) {                        // ribs
     place(b, x, 0.44, z); addBox(b, 0.07, 0.46, 0.12, PAL.white, { bevel: 0.3 });
   }
@@ -191,8 +193,8 @@ export function beanGeometry(charId, color, skin = PAL.skin) {
   ball(0, 1.32, 0.02, 0.28, 0.28, 0.28, skin, 10);
   for (const x of [-0.11, 0.11]) ball(x, 1.36, 0.26, 0.045, 0.06, 0.03, PAL.outline, 6);
   for (const x of [-0.32 * wide, 0.32 * wide]) ball(x, 1.0, 0.36, 0.1, 0.1, 0.1, skin, 6);
-  if (charId === 'player') {                       // beanie with a pom-pom
-    ball(0, 1.46, 0, 0.3, 0.2, 0.3, color, 10); ball(0, 1.68, -0.02, 0.12, 0.12, 0.12, PAL.white, 6);
+  if (charId === 'player') {                       // cream beanie with a pom-pom (breaks up the pink of body and cart)
+    ball(0, 1.46, 0, 0.3, 0.2, 0.3, PAL.wall, 10); ball(0, 1.68, -0.02, 0.12, 0.12, 0.12, color, 6);
     place(b, 0, 1.36, 0); addCyl(b, 0.3, 0.3, 0.08, PAL.white, { seg: 10 });
   } else if (charId === 'granny') {                // shawl and a hair bun
     ball(0, 0.92, -0.12, 0.44, 0.3, 0.36, PAL.mint, 8); ball(0, 1.42, -0.2, 0.17, 0.17, 0.17, PAL.steel, 6);
@@ -225,64 +227,75 @@ const GOOD_BUILD = {
     addCyl(b, 0.16, 0.16, 0.34, PAL.teal, { seg: 8 }); place(b, 0, 0.34, 0); addCyl(b, 0.16, 0.06, 0.14, PAL.teal, { seg: 8 });
     place(b, 0, 0.48, 0); addCyl(b, 0.07, 0.07, 0.08, PAL.danger, { seg: 8 });
   },
-  chips(b) { addBox(b, 0.42, 0.44, 0.24, PAL.sale, { bevel: 0.3 }); place(b, 0, 0.42, 0); addBox(b, 0.42, 0.08, 0.07, PAL.orange, { bevel: 0.2 }); },
+  chips(b) { addBox(b, 0.42, 0.44, 0.24, PAL.orange, { bevel: 0.3 }); place(b, 0, 0.42, 0); addBox(b, 0.42, 0.08, 0.07, PAL.danger, { bevel: 0.2 }); },
   roll(b) { addCyl(b, 0.21, 0.21, 0.4, PAL.white, { top: PAL.sky }); place(b, 0, 0.01, 0); addCyl(b, 0.07, 0.07, 0.4, PAL.brown, { seg: 6 }); },
-  cereal(b) { addBox(b, 0.4, 0.54, 0.2, PAL.orange, { top: PAL.wall }); place(b, 0, 0.16, 0.1); addBox(b, 0.26, 0.24, 0.03, PAL.sale, { bevel: 0.2 }); },
-  phone(b) { addBox(b, 0.36, 0.48, 0.18, PAL.blue, { top: PAL.white }); place(b, 0, 0.1, 0.09); addBox(b, 0.2, 0.3, 0.02, PAL.night, { bevel: 0.2 }); },
-  game(b) { addBox(b, 0.4, 0.46, 0.16, PAL.purple, { top: PAL.sale }); place(b, 0, 0.14, 0.08); addBox(b, 0.26, 0.2, 0.02, PAL.sale, { bevel: 0.2 }); },
+  cereal(b) { addBox(b, 0.4, 0.54, 0.2, PAL.green, { top: PAL.wall }); place(b, 0, 0.16, 0.1); addBox(b, 0.26, 0.24, 0.03, PAL.white, { bevel: 0.2 }); },
+  phone(b) { addBox(b, 0.36, 0.48, 0.18, PAL.blue, { top: PAL.white }); place(b, 0, 0.1, 0.09); addBox(b, 0.2, 0.3, 0.02, PAL.shadow, { bevel: 0.2 }); },
+  game(b) { addBox(b, 0.4, 0.46, 0.16, PAL.purple, { top: PAL.sky }); place(b, 0, 0.14, 0.08); addBox(b, 0.26, 0.2, 0.02, PAL.white, { bevel: 0.2 }); },
   toaster(b) {
     addBox(b, 0.62, 0.42, 0.42, PAL.steel, { bevel: 0.2 });
-    for (const z of [-0.09, 0.09]) { place(b, 0, 0.4, z); addBox(b, 0.4, 0.04, 0.07, PAL.night, { bevel: 0 }); }
+    for (const z of [-0.09, 0.09]) { place(b, 0, 0.4, z); addBox(b, 0.4, 0.04, 0.07, PAL.shadow, { bevel: 0 }); }
     place(b, 0.32, 0.14, 0); addBox(b, 0.06, 0.12, 0.12, PAL.coral, { bevel: 0.3 });
   },
   melon(b) {
     place(b, 0, 0.27, 0); addBall(b, 0.29, 0.27, 0.29, PAL.green, { seg: 10, rings: 6 });
     for (const a of [0, 1.05, 2.1]) { place(b, 0, 0.27, 0, a); addBall(b, 0.3, 0.275, 0.05, PAL.leaf, { seg: 10, rings: 6 }); }
   },
-  pizza(b) { addBox(b, 0.68, 0.2, 0.68, PAL.coral, { bevel: 0.2, top: PAL.wall }); place(b, 0, 0.2, 0); addCyl(b, 0.24, 0.24, 0.02, PAL.sale, { seg: 10, top: PAL.orange }); },
+  pizza(b) { addBox(b, 0.68, 0.2, 0.68, PAL.coral, { bevel: 0.2, top: PAL.wall }); place(b, 0, 0.2, 0); addCyl(b, 0.24, 0.24, 0.02, PAL.orange, { seg: 10, top: PAL.danger }); },
   headset(b) {
-    addBox(b, 0.56, 0.6, 0.38, PAL.night, { top: PAL.list });
-    place(b, 0, 0.3, 0.19, 0, Math.PI / 2, 0); addCyl(b, 0.17, 0.17, 0.03, PAL.list, { seg: 10, top: PAL.white });
+    addBox(b, 0.56, 0.6, 0.38, PAL.shadow, { top: PAL.coral });
+    place(b, 0, 0.3, 0.19, 0, Math.PI / 2, 0); addCyl(b, 0.17, 0.17, 0.03, PAL.coral, { seg: 10, top: PAL.white });
+    place(b, 0, 0.6, 0); addCyl(b, 0.15, 0.15, 0.03, PAL.white, { seg: 10 });
   },
   shoes(b) { addBox(b, 0.68, 0.3, 0.44, PAL.sky, { bevel: 0.1 }); place(b, 0, 0.28, 0); addBox(b, 0.72, 0.09, 0.48, PAL.white, { bevel: 0.2 }); },
   microwave(b) {
-    addBox(b, 0.92, 0.6, 0.68, PAL.steel, { bevel: 0.1 });
-    place(b, -0.12, 0.12, 0.34); addBox(b, 0.54, 0.36, 0.03, PAL.night, { bevel: 0.15 });
+    addBox(b, 0.92, 0.6, 0.68, PAL.steel, { bevel: 0.1, top: PAL.mint });
+    place(b, -0.12, 0.12, 0.34); addBox(b, 0.54, 0.36, 0.03, PAL.shadow, { bevel: 0.15 });
     place(b, 0.32, 0.12, 0.34); addBox(b, 0.16, 0.36, 0.03, PAL.coral, { bevel: 0.15 });
+    place(b, 0, 0.6, 0); addCyl(b, 0.24, 0.24, 0.04, PAL.white, { seg: 10, top: PAL.coral });    // a plate on the lid: the kinds read from above
   },
   speaker(b) {
-    addBox(b, 0.66, 1.0, 0.6, PAL.night, { bevel: 0.1, top: PAL.purple });
-    place(b, 0, 0.66, 0.3, 0, Math.PI / 2, 0); addCyl(b, 0.14, 0.14, 0.03, PAL.sale, { seg: 10 });
-    place(b, 0, 0.28, 0.3, 0, Math.PI / 2, 0); addCyl(b, 0.22, 0.22, 0.04, PAL.sale, { seg: 10, top: PAL.orange });
+    addBox(b, 0.66, 1.0, 0.6, PAL.shadow, { bevel: 0.1, top: PAL.purple });
+    place(b, 0, 0.66, 0.3, 0, Math.PI / 2, 0); addCyl(b, 0.14, 0.14, 0.03, PAL.orange, { seg: 10 });
+    place(b, 0, 0.28, 0.3, 0, Math.PI / 2, 0); addCyl(b, 0.22, 0.22, 0.04, PAL.orange, { seg: 10, top: PAL.white });
+    place(b, 0, 1.0, 0); addCyl(b, 0.2, 0.2, 0.03, PAL.white, { seg: 10, top: PAL.orange });
   },
   suitcase(b) {
     addBox(b, 0.9, 0.66, 0.48, PAL.coral, { bevel: 0.15 });
-    for (const x of [-0.24, 0.24]) { place(b, x, 0, 0); addBox(b, 0.08, 0.67, 0.5, PAL.night, { bevel: 0 }); }
-    place(b, 0, 0.66, 0); addBox(b, 0.3, 0.07, 0.08, PAL.night, { bevel: 0.3 });
+    for (const x of [-0.24, 0.24]) { place(b, x, 0, 0); addBox(b, 0.08, 0.67, 0.5, PAL.white, { bevel: 0 }); }
+    place(b, 0, 0.66, 0); addBox(b, 0.3, 0.07, 0.08, PAL.shadow, { bevel: 0.3 });
   },
   tv(b) {
-    addBox(b, 1.3, 0.86, 0.34, PAL.white, { bevel: 0.06 });
-    place(b, 0, 0.14, 0.17); addBox(b, 1.06, 0.58, 0.03, PAL.night, { bevel: 0.1 });
-    place(b, 0, 0, 0); addBox(b, 0.16, 0.87, 0.36, PAL.hot, { bevel: 0 });
+    addBox(b, 1.3, 0.86, 0.34, PAL.hot, { bevel: 0.06 });
+    place(b, 0, 0.14, 0.17); addBox(b, 1.06, 0.58, 0.03, PAL.sky, { bevel: 0.1 });
+    place(b, -0.2, 0.3, 0.19, 0, 0, 0.6); addBox(b, 0.1, 0.4, 0.02, PAL.white, { bevel: 0 });
+    bow(b, 0.86);
   },
   bear(b) {
     place(b, 0, 0.4, 0); addBall(b, 0.44, 0.42, 0.4, PAL.brown, { seg: 10, rings: 6 });
     place(b, 0, 0.86, 0.04); addBall(b, 0.31, 0.29, 0.3, PAL.brown, { seg: 10, rings: 6 });
     for (const x of [-0.24, 0.24]) { place(b, x, 1.06, 0); addBall(b, 0.11, 0.11, 0.08, PAL.brown, { seg: 6, rings: 4 }); }
     place(b, 0, 0.8, 0.28); addBall(b, 0.14, 0.11, 0.1, PAL.wall, { seg: 6, rings: 4 });
-    place(b, 0, 0.6, 0.34); addBox(b, 0.3, 0.12, 0.08, PAL.danger, { bevel: 0.3 });
+    place(b, 0, 0.6, 0.34); addBox(b, 0.3, 0.12, 0.08, PAL.hot, { bevel: 0.3 });
+    bow(b, 1.12);
   },
   console(b) {
     addBox(b, 1.0, 0.5, 0.82, PAL.white, { bevel: 0.1, top: PAL.blue });
-    place(b, 0, 0.5, 0.1); addBox(b, 0.5, 0.07, 0.3, PAL.white, { bevel: 0.3 });
-    place(b, 0, 0.18, 0.41); addBox(b, 0.6, 0.07, 0.03, PAL.night, { bevel: 0 });
+    place(b, 0, 0.18, 0.41); addBox(b, 0.6, 0.07, 0.03, PAL.shadow, { bevel: 0 });
+    for (const x of [-0.28, 0.28]) { place(b, x, 0.5, 0.2); addCyl(b, 0.13, 0.13, 0.05, PAL.hot, { seg: 8 }); }
+    bow(b, 0.5);
   },
   robovac(b) {
-    addBox(b, 1.04, 0.14, 1.04, PAL.white, { bevel: 0.2 });
-    place(b, 0, 0.14, 0); addCyl(b, 0.46, 0.46, 0.2, PAL.night, { seg: 12, top: PAL.night });
-    place(b, 0, 0.34, 0); addCyl(b, 0.2, 0.2, 0.05, PAL.green, { seg: 10 });
+    addBox(b, 1.04, 0.14, 1.04, PAL.hot, { bevel: 0.2 });
+    place(b, 0, 0.14, 0); addCyl(b, 0.46, 0.46, 0.2, PAL.white, { seg: 12, top: PAL.sky });
+    bow(b, 0.34);
   },
 };
+// The gold bow that marks a hot item: two loops and a knot on top of it.
+function bow(b, y) {
+  for (const x of [-0.17, 0.17]) { place(b, x, y + 0.1, 0); addBall(b, 0.17, 0.11, 0.1, PAL.hot, { seg: 6, rings: 4 }); }
+  place(b, 0, y, 0); addBox(b, 0.13, 0.17, 0.13, PAL.danger, { bevel: 0.3 });
+}
 export function goodGeometry(index) {
   const b = makeBuilder();
   GOOD_BUILD[GOODS[index].id](b);
@@ -305,8 +318,8 @@ export function addShelf(b, s, accent) {
     at(0, 0.36, side * (depth / 2 + 0.01)); addBox(b, along - 0.1, 0.12, 0.04, PAL.danger, { bevel: 0 });
   }
   for (const end of [-1, 1]) {
-    at(end * (along / 2 - 0.04), 0, 0); addBox(b, 0.1, 1.2, depth + 0.06, PAL.sale, { bevel: 0.1 });
-    at(end * (along / 2 - 0.035), 0.45, 0); addBox(b, 0.12, 0.26, depth + 0.07, PAL.night, { bevel: 0 });
+    at(end * (along / 2 - 0.04), 0, 0); addBox(b, 0.1, 1.2, depth + 0.06, PAL.white, { bevel: 0.1 });
+    at(end * (along / 2 - 0.035), 0.55, 0); addBox(b, 0.12, 0.3, depth + 0.07, accent, { bevel: 0 });
   }
   // muted stock along the top of the backboard: the shelf looks stocked without competing with the real goods
   const n = Math.floor(along / 0.5);
@@ -325,7 +338,7 @@ export function addPiece(b, type, x, z, accent) {
   } else if (type === 'display') {
     addCyl(b, 0.9, 0.9, 0.6, PAL.white, { seg: 14, top: accent });
     place(b, x, 0.6, z); addCyl(b, 0.55, 0.55, 0.5, accent, { seg: 12, top: PAL.white });
-    place(b, x, 1.1, z); addCyl(b, 0.25, 0.25, 0.5, PAL.sale, { seg: 8, top: PAL.danger });
+    place(b, x, 1.1, z); addCyl(b, 0.25, 0.25, 0.5, PAL.white, { seg: 8, top: PAL.danger });
   } else if (type === 'plant') {
     addCyl(b, 0.34, 0.42, 0.5, PAL.coral, { seg: 8, top: PAL.brown });
     place(b, x, 1.0, z); addBall(b, 0.5, 0.6, 0.5, PAL.green, { seg: 8, rings: 5 });
@@ -347,19 +360,19 @@ export function pieceGeometry(type) {
   if (type === 'pyramid') {                         // a pyramid of cans: 3 + 2 + 1 seen from each side
     for (let row = 0; row < 3; row++) for (let i = 0; i < 3 - row; i++) for (let j = 0; j < 3 - row; j++) {
       place(b, (i - (2 - row) / 2) * 0.44, 0.1 + row * 0.44, (j - (2 - row) / 2) * 0.44);
-      addCyl(b, 0.2, 0.2, 0.44, row === 1 ? PAL.sale : PAL.red, { seg: 8, top: PAL.steel });
+      addCyl(b, 0.2, 0.2, 0.44, row === 1 ? PAL.white : PAL.red, { seg: 8, top: PAL.steel });
     }
     place(b, 0, 0, 0); addCyl(b, 0.9, 0.9, 0.1, PAL.night, { seg: 12 });
   } else if (type === 'gifts') {                    // a pile of wrapped presents
-    const boxes = [[-0.3, 0, -0.2, 0.7, PAL.danger], [0.35, 0, 0.1, 0.6, PAL.green], [-0.1, 0, 0.42, 0.5, PAL.sky], [0.05, 0.6, -0.05, 0.55, PAL.sale]];
+    const boxes = [[-0.3, 0, -0.2, 0.7, PAL.danger], [0.35, 0, 0.1, 0.6, PAL.green], [-0.1, 0, 0.42, 0.5, PAL.sky], [0.05, 0.6, -0.05, 0.55, PAL.purple]];
     for (const [x, y, z, s, c] of boxes) {
       place(b, x, y, z, x * 2); addBox(b, s, s * 0.8, s, c, { bevel: 0.1 });
       place(b, x, y, z, x * 2); addBox(b, s * 0.2, s * 0.82, s * 1.02, PAL.white, { bevel: 0 });
     }
   } else if (type === 'stand') {                    // a cardboard standee with a sale burst
     place(b, 0, 0, 0); addBox(b, 0.9, 0.1, 0.6, PAL.brown, { bevel: 0.2 });
-    place(b, 0, 0.1, 0); addBox(b, 0.9, 1.7, 0.1, PAL.sale, { bevel: 0.05 });
-    place(b, 0, 1.0, 0.06, 0, Math.PI / 2, 0); addCyl(b, 0.32, 0.32, 0.03, PAL.danger, { seg: 8, top: PAL.white });
+    place(b, 0, 0.1, 0); addBox(b, 0.9, 1.7, 0.1, PAL.coral, { bevel: 0.05 });
+    place(b, 0, 1.0, 0.06, 0, Math.PI / 2, 0); addCyl(b, 0.32, 0.32, 0.03, PAL.white, { seg: 8, top: PAL.danger });
   } else if (type === 'podium') {                   // podium, two posts and a red ribbon across the front
     addCyl(b, 0.85, 0.85, 0.35, PAL.night, { seg: 14, top: PAL.hot });
     for (const x of [-0.8, 0.8]) { place(b, x, 0, 0.75); addCyl(b, 0.07, 0.07, 0.9, PAL.hot, { seg: 6 }); place(b, x, 0.9, 0.75); addBall(b, 0.11, 0.11, 0.11, PAL.hot, { seg: 6, rings: 4 }); }
@@ -370,6 +383,11 @@ export function pieceGeometry(type) {
   } else if (type === 'boxes') {
     addBox(b, 0.7, 0.5, 0.6, PAL.brown, { bevel: 0.08, top: PAL.wall });
     place(b, 0.08, 0.5, 0, 0.5); addBox(b, 0.5, 0.4, 0.44, PAL.brown, { bevel: 0.08, top: PAL.wall });
+  } else if (type === 'star') {                     // the gold star that bobs over a hot item: four spikes and a core
+    for (let i = 0; i < 4; i++) { place(b, 0, 0, 0, 0, 0, i * Math.PI / 2); addCyl(b, 0.17, 0, 0.5, PAL.hot, { seg: 4 }); }
+    place(b, 0, 0, 0); addBall(b, 0.2, 0.2, 0.14, PAL.hot, { seg: 6, rings: 4 });
+  } else if (type === 'box') {                      // a unit box (lane lamps and barriers are scaled copies)
+    place(b, 0, -0.5, 0); addBox(b, 1, 1, 1, PAL.white, { bevel: 0.1 });
   } else if (type === 'mannequin') {
     addCyl(b, 0.3, 0.3, 0.06, PAL.night, { seg: 8 });
     place(b, 0, 0.8, 0); addBall(b, 0.24, 0.5, 0.2, PAL.steel, { seg: 8, rings: 5 });

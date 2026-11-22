@@ -77,9 +77,9 @@ varying vec3 vW;
 void main() { vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`;
 const FLOOR_FS = `
 // One texel of uMap per tile: r = store colour index / 8, g = decal / 8 (1-4 arrow east, south, west,
-// north; 5 checkout hatch; 6 start grid), a = 1 on floor and 0 on void.
+// north; 5 checkout hatch; 6 start grid; 7 closed lane), a = 1 on floor and 0 on void.
 uniform sampler2D uMap; uniform vec2 uMapSize; uniform vec3 uZone[6];
-uniform vec3 uFloor; uniform vec3 uGrout; uniform vec3 uInk; uniform vec3 uShade;
+uniform vec3 uFloor; uniform vec3 uGrout; uniform vec3 uInk; uniform vec3 uShade; uniform vec3 uClosed;
 uniform float uTile; uniform vec3 uTint; uniform float uTintAmt;
 varying vec3 vW;
 vec4 tileAt(vec2 id) { return texture2D(uMap, (id + 0.5) / uMapSize); }
@@ -99,19 +99,23 @@ void main() {
     vec2 p = f - 0.5, q = vec2(dot(p, dir), dot(p, vec2(-dir.y, dir.x)));
     float v = abs(q.x - 0.16 + abs(q.y) * 0.9);
     float m = (1.0 - smoothstep(0.075, 0.075 + w.x, v)) * (1.0 - smoothstep(0.3, 0.3 + w.x, abs(q.y)));
-    c = mix(c, mix(zone, uFloor, 0.25), m * 0.85 * far);
+    float rim = (1.0 - smoothstep(0.115, 0.115 + w.x, v)) * (1.0 - smoothstep(0.34, 0.34 + w.x, abs(q.y)));
+    c = mix(c, uInk, rim * 0.55 * far);                              // a dark edge keeps it readable on any floor
+    c = mix(c, zone, m * far);
   } else if (d > 4.5 && d < 5.5) {                                   // checkout lane: yellow and dark hatching
     c = mix(mix(uZone[3], uInk, step(0.5, fract((f.x + f.y) * 2.0))), c, 0.25);
+  } else if (d > 6.5) {                                              // a closed lane: dark, with a red cross-hatch
+    c = mix(mix(uInk, uClosed, step(0.72, fract((f.x + f.y) * 2.0))), c, 0.2);
   } else if (d > 5.5) {                                              // start grid
     c = mix(c, vec3(1.0), step(0.42, e.y) * step(0.5, fract(f.x * 4.0)) * 0.8);
   }
-  // a soft shadow where the floor meets a wall
+  // a hard-edged shadow where the floor meets a wall (the same graphic cut as the shadows under things)
   float sh = 0.0;
-  sh = max(sh, (1.0 - tileAt(id + vec2(-1.0, 0.0)).a) * (1.0 - smoothstep(0.0, 0.2, f.x)));
-  sh = max(sh, (1.0 - tileAt(id + vec2(1.0, 0.0)).a) * (1.0 - smoothstep(0.0, 0.2, 1.0 - f.x)));
-  sh = max(sh, (1.0 - tileAt(id + vec2(0.0, -1.0)).a) * (1.0 - smoothstep(0.0, 0.2, f.y)));
-  sh = max(sh, (1.0 - tileAt(id + vec2(0.0, 1.0)).a) * (1.0 - smoothstep(0.0, 0.2, 1.0 - f.y)));
-  c = mix(c, c * uShade, sh * 0.75);
+  sh = max(sh, (1.0 - tileAt(id + vec2(-1.0, 0.0)).a) * (1.0 - smoothstep(0.11, 0.11 + w.x, f.x)));
+  sh = max(sh, (1.0 - tileAt(id + vec2(1.0, 0.0)).a) * (1.0 - smoothstep(0.11, 0.11 + w.x, 1.0 - f.x)));
+  sh = max(sh, (1.0 - tileAt(id + vec2(0.0, -1.0)).a) * (1.0 - smoothstep(0.11, 0.11 + w.y, f.y)));
+  sh = max(sh, (1.0 - tileAt(id + vec2(0.0, 1.0)).a) * (1.0 - smoothstep(0.11, 0.11 + w.y, 1.0 - f.y)));
+  c = mix(c, c * uShade, sh * 0.6);
   c = mix(c, c * uTint, uTintAmt);
   gl_FragColor = vec4(c, 1.0);
 }`;
@@ -119,17 +123,19 @@ const RING_VS = `
 varying vec2 vUv;
 void main() { vUv = position.xz; gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0); }`;
 const RING_FS = `
-// The hero's ground ring: a solid ring in the player's colour, and inside it the drift charge as an
-// arc that fills toward the next tier in that tier's colour.
-uniform vec3 uColor; uniform vec3 uCharge; uniform float uFill; uniform float uPulse;
+// The hero's ground ring: a solid ring in the player's colour, and outside it (clear of the cart) the
+// drift charge as a dark-edged arc that fills toward the next tier in that tier's colour.
+uniform vec3 uColor; uniform vec3 uCharge; uniform vec3 uInk; uniform float uFill; uniform float uPulse;
 varying vec2 vUv;
 void main() {
   float r = length(vUv);
   float ang = atan(vUv.x, vUv.y) / 6.2831853 + 0.5;
-  float ring = step(0.84, r) * step(r, 1.0);
-  float arc = step(0.58, r) * step(r, 0.8) * step(ang, uFill);
+  float ring = step(0.56, r) * step(r, 0.68);
+  float on = step(0.001, uFill) * step(ang, uFill + 0.012);
+  float arc = step(0.74, r) * step(r, 1.0) * on;
   if (ring + arc < 0.5) discard;
-  gl_FragColor = vec4(arc > 0.5 ? mix(uCharge, vec3(1.0), uPulse) : uColor, 1.0);
+  float core = step(0.78, r) * step(r, 0.96) * step(ang, uFill);
+  gl_FragColor = vec4(arc > 0.5 ? (core > 0.5 ? mix(uCharge, vec3(1.0), uPulse) : uInk) : uColor, 1.0);
 }`;
 const FLAT_VS = `
 varying vec3 vColor;
@@ -164,8 +170,8 @@ export function initGfx(canvas) {
     uTintAmt: { value: 0 },
     uRes: { value: new T.Vector2(1, 1) },
   };
-  gfx.mats = { toon: toonMaterial(), toonRim: toonMaterial({ rim: 0.5 }), lineThin: outlineMaterial(1.5),
-    lineBold: outlineMaterial(2.5), floor: floorMaterial() };
+  gfx.mats = { toon: toonMaterial(), toonRim: toonMaterial({ rim: 0.5 }), lineThin: outlineMaterial(2),
+    lineBold: outlineMaterial(3.2), floor: floorMaterial() };
   resizeGfx();
   return gfx;
 }
@@ -211,7 +217,7 @@ export function floorMaterial() {
   const u = gfx.u, v3 = (hex) => { const c = rgb(hex); return new THREE.Vector3(c[0], c[1], c[2]); };
   const zones = [0, 1, 2, 3, 0, 0].map((i) => v3(PAL.zones[i]));
   return new THREE.ShaderMaterial({
-    uniforms: { uFloor: { value: v3(PAL.floor) }, uGrout: { value: v3(PAL.grout) }, uInk: { value: v3(PAL.night) }, uShade: u.uShade,
+    uniforms: { uFloor: { value: v3(PAL.floor) }, uGrout: { value: v3(PAL.grout) }, uInk: { value: v3(PAL.night) }, uShade: u.uShade, uClosed: { value: v3(PAL.danger) },
       uZone: { value: zones }, uMap: { value: null }, uMapSize: { value: new THREE.Vector2(1, 1) },
       uTile: { value: CFG.TILE }, uTint: u.uTint, uTintAmt: u.uTintAmt },
     vertexShader: FLOOR_VS, fragmentShader: FLOOR_FS,
@@ -219,9 +225,10 @@ export function floorMaterial() {
 }
 // The ring under the hero's cart (a flat quad from -1 to 1 in x and z; see RING_FS).
 export function ringMaterial() {
-  const c = rgb(PAL.player);
+  const c = rgb(PAL.player), k = rgb(PAL.outline);
   return new THREE.ShaderMaterial({
-    uniforms: { uColor: { value: new THREE.Vector3(c[0], c[1], c[2]) }, uCharge: { value: new THREE.Vector3(1, 1, 1) }, uFill: { value: 0 }, uPulse: { value: 0 } },
+    uniforms: { uColor: { value: new THREE.Vector3(c[0], c[1], c[2]) }, uCharge: { value: new THREE.Vector3(1, 1, 1) },
+      uInk: { value: new THREE.Vector3(k[0], k[1], k[2]) }, uFill: { value: 0 }, uPulse: { value: 0 } },
     vertexShader: RING_VS, fragmentShader: RING_FS, side: THREE.DoubleSide,
   });
 }
@@ -235,8 +242,9 @@ export function flatMaterial(alpha, additive) {
 
 // The chase camera: high and behind, aimed ahead of the cart; it pulls back and widens with speed,
 // looks into turns and tips up over a wall that would hide the cart. k is the cart, alpha the
-// interpolation between its last two steps, world the level (for the wall test).
-export function updateCamera(k, alpha, dt, towerHeight, world) {
+// interpolation between its last two steps, world the level (for the wall test). orbit (radians,
+// optional) is the title view: lower, closer, turned by that angle, with the cart mid-screen.
+export function updateCamera(k, alpha, dt, towerHeight, world, orbit) {
   const cam = gfx.cam, camera = gfx.camera;
   const x = lerp(k.px, k.x, alpha), z = lerp(k.pz, k.z, alpha);
   const h = k.ph + wrapAngle(k.h - k.ph) * alpha;
@@ -247,11 +255,13 @@ export function updateCamera(k, alpha, dt, towerHeight, world) {
   if (!cam.ready) { cam.yaw = want; cam.zoom = 0; cam.ready = true; cam.tower = 0; cam.lift = 0; cam.punch = 0; }
   cam.t += dt;
   cam.yaw += wrapAngle(want - cam.yaw) * (1 - Math.exp(-dt * (stunned ? 3 : CFG.camFollow)));
+  const title = orbit !== undefined;
+  if (title) cam.yaw = h + orbit;
   const sf = clamp(Math.abs(k.spd) / TUNE.maxspeed, 0, 1.7);
   cam.zoom += (sf - cam.zoom) * (1 - Math.exp(-dt * 3.5));
   cam.tower += ((towerHeight || 0) - cam.tower) * (1 - Math.exp(-dt * 2));
   const fast = Math.max(0, cam.zoom - 1);               // above top speed: boost and dash
-  const kick = k.dashT > 0 ? 1 : k.boostT > 0 ? 0.6 : 0;       // a dash or boost punches the view at once
+  const kick = k.dashT > 0 ? 1 : k.boostT > 0 ? 0.6 : k.madT > 0 ? 0.45 : 0;   // a dash, a boost or MADNESS punches the view at once
   cam.punch += (kick - cam.punch) * (1 - Math.exp(-dt * (kick > cam.punch ? 16 : 3)));
   const fx = Math.sin(cam.yaw), fz = Math.cos(cam.yaw);
   // A wall within 1.5 m behind the cart (as the camera sees it) would hide it: tip up and over.
@@ -261,12 +271,12 @@ export function updateCamera(k, alpha, dt, towerHeight, world) {
     hidden = c < 0 || r < 0 || c >= world.cols || r >= world.rows || !world.floor[r * world.cols + c];
   }
   cam.lift += ((hidden ? 1 : 0) - cam.lift) * (1 - Math.exp(-dt * 6));
-  const height = (TUNE.camheight * (0.95 + 0.05 * Math.min(cam.zoom, 1) + 0.16 * fast) + cam.tower * 0.45) * (1 + 0.4 * cam.lift);
-  const pitch = TUNE.campitch * Math.PI / 180 + 0.45 * cam.lift;
+  const height = title ? 4.4 : (TUNE.camheight * (0.95 + 0.05 * Math.min(cam.zoom, 1) + 0.16 * fast) + cam.tower * 0.45) * (1 + 0.4 * cam.lift);
+  const pitch = title ? 0.5 : TUNE.campitch * Math.PI / 180 + 0.45 * cam.lift;
   const back = height / Math.tan(pitch);
   // The look point keeps the cart in the lower third of the frame; in a dash or boost the camera
   // hangs back a little, so the cart surges up the screen.
-  const lead = back - height / Math.tan(pitch + 0.2) - 1.1 * cam.punch;
+  const lead = title ? 0.5 : back - height / Math.tan(pitch + 0.2) - 1.1 * cam.punch;
   const lx = x + fx * lead, lz = z + fz * lead;
   let sx = 0, sy = 0;
   if (cam.shake > 0.001 && TUNE.shake) {                // trauma-based shake: offset grows with trauma squared

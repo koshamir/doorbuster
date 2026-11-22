@@ -121,10 +121,10 @@ function take(sim, k, good, x, y, z, list) {
   if (k.player) sim.stats.taken++;
   sim.emit('take', k, entry.value, { good, x, y, z, entry });
   // One item after another: each take within a second of the last adds to the chain, and a longer
-  // chain fills the meter faster (up to double).
+  // chain fills the meter faster (up to half as much again).
   k.chain = sim.t - k.chainT < 1 ? k.chain + 1 : 0;
   k.chainT = sim.t;
-  madGain(sim, k, CFG.madTake[g.size] * (1 + Math.min(k.chain, 10) * 0.1));
+  madGain(sim, k, CFG.madTake[g.size] * (1 + Math.min(k.chain, 10) * 0.05));
   const heavy = TUNE.loadfull * 0.7;
   if (before < heavy && k.load >= heavy) sim.emit('heavy', k);
   if (before <= TUNE.loadfull && k.load > TUNE.loadfull) sim.emit('overloaded', k);
@@ -161,7 +161,8 @@ function pickups(sim, k) {
       // Clean sweep: one cart empties a whole shelf side in one pass.
       const g = world.groups[it.group];
       if (g.by < 0) { g.by = k.id; g.t0 = sim.t; } else if (g.by !== k.id) g.mixed = true;
-      if (--g.left === 0 && !g.mixed && g.total >= 6 && sim.t - g.t0 < 5) { stunt(sim, k, 'cleansweep', it.x, it.z); madGain(sim, k, 0.7); }
+      g.shelf.stock--;
+      if (--g.left === 0 && !g.mixed && g.total >= 6 && sim.t - g.t0 < 5) { stunt(sim, k, 'cleansweep', it.x, it.z); madGain(sim, k, 0.5); }
       if (k.player) {                             // how much of the first shelf the player took (a gate measure)
         if (sim.stats.firstGroup < 0) sim.stats.firstGroup = it.group;
         if (it.group === sim.stats.firstGroup) sim.stats.firstShelf++;
@@ -191,20 +192,22 @@ function stunt(sim, k, name, x, z) {
 // ---- Spilling -------------------------------------------------------------------------------------
 // Drops `share` of the tower (at most spillmax), top first, onto free floor a few metres from the
 // cart in the direction (dx, dz). Spilled goods flash for `recollect` seconds and anyone can take them.
-// One hit never costs more than spillmax of the tower, counted in goods and in dollars alike (the
-// top is the dearest part). List items stay in the cart. fan = true throws the goods to both sides
-// of the direction instead of along it. Emits 'spill' with value = goods and ref = { lost: dollars }.
+// One hit never costs more than spillmax of the tower's goods, top first; list items stay in the cart.
+// fan = true is a crash: the goods are thrown to both sides instead of along the direction, and the
+// loss is capped at spillmax of the tower's dollars too (anything dearer than that stays). A ram is
+// not capped in dollars: it must be able to knock a hot item off the top.
+// Emits 'spill' with value = goods and ref = { lost: dollars }.
 function spill(sim, k, share, dx, dz, fan) {
   let n = 0, lost = 0;
   const want = Math.floor(k.tower.length * Math.min(share, TUNE.spillmax)), most = k.value * TUNE.spillmax;
   for (let i = k.tower.length - 1; i >= 0 && n < want; i--) {
     const e = k.tower[i];
     if (e.list) continue;
-    if (n > 0 && lost + e.value > most) break;
+    if (fan && lost + e.value > most) continue;
     drop(sim, k, i, dx, dz, fan);
     n++; lost += e.value;
   }
-  if (n > 0) { if (k.player) sim.stats.spilled += n; sim.emit('spill', k, n, { lost }); }
+  if (n > 0) { if (k.player) sim.stats.spilled += n; sim.emit('spill', k, n, { lost, crash: !!fan }); }
   return n;
 }
 // Takes tower entry i out of the cart and throws it on the floor.
@@ -255,10 +258,11 @@ function makeRoom(sim, k, w, value) {
       if (e.list || OUT.includes(i) || e.value / g.w >= rate) continue;
       rate = e.value / g.w; best = i;
     }
-    if (best < 0) return false;
-    OUT.push(best);
-    sum += k.tower[best].value; need -= GOODS[k.tower[best].good].w;
-    if (sum >= value) return false;
+    if (best >= 0) { OUT.push(best); sum += k.tower[best].value; need -= GOODS[k.tower[best].good].w; }
+    if (best < 0 || sum >= value) {
+      if (!k.fullSaid) { k.fullSaid = true; sim.emit('full', k); }     // the first refusal is announced
+      return false;
+    }
   }
   OUT.sort((a, b) => b - a);
   const sp = Math.hypot(k.vx, k.vz) || 1;

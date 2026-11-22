@@ -178,7 +178,7 @@ export function drive(sim, k, dt) {
   // Rivals are paced against the player, invisibly: far ahead they ease off and shop more, far behind
   // they stop shopping. Full strength for the first 12 s and over the last fifth of the route.
   let pace = p.pace;
-  ai.g = ai.greed;
+  ai.g = p.rival && sim.t < 4 ? 0 : ai.greed;       // rivals sprint off the line: the first shelf is the player's
   if (p.rival && sim.t > 12 && !sim.player.done && sim.player.prog < world.navStart * 0.8) {
     const gap = k.prog - sim.player.prog, mine = k.value + k.stunts, yours = sim.player.value + sim.player.stunts;
     if (gap > 20) { pace *= 0.86; ai.g = Math.min(1, ai.g * 1.3); } else if (gap < -15 && p.char !== 'granny') ai.g *= 0.6;   // Granny never hurries
@@ -270,11 +270,21 @@ export function drive(sim, k, dt) {
 export function spawnCrowd(sim) {
   const world = sim.world, tiles = world.crowdTiles, rng = sim.rng;
   const shopper = (x, z, state, busy) => sim.shoppers.push({ x, z, vx: 0, vz: 0, tx: x, tz: z, h: rng() * 6.283, state, t: rng() * 3,
-    col: sim.shoppers.length % 3, hat: rng() < 0.35, busy, near: null, hit: false, sure: false, angry: 0, hx: x, hz: z });
+    col: sim.shoppers.length % 3, busy, rush: false, near: null, hit: false, sure: false, angry: 0, hx: x, hz: z });
   // A huddle: six shoppers packed together, too busy to jump clear. A dash through the middle is a STRIKE.
   if (TUNE.crowd > 0) for (const g of world.huddles) {
     shopper(g.x, g.z, 0, true);
     for (let i = 0; i < 5; i++) shopper(g.x + Math.sin(i * 1.257) * 0.66, g.z + Math.cos(i * 1.257) * 0.66, 0, true);
+  }
+  // The crush at the doors: a pack that stands just ahead of the start and runs into the store at GO.
+  const st = world.start, fx = Math.sin(st.h), fz = Math.cos(st.h);
+  for (let i = 0; i < Math.round((sim.def.rush || 0) * TUNE.crowd); i++) {
+    const side = (i % 3 - 1) * 2.4 + rng() - 0.5, x = st.x + fx * (5 + i * 1.1) + fz * side, z = st.z + fz * (5 + i * 1.1) - fx * side;
+    if (blockedAt(world, x, z, 0.4)) continue;
+    shopper(x, z, 4, false);
+    const s = sim.shoppers[sim.shoppers.length - 1], far = 16 + rng() * 18;
+    s.rush = true; s.h = st.h; s.tx = x + fx * far; s.tz = z + fz * far;
+    if (!clearPath(world, x, z, s.tx, s.tz, 0.4)) { s.tx = x + fx * 8; s.tz = z + fz * 8; }
   }
   const n = Math.round((sim.def.crowd || 0) * TUNE.crowd) - sim.shoppers.length;
   for (let i = 0; i < n && tiles.length; i++) {
@@ -310,7 +320,7 @@ export function stepCrowd(sim, dt) {
       }
     } else if (s.state === 1 || s.state === 4) {
       const dx = s.tx - s.x, dz = s.tz - s.z, d = Math.hypot(dx, dz), v = s.state === 4 ? 3.6 : 1.3;
-      if (d < 0.3 || (s.state === 4 && !sale)) { s.state = 0; s.t = 1 + rng() * 3; s.vx = s.vz = 0; }
+      if (d < 0.3 || (s.state === 4 && !sale && !s.rush)) { s.state = 0; s.rush = false; s.t = 1 + rng() * 3; s.vx = s.vz = 0; }
       else { s.vx = dx / d * v; s.vz = dz / d * v; s.h = Math.atan2(dx, dz); }
     } else if (s.t <= 0) {                            // done dodging or lying down
       if (s.state === 3) s.angry = 1.2;               // gets up and shakes a fist
@@ -318,7 +328,7 @@ export function stepCrowd(sim, dt) {
     }
     if (s.state === 3) { s.vx *= 1 - 3 * dt; s.vz *= 1 - 3 * dt; }
     const nx = s.x + s.vx * dt, nz = s.z + s.vz * dt;
-    if (s.vx || s.vz) { if (blockedAt(world, nx, nz, 0.3)) { s.vx = s.vz = 0; if (s.state === 1) { s.state = 0; s.t = 0.5; } } else { s.x = nx; s.z = nz; } }
+    if (s.vx || s.vz) { if (blockedAt(world, nx, nz, 0.3)) { s.vx = s.vz = 0; if (s.state === 1 || s.rush) { s.state = 0; s.rush = false; s.t = 0.5; } } else { s.x = nx; s.z = nz; } }
 
     // Carts: dodge if one is coming, go down if it arrives, and a miss by inches is a CLOSE SHAVE.
     for (const k of sim.carts) {

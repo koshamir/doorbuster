@@ -52,6 +52,9 @@ async function pinkShare(file) {
   return { pinkPct: +(res.pink * 100).toFixed(2), ofVividPct: +(res.ofVivid * 100).toFixed(1) };
 }
 
+// The empty test room of a scenario, with its extra plan characters (sc.put = [[char, tiles ahead of the start, tiles to its right], ...]).
+const testRoom = (sc) => room(sc.room[0], sc.room[1], (grid, mid) => { for (const [ch, dc, dr] of sc.put || []) grid[mid + dr][2 + dc] = ch; });
+
 // Lays images out in a grid on a blank page and screenshots it (frame strips, squint views).
 async function sheet(files, cols, cellW, outFile) {
   const page = await browser.newPage({ viewport: { width: cols * cellW, height: 100 } });
@@ -98,7 +101,8 @@ for (const sc of scenarios) {
   await page.waitForFunction(() => window.__ready === true, null, { timeout: 15000 });
   const loadMs = Date.now() - t0;
   const row = { name: sc.name, loadMs };
-  if (sc.room) await page.evaluate((def) => window.__db.custom(def), room(sc.room[0], sc.room[1]));
+  if (sc.room) await page.evaluate((def) => window.__db.custom(def), testRoom(sc));
+  if (sc.setup) await page.evaluate(sc.setup);                    // a page script that prepares the run (a shorter timer, say)
 
   if (sc.plain) {
     // A plain page as a person gets it (no bot, no manual clock): wait, then screenshot.
@@ -142,7 +146,8 @@ for (const sc of scenarios) {
       row.eventAt = hit ? hit[1] : null;
       await page.reload();
       await page.waitForFunction(() => window.__ready === true, null, { timeout: 15000 });
-      if (sc.room) await page.evaluate((def) => window.__db.custom(def), room(sc.room[0], sc.room[1]));
+      if (sc.room) await page.evaluate((def) => window.__db.custom(def), testRoom(sc));
+      if (sc.setup) await page.evaluate(sc.setup);
     }
     // Manual time: build one timeline of key events and captures, in game seconds since GO.
     const events = [];
@@ -164,7 +169,7 @@ for (const sc of scenarios) {
         if (await page.evaluate((s) => window.__db.game.state === s, sc.until)) break;
         await page.evaluate(() => window.__db.advance(0.5));
       }
-      await page.waitForTimeout(sc.wait || 2600);
+      await page.evaluate((s) => window.__db.advance(s), (sc.wait || 6500) / 1000);   // the interface runs on game time in manual mode
       await page.screenshot({ path: join(outDir, sc.name + '_' + sc.until + '.png') });
     }
     if (stripFiles.length) await sheet(stripFiles, sc.strip.cols || 4, sc.strip.cell || 480, join(outDir, sc.name + '_strip.png'));
