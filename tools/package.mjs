@@ -7,7 +7,7 @@
 // error and no request outside the page's origin.
 // Run: node tools/package.mjs
 import { execFileSync } from 'node:child_process';
-import { readFileSync, writeFileSync, mkdirSync, copyFileSync, cpSync, mkdtempSync, readdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, copyFileSync, cpSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
 import { ROOT } from './lib.mjs';
@@ -65,7 +65,8 @@ run('tools/shots.mjs', '--set', 'dist', '--root', join(copy, 'dist'), '--out', j
 const check = JSON.parse(readFileSync(join(copy, '_check', 'summary.json'), 'utf8')), got = check.summary[0];
 const same = got.receipt && got.receipt.total === l1.receipt.total && got.receipt.count === l1.receipt.count && Math.abs(got.doneT - l1.doneT) < 1e-9;
 console.log(`handoff/: ${readdirSync(out).join(', ')}; media: ${readdirSync(join(out, 'media')).filter((f) => f !== 'summary.json' && !f.startsWith('_')).join(', ')}`);
-console.log(`clean copy in ${copy}: single file ${got.receipt ? 'TOTAL ' + money(got.receipt.total) + ' at ' + got.doneT.toFixed(2) + ' s' : 'did not finish'}, ` +
+console.log(`clean copy (${copy}): single file ${got.receipt ? 'TOTAL ' + money(got.receipt.total) + ' at ' + got.doneT.toFixed(2) + ' s' : 'did not finish'}, ` +
   `reference ${money(l1.receipt.total)} at ${l1.doneT.toFixed(2)} s; ${check.problems.length ? 'PROBLEMS: ' + check.problems.join('; ') : 'console clean, no external requests'}`);
 if (!same || check.problems.length) { console.error('PACKAGE CHECK FAILED'); process.exit(1); }
+rmSync(copy, { recursive: true, force: true });      // the clean copy has done its job (it stays for inspection if the check failed)
 console.log('package check passed');

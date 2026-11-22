@@ -81,7 +81,6 @@ function pause(on) {
   game.paused = on;
   if (on) {
     platform.pause();
-    if (audio.ctx) audio.ctx.suspend();
     showPause({ sound: platform.soundOn, music: save.music, sfx: save.sfx, shake: TUNE.shake }, {
       resume: () => pause(false), restart: () => { pause(false); play(true); }, menu: save.unlocked > 1 ? () => { pause(false); title(); } : null,
       sound: (v) => platform.setSound(v),
@@ -91,7 +90,6 @@ function pause(on) {
     });
   } else {
     platform.resume();
-    if (audio.ctx) audio.ctx.resume();
     hideScreens();
   }
 }
@@ -256,7 +254,7 @@ function pointers(dt) {
 function tick(dt, draw) {
   const sim = game.sim, t0 = performance.now(), p = sim.player;
   game.now = t0;
-  if (game.paused) { if (draw) renderFrame(); return; }
+  if (game.paused) { audioFrame(sim, dt, 'pause'); if (draw) renderFrame(); return; }   // the music carries on under water
   game.clock += dt;
   // Hit-stop: a few frozen frames on a big impact; the shake and the particles keep moving.
   let simDt = game.state === 'play' ? dt * game.scale : game.state === 'receipt' && !game.frozen ? dt * 0.25 : 0;
@@ -274,7 +272,9 @@ function tick(dt, draw) {
   }
   updateFx(dt);
   const swoop = game.state === 'play' && sim.t < 0 && sim.opts.countdown > 2 ? Math.pow(Math.min(1, -sim.t / 2), 2) : 0;   // the first countdown opens high above the route
-  updateCamera(p, alpha, dt, game.view.towerH, sim.world, game.state === 'title' ? 0.7 + 0.35 * Math.sin(game.clock * 0.4) : undefined, swoop);
+  // The title circles the start grid; the receipt is read from steep above the checkout, the cart to the left of the paper.
+  updateCamera(p, alpha, dt, game.view.towerH, sim.world, game.state === 'title' ? 0.7 + 0.35 * Math.sin(game.clock * 0.4) : undefined, swoop,
+    game.state === 'receipt' ? (gfx.w > gfx.h ? 3 : 0) : undefined);
   // Closing time washes the store in red, pulsing.
   const tint = gfx.u.uTintAmt;
   tint.value += ((sim.closing && game.state === 'play' ? 0.24 + 0.08 * Math.sin(game.clock * 6) : 0) - tint.value) * Math.min(1, dt * 4);

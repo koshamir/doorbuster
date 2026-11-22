@@ -124,7 +124,7 @@ function findTarget(sim, k, ai) {
     if (!g.on || navDistAt(world, g.x, g.z) > here + 3) continue;
     if (!ai.wants.has(g)) ai.wants.set(g, sim.rng() < p.dash * 0.8);
     if (!ai.wants.get(g)) continue;
-    const off = Math.abs((k.x - g.x) * g.dz - (k.z - g.z) * g.dx), back = (g.x - k.x) * g.dx + (g.z - k.z) * g.dz, lined = off < 0.7 || back < 2.5;
+    const off = Math.abs((k.x - g.x) * g.dz - (k.z - g.z) * g.dx), back = (g.x - k.x) * g.dx + (g.z - k.z) * g.dz, lined = off < 1.1 || back < 2.5;
     const short = lined ? 0 : Math.min(5, back);
     if (see(g.x - g.dx * short, g.z - g.dz * short, 16, 2.5)) { mark.piece = g; mark.cart = null; mark.lined = lined; }
   }

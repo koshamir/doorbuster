@@ -236,7 +236,7 @@ function musicStep(t, n, level, closing) {
 }
 
 // Once a frame: keeps the music scheduled a little ahead, moves its layers, tempo and filter with the
-// run, and turns the continuous noises up and down. state is main.js's game state.
+// run, and turns the continuous noises up and down. state is main.js's game state, or 'pause'.
 export function audioFrame(sim, dt, state) {
   const c = A.ctx;
   if (!c || c.state === 'closed') return;
@@ -250,7 +250,7 @@ export function audioFrame(sim, dt, state) {
   }
   // MADNESS mode sweeps a resonant filter over the music.
   A.wah.Q.setTargetAtTime(mad ? 7 : 0.7, t, 0.05);
-  A.wah.frequency.setTargetAtTime(mad ? 700 + 2600 * (0.5 + 0.5 * Math.sin(t * 9)) : 18000, t, 0.03);
+  A.wah.frequency.setTargetAtTime(mad ? 700 + 2600 * (0.5 + 0.5 * Math.sin(t * 9)) : state === 'pause' ? 480 : 18000, t, 0.03);   // a paused game hears its music through a wall
   const L = A.loops, speed = Math.abs(p.spd), on = play && sim.phase === 'run';
   L.screech.g.setTargetAtTime(on && p.drift ? 0.1 + 0.035 * p.tier : 0, t, 0.04);
   L.screech.f.setTargetAtTime(2300 + 500 * p.tier + 300 * Math.sin(t * 31), t, 0.03);

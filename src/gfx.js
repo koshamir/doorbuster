@@ -263,7 +263,9 @@ export function flatMaterial(alpha, additive) {
 // interpolation between its last two steps, world the level (for the wall test). orbit (radians,
 // optional) is the title view: lower, closer, turned by that angle, with the cart mid-screen.
 // intro (1 -> 0 over the first countdown) starts the view high above the route and swoops down.
-export function updateCamera(k, alpha, dt, towerHeight, world, orbit, intro = 0) {
+// aside (metres, optional) is the receipt view: tipped up steep over the checkout and moved that far to
+// the right, so the cart stands left of the paper.
+export function updateCamera(k, alpha, dt, towerHeight, world, orbit, intro = 0, aside) {
   const cam = gfx.cam, camera = gfx.camera;
   const x = lerp(k.px, k.x, alpha), z = lerp(k.pz, k.z, alpha);
   const h = k.ph + wrapAngle(k.h - k.ph) * alpha;
@@ -289,14 +291,15 @@ export function updateCamera(k, alpha, dt, towerHeight, world, orbit, intro = 0)
     const c = Math.floor((x - fx * d) / CFG.TILE), r = Math.floor((z - fz * d) / CFG.TILE);
     hidden = c < 0 || r < 0 || c >= world.cols || r >= world.rows || !world.floor[r * world.cols + c];
   }
-  cam.lift += ((hidden ? 1 : 0) - cam.lift) * (1 - Math.exp(-dt * 6));
+  cam.lift += ((hidden || aside !== undefined ? 1 : 0) - cam.lift) * (1 - Math.exp(-dt * 6));
   const height = title ? (cam.near ? 2.3 : 4.4) : (TUNE.camheight * (0.95 + 0.05 * Math.min(cam.zoom, 1) + 0.16 * fast) + cam.tower * 0.45) * (1 + 0.4 * cam.lift + 3.2 * intro);
   const pitch = title ? 0.5 : TUNE.campitch * Math.PI / 180 + 0.45 * cam.lift + 0.42 * intro;
   const back = height / Math.tan(pitch);
   // The look point keeps the cart in the lower third of the frame; in a dash or boost the camera
   // hangs back a little, so the cart surges up the screen.
-  const lead = title ? 0.5 : back - height / Math.tan(pitch + 0.2) - 1.1 * cam.punch;
-  const lx = x + fx * lead, lz = z + fz * lead;
+  const desk = aside !== undefined ? cam.lift : 0;      // eases in with the tilt
+  const lead = title ? 0.5 : (back - height / Math.tan(pitch + 0.2) - 1.1 * cam.punch) * (1 - 0.7 * desk);
+  const lx = x + fx * lead - fz * (aside || 0) * desk, lz = z + fz * lead + fx * (aside || 0) * desk;
   let sx = 0, sy = 0;
   if (cam.shake > 0.001 && TUNE.shake) {                // trauma-based shake: offset grows with trauma squared
     const a = cam.shake * cam.shake * 0.5;

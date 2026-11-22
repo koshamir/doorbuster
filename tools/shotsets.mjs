@@ -19,6 +19,11 @@ const l1 = 'level=1&seed=3';
 const yard = [70, 50];                       // 140 x 100 m of empty floor for free driving
 const DRIFT = [[0, 'gas', true], [1.6, 'left', true], [1.65, 'drift', true], [3.9, 'drift', false], [3.9, 'left', false]];
 
+const RESTART20 = `(() => { const d = window.__db, m = performance.memory, h0 = m ? m.usedJSHeapSize : 0, t0 = performance.now();
+        d.play(true); const one = performance.now() - t0;
+        for (let i = 0; i < 20; i++) { d.play(true); d.advance(4); }
+        return { rebuildMs: +one.toFixed(1), heapGrowthMB: m ? +((m.usedJSHeapSize - h0) / 1048576).toFixed(1) : null, objects: d.game.view.root.children.length }; })()`;     // twenty restarts with four seconds of play each
+
 export const SETS = {
   m0: [
     { name: 'gauntlet_bot', query: l0 + '&autoplay=expert', shots: [-2, 1, 4, 8, 12, 16, 20], strip: { from: 6.0, frames: 8, dt: 0.0667 }, squint: true },
@@ -119,7 +124,7 @@ export const SETS = {
     // offline through the game's own audio graph; reports peak, loudness, clipped samples and silent seconds
     { name: 'mix', query: 'level=1&seed=3&debug=1', plain: 0.5, after: `(async () => {
         const d = window.__db, api = d.audioApi, sr = 44100, secs = 24;
-        d.pause(true);                                    // the page's own loop stays out of it
+        d.game.manual = true;                             // the page's own loop stays out of it
         const p = { x: 10, z: 10, id: 0, char: 'player', spd: 11, drift: 0, tier: 0, load: 45, mad: 0, madT: 0 }, rival = { x: 12, z: 12, id: 1, char: 'dad' };
         const sim = { player: p, shoppers: [], t: 30, timer: 72, closing: false, phase: 'run' };
         const ctx = new OfflineAudioContext(2, sr * secs, sr);
@@ -166,6 +171,32 @@ export const SETS = {
     { name: 'card', query: l1 + '&cover=1', viewport: [1000, 1000], plain: 1.5 },
     { name: 'icon', query: l1 + '&icon=1', viewport: [256, 256], plain: 1.5 },
     { name: 'gameplay', query: l1 + '&autoplay=confident', video: 26 },
+  ],
+  // The release checklist (QUALITY 6): every level played to its receipt by the beginner bot and left to
+  // run out of time, twenty restarts in a row (rebuild time, heap growth), pause and resume, and a
+  // person's path by real key presses on a plain page (title, start, drive, pause, resume, restart, mute).
+  m7: [
+    { name: 'l1_receipt', query: 'level=1&seed=5&autoplay=beginner', until: 'receipt', wait: 5000 },
+    { name: 'l2_receipt', query: 'level=2&seed=5&autoplay=beginner', until: 'receipt', wait: 5000 },
+    { name: 'l3_receipt', query: 'level=3&seed=5&autoplay=beginner', until: 'receipt', wait: 5000 },
+    { name: 'l1_closed', query: 'level=1&seed=5', script: [], until: 'closed', wait: 600 },
+    { name: 'l2_closed', query: 'level=2&seed=5', script: [], until: 'closed', wait: 600 },
+    { name: 'l3_closed', query: 'level=3&seed=5', script: [], until: 'closed', wait: 600 },
+    { name: 'restart_l1', query: 'level=1&seed=3&autoplay=expert', shots: [3], after: RESTART20 },
+    { name: 'restart_l3', query: 'level=3&seed=3&autoplay=expert', shots: [3], after: RESTART20 },
+    { name: 'pause', query: 'level=2&seed=3&autoplay=expert', shots: [3],
+      after: "(() => { const d = window.__db, out = []; d.pause(true); out.push(document.querySelector('.screen').className); d.pause(false); out.push(document.querySelector('.screen').className, d.game.paused); d.advance(1); out.push(+d.game.sim.t.toFixed(1)); return out; })()" },
+    { name: 'person', query: 'level=1&seed=4&debug=1', plain: 0.8,
+      after: `(async () => { const d = window.__db, key = (code, type) => window.dispatchEvent(new KeyboardEvent(type || 'keydown', { code, bubbles: true }));
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms)), out = { title: d.game.state };
+        key('Enter'); await wait(3300); out.started = d.game.state + ' at ' + d.game.sim.t.toFixed(1) + ' s';
+        key('KeyW'); await wait(1600); out.speed = +d.game.sim.player.spd.toFixed(1);
+        key('KeyP'); await wait(300); out.paused = d.game.paused; key('KeyP'); await wait(300); out.resumed = !d.game.paused;
+        key('KeyM'); await wait(100); out.muted = !d.audio.on; key('KeyM');
+        key('KeyR'); await wait(400); out.restartedAt = +d.game.sim.t.toFixed(1);
+        key('KeyW', 'keyup'); return out; })()` },
+    { name: 'realtime_l2', query: 'level=2&seed=3&autoplay=expert', realtime: 10 },
+    { name: 'realtime_l3', query: 'level=3&seed=3&autoplay=expert', realtime: 10 },
   ],
   // The single-file build: run with --root dist
   dist: [
