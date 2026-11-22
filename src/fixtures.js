@@ -84,7 +84,9 @@ export const LOOSE = { pyramid: 1, gifts: 1, stand: 1, podium: 1, glass: 1, tabl
 // Floor decals blend over the floor (alpha from the atlas) and never write the glow mask.
 const DECAL_VS = 'attribute vec4 tex; varying vec2 vUv; varying vec4 vTex; varying vec3 vColor; void main() { vUv = uv; vTex = tex; vColor = color; gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0); }';
 const DECAL_FS = `uniform sampler2D uMap; uniform vec3 uTint; uniform float uTintAmt; varying vec2 vUv; varying vec4 vTex; varying vec3 vColor; ${MRT_OUT}
-void main() { float cell = floor(vTex.y + 0.5); vec2 o = vec2(mod(cell, 8.0), floor(cell / 8.0)) / 8.0; vec4 t = texture2D(uMap, o + clamp(vUv, 0.002, 0.998) / 8.0);
+void main() { float cell = floor(vTex.y + 0.5); vec2 o = vec2(mod(cell, 8.0), floor(cell / 8.0)) / 8.0;
+  vec2 gx = dFdx(vUv) / 8.0, gy = dFdy(vUv) / 8.0; float m = max(length(gx), length(gy)); if (m > 0.004) { gx *= 0.004 / m; gy *= 0.004 / m; }
+  vec4 t = textureGrad(uMap, o + clamp(vUv, 0.03, 0.97) / 8.0, gx, gy);
   vec3 c = t.rgb * vColor; c = mix(c, c * uTint, uTintAmt); gl_FragColor = vec4(c, t.a * vTex.z); oAux = vec4(0.0); }`;
 function decalMat(atlas) {
   const m = new THREE.ShaderMaterial({ vertexShader: DECAL_VS, fragmentShader: DECAL_FS, vertexColors: true, uniforms: { uMap: { value: atlas }, uTint: { value: new THREE.Vector3(1, 0.55, 0.6) }, uTintAmt: { value: 0 } } });
