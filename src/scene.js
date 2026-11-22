@@ -19,7 +19,7 @@ const CROWD_CAP = 96;        // shoppers on foot
 const TOWER_SCALE = 0.85;    // goods shrink a little when they land in a cart
 const FLY_TIME = 0.2;        // seconds for a swept item to arc into the cart
 const BASKET_Y = 0.48;       // height of the basket floor
-const LOOSE = { pyramid: 1, gifts: 1, stand: 1, podium: 1, table: 1, boxes: 1, mannequin: 1 };   // pieces with their own mesh
+const LOOSE = { pyramid: 1, gifts: 1, stand: 1, podium: 1, glass: 1, table: 1, boxes: 1, mannequin: 1 };   // pieces with their own mesh
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 const towX = new Float32Array(200), towY = new Float32Array(200), towZ = new Float32Array(200), towYaw = new Float32Array(200);
 
@@ -28,8 +28,9 @@ function floorMap(world) {
   const { cols, rows, def } = world, data = new Uint8Array(cols * rows * 4);
   for (let i = 0; i < cols * rows; i++) {
     const zone = (def.zones || [])[world.zone[i]] || {};
+    const k = world.plan[Math.floor(i / cols)][i % cols];
     data[i * 4] = Math.round((zone.color || 0) / 8 * 255);
-    data[i * 4 + 1] = world.laneOf[i] >= 0 ? Math.round(5 / 8 * 255) : 0;
+    data[i * 4 + 1] = (world.laneOf[i] >= 0 ? 5 : world.belt[i] ? 7 + world.belt[i] : world.wet[i] ? 12 : k === '=' ? 13 : 0) * 16;
     data[i * 4 + 3] = world.floor[i] ? 255 : 0;
   }
   // Chevrons along the route: walk the navigation field from the start and paint every third tile.
@@ -41,7 +42,7 @@ function floorMap(world) {
       if (v < best - 1e-3) { best = v; bc = c + dc; br = r + dr; dir = d; }
     }
     if (!dir) break;
-    if (n % 3 === 1 && world.plan[r][c] === '.') data[(r * cols + c) * 4 + 1] = Math.round(dir / 8 * 255);
+    if (n % 3 === 1 && world.plan[r][c] === '.') data[(r * cols + c) * 4 + 1] = dir * 16;
     c = bc; r = br;
   }
   const tex = new THREE.DataTexture(data, cols, rows, THREE.RGBAFormat);
@@ -68,7 +69,7 @@ function banner(text, color, w = 3.2, h = 0.6) {
   geo.setAttribute('position', new THREE.Float32BufferAttribute([-w, -h, 0, w, -h, 0, w, h, 0, -w, -h, 0, w, h, 0, -w, h, 0,
     w, -h, 0, -w, -h, 0, -w, h, 0, w, -h, 0, -w, h, 0, w, h, 0], 3));
   geo.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1], 2));
-  const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: tex }));
+  const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: tex, transparent: true }));
   mesh.rotation.order = 'YXZ';
   mesh.rotation.x = -0.45;                              // tipped back toward the high camera
   return mesh;
@@ -80,11 +81,11 @@ export function buildScene(sim) {
   const accentOf = (i) => PAL.zones[((zones[world.zone[i]] || {}).color || 0) % 4];
   const isFloor = (c, r) => c >= 0 && r >= 0 && c < cols && r < world.rows && world.floor[r * cols + c] === 1;
   const view = { root: new THREE.Group(), goods: [], counts: new Int32Array(GOODS.length), carts: [], pieces: [], own: [],
-    flights: new Map(), time: 0, frame: 0, towerH: 0, shadows: null, fixed: 0, shadowN: 0, glows: null, glowN: 0, ring: null, ringMat: null,
-    crowd: null, lanes: null, map: null };
+    flights: new Map(), time: 0, frame: 0, towerH: 0, doneAt: -1, shadows: null, fixed: 0, shadowN: 0, glows: null, glowN: 0, ring: null, ringMat: null,
+    crowd: null, lanes: null, map: null, trains: [], banners: [] };
   gfx.scene.add(view.root);
   const add = (mesh) => { mesh.frustumCulled = false; view.root.add(mesh); return mesh; };
-  const hang = (b, x, y, z, ry) => { b.position.set(x, y, z); b.rotation.y = ry; view.own.push(b.material.map, b.material); view.root.add(b); };
+  const hang = (b, x, y, z, ry) => { b.position.set(x, y, z); b.rotation.y = ry; view.own.push(b.material.map, b.material); view.root.add(b); view.banners.push(b); };
 
   // Floor: one quad under the whole plan; the shader draws tiles, store tints, arrows and edge shadows.
   view.map = floorMap(world);
@@ -140,10 +141,14 @@ export function buildScene(sim) {
   const geos = {};
   for (const p of world.pieces) {
     const rad = p.solid.r || Math.max(p.solid.hx, p.solid.hz);
-    if (!p.sale) putShadow(view, p.x, p.z, (p.solid.r || p.solid.hx) + 0.15, (p.solid.r || p.solid.hz) + 0.15, 0);
-    if (!LOOSE[p.type]) { addPiece(fb, p.type, p.x, p.z, accentOf(p.r * cols + p.c)); continue; }
+    if (!LOOSE[p.type]) {
+      putShadow(view, p.x, p.z, (p.solid.r || p.solid.hx) + 0.15, (p.solid.r || p.solid.hz) + 0.15, 0);
+      addPiece(fb, p.type, p.x, p.z, accentOf(p.r * cols + p.c));
+      continue;
+    }
     const mesh = new THREE.Mesh(geos[p.type] || (geos[p.type] = pieceGeometry(p.type)), [M.toon, M.lineThin]);
     mesh.position.set(p.x, 0, p.z);
+    if (p.type === 'glass' && isFloor(p.c - 1, p.r) && isFloor(p.c + 1, p.r)) mesh.rotation.y = Math.PI / 2;   // across the way through
     view.root.add(mesh);
     const item = { p, mesh, beam: null, star: null, vx: 0, vy: 0, vz: 0, fly: 0, rad };
     if (p.type === 'podium') {
@@ -152,8 +157,20 @@ export function buildScene(sim) {
     }
     view.pieces.push(item);
   }
+  // Ramps face down the route; a wet patch gets one yellow sign at its first corner.
+  for (const rp of world.ramps) { addPiece(fb, 'ramp', rp.x, rp.z, PAL.sale, Math.atan2(rp.dx, rp.dz)); putShadow(view, rp.x, rp.z, 1.1, 1.3, Math.atan2(rp.dx, rp.dz)); }
+  for (let i = 0; i < world.wet.length; i++) {
+    if (world.wet[i] && !world.wet[i - 1] && !world.wet[i - cols]) addPiece(fb, 'wetsign', (i % cols) * T - 0.2, Math.floor(i / cols) * T - 0.2);
+  }
   view.fixed = view.shadowN;
   view.root.add(new THREE.Mesh(toGeometry(fb), [M.toon, M.lineThin]));
+  // The cart train: a string of steel carts.
+  const carGeo = sim.trains.length ? cartGeometry(PAL.steel) : null;
+  for (const tr of sim.trains) {
+    const cars = [];
+    for (let i = 0; i < CFG.trainCars; i++) { const m = new THREE.Mesh(carGeo, [M.toon, M.lineThin]); view.root.add(m); cars.push(m); }
+    view.trains.push({ tr, cars });
+  }
 
   // Holiday garlands: small warm-white bulbs along the top edge of the walls (decoration never uses a signal colour).
   const lb = makeBuilder();
@@ -262,13 +279,14 @@ function putShadow(view, x, z, rx, rz, ry) {
   view.shadowN = n + 1;
 }
 
-// Writes one coloured floor disc of radius r (list items, hot items, a rival's mood).
-function putGlow(view, x, z, r, color) {
+// Writes one coloured floor disc of radius r (list items, hot items, a rival's mood); with rz and ry it
+// is an ellipse of half sizes (r, rz) turned by ry (the line of an announced ram).
+function putGlow(view, x, z, r, color, rz = r, ry = 0) {
   const n = view.glowN;
   if (n >= GLOW_CAP) return;
-  const m = view.glows.instanceMatrix.array, o = n * 16, c = rgb(color);
+  const m = view.glows.instanceMatrix.array, o = n * 16, c = rgb(color), cy = Math.cos(ry), sy = Math.sin(ry);
   m.fill(0, o, o + 16);
-  m[o] = r; m[o + 5] = 1; m[o + 10] = r; m[o + 12] = x; m[o + 13] = 0.025; m[o + 14] = z; m[o + 15] = 1;
+  m[o] = cy * r; m[o + 2] = -sy * r; m[o + 5] = 1; m[o + 8] = sy * rz; m[o + 10] = cy * rz; m[o + 12] = x; m[o + 13] = 0.025; m[o + 14] = z; m[o + 15] = 1;
   view.glows.instanceColor.array.set(c, n * 3);
   view.glowN = n + 1;
 }
@@ -282,25 +300,26 @@ function putBox(mesh, n, x, y, z, sx, sy, sz, c, bright) {
   col[n * 3] = c[0] * bright; col[n * 3 + 1] = c[1] * bright; col[n * 3 + 2] = c[2] * bright;
 }
 
-// Packs a tower into the basket: two lanes of small goods side by side, bigger goods across both,
-// a new layer when the basket length is used up. Fills towX/Y/Z/Yaw (cart space, y from the basket
-// floor) and returns the height of the pile.
+// Packs a tower into the basket two lanes abreast: a heap a little wider than the cart, so that even
+// a full one stays low enough to see the way ahead over it. Only hot items lie across both lanes. A
+// new layer starts when a lane is used up. Fills towX/Y/Z/Yaw (cart space, y from the basket floor)
+// and returns the height of the pile.
 function layoutTower(tower) {
   const LEN = 1.16;
   let y = 0, layerH = 0, zl = 0, zr = 0;
   const n = Math.min(tower.length, 200);
   for (let i = 0; i < n; i++) {
-    const g = GOODS[tower[i].good], small = g.size === 'S';
+    const g = GOODS[tower[i].good], across = g.size === 'H';
     let w = g.dims[0] * TOWER_SCALE, d = g.dims[2] * TOWER_SCALE, yaw = 0;
-    if (!small && w > 0.86) { const t = w; w = d; d = t; yaw = Math.PI / 2; }
-    let z0 = small ? Math.min(zl, zr) : Math.max(zl, zr);
+    if (across ? w > 0.86 : w > 0.5 && d < w) { const t = w; w = d; d = t; yaw = Math.PI / 2; }   // big goods ride long side forward
+    let z0 = across ? Math.max(zl, zr) : Math.min(zl, zr);
     if (z0 + d > LEN && z0 > 0) { y += layerH; layerH = 0; zl = zr = 0; z0 = 0; }
-    const left = small && zl <= zr;
-    towX[i] = small ? (left ? 0.2 : -0.2) : 0;
+    const left = !across && zl <= zr;
+    towX[i] = across ? 0 : (left ? 1 : -1) * (w / 2 + 0.01);
     towY[i] = y;
     towZ[i] = -LEN / 2 + Math.min(z0 + d / 2, LEN - 0.1);
     towYaw[i] = yaw + ((i * 37) % 11 - 5) * 0.035;
-    if (small) { if (left) zl = z0 + d * 0.96; else zr = z0 + d * 0.96; } else zl = zr = z0 + d * 0.96;
+    if (across) zl = zr = z0 + d * 0.96; else if (left) zl = z0 + d * 0.96; else zr = z0 + d * 0.96;
     layerH = Math.max(layerH, g.dims[1] * TOWER_SCALE * 0.94);
   }
   return y + layerH;
@@ -317,7 +336,8 @@ function syncCart(view, c, sim, alpha, dt) {
   if (gone >= 1) return;
   const u = k.spinT > 0 ? 1 - k.spinT / (k.player ? 0.6 : 1) : 1;
   const h = k.ph + wrapAngle(k.h - k.ph) * alpha + (1 - (1 - u) * (1 - u)) * 6.2832;   // one full turn, easing out
-  c.g.position.set(x, 0, z);
+  const up = k.air > 0 ? 4 * CFG.jumpHeight * (k.air / k.airT) * (1 - k.air / k.airT) : 0;   // the arc of a jump
+  c.g.position.set(x, up, z);
   c.g.rotation.y = h;
   c.g.scale.setScalar(1 - gone);
   const lat = k.yaw * speed;                                   // sideways acceleration, m/s2
@@ -329,7 +349,7 @@ function syncCart(view, c, sim, alpha, dt) {
   const sq = c.squash * c.squash;
   c.stretch += ((k.dashT > 0 ? 1 : 0) - c.stretch) * (1 - Math.exp(-dt * 20));      // the dash stretches the cart forward
   const yawShow = k.slip * 0.35 + k.steer * 0.1 + k.drift * 0.18;   // a drift always shows a clear angle
-  c.tilt.rotation.set(c.pitch, yawShow, c.roll);
+  c.tilt.rotation.set(c.pitch - (k.air > 0 ? 0.5 * (k.air / k.airT - 0.5) : 0), yawShow, c.roll);
   c.tilt.scale.set((1 + sq * 0.16) * (1 - c.stretch * 0.1), 1 - sq * 0.3, (1 + sq * 0.16) * (1 + c.stretch * 0.24));
   c.bob += speed * dt * 1.5;
   c.bean.position.y = Math.abs(Math.sin(c.bob)) * 0.07;
@@ -338,11 +358,15 @@ function syncCart(view, c, sim, alpha, dt) {
   const gl = ready ? 0.05 + (mad ? 0.3 : 0.16) * (0.5 + 0.5 * Math.sin(view.time * (mad ? 20 : 7))) : -0.45;
   c.glow.uniforms.uGlow.value.set(gl, gl, ready ? gl * 0.4 : gl);
   const sh = Math.sin(h), ch0 = Math.cos(h);
-  putShadow(view, x, z, 0.72 * (1 - gone), 0.95 * (1 - gone), h);
+  putShadow(view, x, z, 0.72 * (1 - gone) / (1 + up * 0.3), 0.95 * (1 - gone) / (1 + up * 0.3), h);
   putShadow(view, x - sh * 1.3, z - ch0 * 1.3, 0.42, 0.42, 0);
   // A rival's mood shows on the floor under it: red while it holds a grudge, flashing when it is about to ram.
   if (!k.player) {
-    if (k.ai && k.ai.warnT > 0) putGlow(view, x, z, 1.9, Math.floor(view.time * 12) % 2 ? PAL.white : PAL.danger);
+    if (k.ai && k.ai.warnT > 0) {                            // ...and the line of the lunge it has announced lies on the floor ahead of it
+      const ah = k.ai.aimH;
+      putGlow(view, x, z, 1.9, Math.floor(view.time * 12) % 2 ? PAL.white : PAL.danger);
+      putGlow(view, x + Math.sin(ah) * 5, z + Math.cos(ah) * 5, 0.85, PAL.danger, 4, ah);
+    }
     else if (k.grudgeT > 0) putGlow(view, x, z, 1.5 + 0.1 * Math.sin(view.time * 9), PAL.danger);
     else if (mad) putGlow(view, x, z, 1.6, PAL.hot);
   }
@@ -357,13 +381,16 @@ function syncCart(view, c, sim, alpha, dt) {
   c.swayZ = clamp(c.swayZ + c.swayZv * dt, -0.4, 0.4);
   const height = layoutTower(k.tower);
   if (k.player) view.towerH = height;
+  // At the checkout the player's goods leave the cart for the counter one after another, top first.
+  const lane = k.player && k.done && k.lane >= 0 ? sim.world.lanes[k.lane] : null, n = k.tower.length;
+  if (lane && view.doneAt < 0) view.doneAt = view.time;
   const ch = Math.cos(h + yawShow), shy = Math.sin(h + yawShow);
   c.pending = 0;
   for (let i = 0; i < k.tower.length && i < 200; i++) {
     const e = k.tower[i], ty = towY[i];
     // cart space -> world: shear with height (the lean), then rotate by the heading
     const lx = towX[i] + c.swayX * ty * 0.9, lz = towZ[i] + c.swayZ * ty * 0.9;
-    let wx = x + lx * ch + lz * shy, wy = BASKET_Y + ty * (1 - sq * 0.3), wz = z - lx * shy + lz * ch, scale = TOWER_SCALE * (1 - gone);
+    let wx = x + lx * ch + lz * shy, wy = up + BASKET_Y + ty * (1 - sq * 0.3), wz = z - lx * shy + lz * ch, scale = TOWER_SCALE * (1 - gone);
     const f = view.flights.get(e);
     if (f) {
       // On its way from the shelf: wait for its turn, then arc into place.
@@ -374,6 +401,11 @@ function syncCart(view, c, sim, alpha, dt) {
       wx = lerp(f.x, wx, s); wz = lerp(f.z, wz, s); wy = lerp(f.y, wy, s) + Math.sin(v * Math.PI) * 1.1;
       scale = lerp(1, TOWER_SCALE, s) * (1 + Math.sin(v * Math.PI) * 0.25);
       if (v >= 1) { view.flights.delete(e); c.swayZv += 0.5; }
+    }
+    if (lane) {
+      const v = clamp((view.time - view.doneAt - 0.5 - (n - 1 - i) * 0.07) / 0.4, 0, 1);
+      if (v >= 1) continue;
+      wx = lerp(wx, lane.x + 1.6, v); wz = lerp(wz, lane.z, v); wy = lerp(wy, 1.1, v) + Math.sin(v * Math.PI) * 1.4; scale *= 1 - v * v * 0.7;
     }
     putGood(view, e.good, wx, wy, wz, h + yawShow + towYaw[i], scale, c.swayZ * 0.8, -c.swayX * 0.8);
   }
@@ -434,6 +466,7 @@ export function syncScene(view, sim, alpha, dt) {
       it.mesh.rotation.x += dt * 9; it.mesh.rotation.z += dt * 6;
       it.mesh.visible = it.fly > 0;
     } else it.mesh.visible = on || (it.p.type === 'podium' && !it.p.sale);
+    if (it.mesh.visible && it.fly <= 0) putShadow(view, it.p.x, it.p.z, it.rad + 0.15, it.rad + 0.15, 0);   // a smashed piece takes its shadow with it
     if (it.beam) {
       const hot = on && it.p.good >= 0;
       it.beam.visible = it.star.visible = hot;
@@ -448,6 +481,19 @@ export function syncScene(view, sim, alpha, dt) {
   }
   for (const c of view.carts) syncCart(view, c, sim, alpha, dt);
   syncCrowd(view, sim);
+  // A banner between the camera and the player's cart would hide it: banners fade away as the cart comes near.
+  for (const b of view.banners) { b.material.opacity = clamp((Math.hypot(b.position.x - p.x, b.position.z - p.z) - 9) / 5, 0, 1); b.visible = b.material.opacity > 0.02; }
+  // The cart train, and a long shadow running ahead of it across the floor (its warning).
+  for (const t of view.trains) {
+    const tr = t.tr, a = Math.atan2(tr.dx * tr.dir, tr.dz * tr.dir);
+    t.cars.forEach((m, i) => {
+      m.position.set(tr.x - tr.dx * tr.dir * i * 1.5, 0, tr.z - tr.dz * tr.dir * i * 1.5);
+      m.rotation.y = a + Math.sin(view.time * 9 + i) * 0.04;
+      putShadow(view, m.position.x, m.position.z, 0.75, 0.95, a);
+    });
+    if (tr.wait <= 0) putShadow(view, tr.x + tr.dx * tr.dir * 4, tr.z + tr.dz * tr.dir * 4, 0.7, 3.2, a);
+  }
+  gfx.mats.floor.uniforms.uTime.value = view.time;
   for (const [e, f] of view.flights) if (f.seen !== view.frame) view.flights.delete(e);   // spilled before it landed
   for (let i = 0; i < view.goods.length; i++) {
     const mesh = view.goods[i];
@@ -491,9 +537,9 @@ export function sceneEvent(view, e) {
     for (const it of view.pieces) if (it.p.solid === e.ref) { it.fly = 1.1; it.vx = e.cart.vx * 0.7; it.vz = e.cart.vz * 0.7; it.vy = 6; }
     return;
   }
-  if (e.type === 'laneclose') {                       // the lane's floor turns into a red cross-hatch
+  if (e.type === 'laneclose' || e.type === 'lanewarn') {   // the lane's floor flashes for its two seconds of warning, then turns into a red cross-hatch
     const d = view.map.image.data;
-    for (const i of e.ref.tiles) d[i * 4 + 1] = Math.round(7 / 8 * 255);
+    for (const i of e.ref.tiles) d[i * 4 + 1] = (e.type === 'lanewarn' ? 14 : 7) * 16;
     view.map.needsUpdate = true;
     return;
   }

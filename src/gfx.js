@@ -2,7 +2,7 @@
 // Purpose: the renderer and what every visual shares: the single toon material, the inverted-hull
 //          outline, the tiled floor material, the chase camera and the frame statistics.
 // Exports: gfx, initGfx, resizeGfx, toonMaterial, outlineMaterial, floorMaterial, ringMaterial,
-//          flatMaterial, updateCamera, renderFrame. Shared materials are created once in gfx.mats.
+//          flatMaterial, updateCamera, renderFrame, watchFrameRate. Shared materials are created once in gfx.mats.
 // Depends on: config.js and the global THREE (r185, core only). THREE is touched only inside
 //          functions, never at import time, so main.js can load it first.
 //
@@ -16,8 +16,9 @@ export const gfx = {
   renderer: null, scene: null, camera: null, w: 1, h: 1, ratio: 1,
   u: null,                         // uniforms shared by every material
   mats: null,                      // the shared materials: toon, toonRim, lineThin, lineBold, floor
-  cam: { yaw: 0, zoom: 0, x: 0, z: 0, shake: 0, ready: false, tower: 0, lift: 0, punch: 0, t: 0 },
+  cam: { yaw: 0, zoom: 0, x: 0, z: 0, shake: 0, ready: false, tower: 0, lift: 0, punch: 0, t: 0, near: false },
   stats: { calls: 0, tris: 0, ms: 0, fps: 60 },
+  quality: { level: 0, slow: 0 }, scale: 1,     // automatic quality: 0 full, 1-2 lower resolution, 3 no thin outlines
 };
 
 const TOON_VS = `
@@ -76,11 +77,12 @@ const FLOOR_VS = `
 varying vec3 vW;
 void main() { vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`;
 const FLOOR_FS = `
-// One texel of uMap per tile: r = store colour index / 8, g = decal / 8 (1-4 arrow east, south, west,
-// north; 5 checkout hatch; 6 start grid; 7 closed lane), a = 1 on floor and 0 on void.
+// One texel of uMap per tile: r = store colour index / 8, g = decal / 16 (1-4 arrow east, south, west,
+// north; 5 checkout hatch; 6 start grid; 7 closed lane; 8-11 travelator east, south, west, north;
+// 12 wet floor; 13 train track; 14 lane about to close), a = 1 on floor and 0 on void.
 uniform sampler2D uMap; uniform vec2 uMapSize; uniform vec3 uZone[6];
 uniform vec3 uFloor; uniform vec3 uGrout; uniform vec3 uInk; uniform vec3 uShade; uniform vec3 uClosed;
-uniform float uTile; uniform vec3 uTint; uniform float uTintAmt;
+uniform float uTile; uniform vec3 uTint; uniform float uTintAmt; uniform float uTime; uniform vec3 uBelt; uniform vec3 uWet;
 varying vec3 vW;
 vec4 tileAt(vec2 id) { return texture2D(uMap, (id + 0.5) / uMapSize); }
 void main() {
@@ -93,7 +95,7 @@ void main() {
   vec3 c = mix(uFloor, zone, 0.13);                                  // each store tints its floor
   c = mix(c, c * 0.955, mod(id.x + id.y, 2.0));                      // faint checker so speed reads on the floor
   c = mix(c, uGrout, line);
-  float d = floor(t.g * 8.0 + 0.5);
+  float d = floor(t.g * 16.0 + 0.5);
   if (d > 0.5 && d < 4.5) {                                          // a painted chevron pointing down the route
     vec2 dir = d < 1.5 ? vec2(1.0, 0.0) : d < 2.5 ? vec2(0.0, 1.0) : d < 3.5 ? vec2(-1.0, 0.0) : vec2(0.0, -1.0);
     vec2 p = f - 0.5, q = vec2(dot(p, dir), dot(p, vec2(-dir.y, dir.x)));
@@ -104,10 +106,25 @@ void main() {
     c = mix(c, zone, m * far);
   } else if (d > 4.5 && d < 5.5) {                                   // checkout lane: yellow and dark hatching
     c = mix(mix(uZone[3], uInk, step(0.5, fract((f.x + f.y) * 2.0))), c, 0.25);
-  } else if (d > 6.5) {                                              // a closed lane: dark, with a red cross-hatch
-    c = mix(mix(uInk, uClosed, step(0.72, fract((f.x + f.y) * 2.0))), c, 0.2);
-  } else if (d > 5.5) {                                              // start grid
+  } else if (d > 5.5 && d < 6.5) {                                   // start grid
     c = mix(c, vec3(1.0), step(0.42, e.y) * step(0.5, fract(f.x * 4.0)) * 0.8);
+  } else if (d > 6.5 && d < 7.5) {                                   // a closed lane: dark, with a red cross-hatch
+    c = mix(mix(uInk, uClosed, step(0.72, fract((f.x + f.y) * 2.0))), c, 0.2);
+  } else if (d > 7.5 && d < 11.5) {                                  // travelator: a dark belt whose arrows run with it
+    vec2 dir = d < 8.5 ? vec2(1.0, 0.0) : d < 9.5 ? vec2(0.0, 1.0) : d < 10.5 ? vec2(-1.0, 0.0) : vec2(0.0, -1.0);
+    float along = dot(g, dir) - uTime * 2.5, across = abs(dot(f - 0.5, vec2(-dir.y, dir.x)));
+    float v = abs(fract(along * 1.5) - 0.5 + across * 0.7);
+    c = mix(uBelt, vec3(1.0), (1.0 - smoothstep(0.09, 0.09 + w.x * 2.0, v)) * step(across, 0.36) * 0.9 * far);
+    c = mix(c, uInk, step(0.44, across) * 0.7);                      // the belt's rails
+  } else if (d > 11.5 && d < 12.5) {                                 // wet floor: a blue sheen with glints
+    c = mix(c, uWet, 0.5);
+    float glint = sin((g.x + g.y) * 9.0 + uTime * 2.0) * sin((g.x - g.y) * 6.0 - uTime * 1.3);
+    c = mix(c, vec3(1.0), smoothstep(0.7, 0.85, glint) * 0.7 * far);
+  } else if (d > 13.5) {                                             // a lane about to close: its hatching flashes red
+    c = mix(mix(uZone[3], uInk, step(0.5, fract((f.x + f.y) * 2.0))), c, 0.25);
+    c = mix(c, uClosed, step(0.5, fract(uTime * 4.0)) * 0.65);
+  } else if (d > 12.5) {                                             // the cart train's track: dark sleepers
+    c = mix(c, uInk, step(0.5, fract((g.x + g.y) * 2.0)) * 0.3 + 0.12);
   }
   // a hard-edged shadow where the floor meets a wall (the same graphic cut as the shadows under things)
   float sh = 0.0;
@@ -218,7 +235,8 @@ export function floorMaterial() {
   const zones = [0, 1, 2, 3, 0, 0].map((i) => v3(PAL.zones[i]));
   return new THREE.ShaderMaterial({
     uniforms: { uFloor: { value: v3(PAL.floor) }, uGrout: { value: v3(PAL.grout) }, uInk: { value: v3(PAL.night) }, uShade: u.uShade, uClosed: { value: v3(PAL.danger) },
-      uZone: { value: zones }, uMap: { value: null }, uMapSize: { value: new THREE.Vector2(1, 1) },
+      uZone: { value: zones }, uMap: { value: null }, uMapSize: { value: new THREE.Vector2(1, 1) }, uTime: { value: 0 },
+      uBelt: { value: v3(0x4A3D66) }, uWet: { value: v3(PAL.sky) },
       uTile: { value: CFG.TILE }, uTint: u.uTint, uTintAmt: u.uTintAmt },
     vertexShader: FLOOR_VS, fragmentShader: FLOOR_FS,
   });
@@ -244,7 +262,8 @@ export function flatMaterial(alpha, additive) {
 // looks into turns and tips up over a wall that would hide the cart. k is the cart, alpha the
 // interpolation between its last two steps, world the level (for the wall test). orbit (radians,
 // optional) is the title view: lower, closer, turned by that angle, with the cart mid-screen.
-export function updateCamera(k, alpha, dt, towerHeight, world, orbit) {
+// intro (1 -> 0 over the first countdown) starts the view high above the route and swoops down.
+export function updateCamera(k, alpha, dt, towerHeight, world, orbit, intro = 0) {
   const cam = gfx.cam, camera = gfx.camera;
   const x = lerp(k.px, k.x, alpha), z = lerp(k.pz, k.z, alpha);
   const h = k.ph + wrapAngle(k.h - k.ph) * alpha;
@@ -271,8 +290,8 @@ export function updateCamera(k, alpha, dt, towerHeight, world, orbit) {
     hidden = c < 0 || r < 0 || c >= world.cols || r >= world.rows || !world.floor[r * world.cols + c];
   }
   cam.lift += ((hidden ? 1 : 0) - cam.lift) * (1 - Math.exp(-dt * 6));
-  const height = title ? 4.4 : (TUNE.camheight * (0.95 + 0.05 * Math.min(cam.zoom, 1) + 0.16 * fast) + cam.tower * 0.45) * (1 + 0.4 * cam.lift);
-  const pitch = title ? 0.5 : TUNE.campitch * Math.PI / 180 + 0.45 * cam.lift;
+  const height = title ? (cam.near ? 2.3 : 4.4) : (TUNE.camheight * (0.95 + 0.05 * Math.min(cam.zoom, 1) + 0.16 * fast) + cam.tower * 0.45) * (1 + 0.4 * cam.lift + 3.2 * intro);
+  const pitch = title ? 0.5 : TUNE.campitch * Math.PI / 180 + 0.45 * cam.lift + 0.42 * intro;
   const back = height / Math.tan(pitch);
   // The look point keeps the cart in the lower third of the frame; in a dash or boost the camera
   // hangs back a little, so the cart surges up the screen.
@@ -302,4 +321,16 @@ export function renderFrame() {
   gfx.stats.calls = r.info.render.calls;
   gfx.stats.tris = r.info.render.triangles;
   gfx.stats.ms = performance.now() - t0;
+}
+
+// Called once a frame with the real frame time. Two seconds of frames slower than 20 ms and the
+// quality steps down: first the resolution (to 75%, then 55%), then the thin outlines.
+export function watchFrameRate(dt) {
+  const q = gfx.quality;
+  q.slow = dt > 0.02 && dt < 0.25 ? q.slow + dt : 0;
+  if (q.slow < 2 || q.level >= 3) return;
+  q.slow = 0; q.level++;
+  gfx.scale = q.level === 1 ? 0.75 : 0.55;
+  if (q.level === 3) gfx.mats.lineThin.userData.px = 0;
+  resizeGfx();
 }

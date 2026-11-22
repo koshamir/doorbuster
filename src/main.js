@@ -1,7 +1,8 @@
 // DOORBUSTER — main.js
-// Purpose: the entry module: boot, keyboard input, the frame loop, the game states (title, play,
-//          receipt, closed) and the glue between the simulation (sim.js), the visuals (gfx.js,
-//          scene.js, fx.js) and the interface (ui.js).
+// Purpose: the entry module: boot, keyboard and touch input, the frame loop, the game states (title,
+//          play, receipt, closed, paused), progress (medals, records, unlocked stores, settings) and
+//          the glue between the simulation (sim.js), the visuals (gfx.js, scene.js, fx.js), the sound
+//          (audio.js) and the interface (ui.js).
 // Exports: nothing.
 // Depends on: every other module. Loads three.js (platform.loadThree) before anything touches THREE.
 //
@@ -11,35 +12,40 @@
 
 import { TUNE, CFG, GOOD } from './config.js';
 import { LEVELS } from './levels.js';
+import { navAim, navDistAt, clearPath } from './world.js';
 import { createSim, advanceSim, giveGoods, settle } from './sim.js';
 import { BOTS, makeDriver } from './ai.js';
 import { loadThree, platform } from './platform.js';
-import { gfx, initGfx, resizeGfx, updateCamera, renderFrame } from './gfx.js';
+import { gfx, initGfx, resizeGfx, updateCamera, renderFrame, watchFrameRate } from './gfx.js';
 import { buildScene, syncScene, sceneEvent, disposeScene, goodIcon } from './scene.js';
-import { initFx, clearFx, cartFx, eventFx, updateFx } from './fx.js';
-import { initUI, updateHud, popWord, announce, floatText, chainText, setList, setArrow, setWarn, showTitle, showReceipt, showClosed,
-  hideScreens, hurryUI, money, initDebug, updateDebug } from './ui.js';
+import { initFx, clearFx, cartFx, eventFx, updateFx, spark } from './fx.js';
+import { audio, unlockAudio, setSound, setVolumes, audioEvent, audioCue, audioFrame } from './audio.js';
+import { ui, initUI, updateHud, popWord, announce, floatText, chainText, setList, setArrow, setWarn, setHint, showTouch, showTitle, showReceipt,
+  showClosed, showPause, hideScreens, hurryUI, money, initDebug, updateDebug } from './ui.js';
 
 const query = new URLSearchParams(location.search);
+const LAST = LEVELS.length - 1;                 // level 0 is the test course; the campaign is 1..LAST
 const game = {
-  level: Math.max(0, Math.min(LEVELS.length - 1, Number(query.get('level') || 1))),
+  level: Math.max(0, Math.min(LAST, Number(query.get('level') || 1))),
   seed: Number(query.get('seed') || 1),
   bot: query.get('autoplay') || '',
   debug: query.has('debug'), manual: query.has('manual'),
-  state: 'title',                 // title -> play -> receipt | closed
+  state: 'title',                 // title -> play -> receipt | closed; `paused` freezes any of them
+  paused: false, touch: false,
   sim: null, view: null, scale: 1, last: 0, logicMs: 0, logicSum: 0, logicN: 0, hitstop: 0, slowT: 0, custom: null,
   keys: {}, inq: [], now: 0,     // keys as the simulation has seen them; key events waiting for their step
   probe: null, gain: 0, gainT: 0, gainList: false, v: null,
   icons: {},                      // pictures of goods for the list, by id
   mark: null, markT: 0, markText: '',   // where the arrow points (a piece or a lane), for how long, its word
-  warner: null, rammed: false, frozen: false, clock: 0,
+  warner: null, dodgeHint: false, rammed: false, frozen: false, clock: 0, steered: 0, tagAt: -9, aim: { x: 0, z: 0, fx: 0, fz: 0, left: 0 },
 };
+let save = null;                  // platform.progress: { best, medals, unlocked, fails, seen, music, sfx, shake }
 
 const KEYS = {
   ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'gas', KeyW: 'gas',
   ArrowDown: 'brake', KeyS: 'brake', Space: 'drift', ShiftLeft: 'dash', ShiftRight: 'dash',
 };
-const WORDS = { cleansweep: 'CLEAN SWEEP', strike: 'STRIKE!', ram: 'RAM!', takedown: 'TAKEDOWN!', shave: 'CLOSE SHAVE', smash: 'SMASH!', jump: 'BIG AIR' };
+const WORDS = { cleansweep: 'CLEAN SWEEP', strike: 'STRIKE!', ram: 'RAM!', takedown: 'TAKEDOWN!', shave: 'CLOSE SHAVE', smash: 'SMASH!', jump: 'BIG AIR', dodge: 'DODGED!' };
 
 // Builds the level. quick = a restart: shorter countdown, straight into play.
 function startLevel(quick) {
@@ -51,7 +57,7 @@ function startLevel(quick) {
   game.view = buildScene(game.sim);
   setList((def.list || []).map((id) => game.icons[id] || (game.icons[id] = goodIcon(GOOD[id]))));
   game.hitstop = 0; game.slowT = 0; game.gain = 0; game.keys = {}; game.inq.length = 0;
-  game.mark = null; game.markT = 0; game.warner = null; game.frozen = false;
+  game.mark = null; game.markT = 0; game.warner = null; game.frozen = false; game.paused = false;
   gfx.u.uTintAmt.value = 0;
   gfx.cam.ready = false;
   gfx.cam.shake = 0;
@@ -61,6 +67,33 @@ function play(quick) {
   hideScreens();
   game.state = 'play';
   platform.runStart();
+}
+// The title: the start grid of the chosen store; once a store has been finished, the loyalty card too.
+function title() {
+  startLevel(false);
+  game.state = 'title';
+  const cards = save.unlocked > 1 || save.best[LEVELS[1].id] ? LEVELS.slice(1).map((d, i) => ({ name: d.name, medal: save.medals[d.id] || 0,
+    best: save.best[d.id] || 0, locked: i + 1 > save.unlocked, on: i + 1 === game.level })) : null;
+  showTitle(LEVELS[game.level].name, () => play(false), cards, (i) => { game.level = i + 1; title(); });
+}
+function pause(on) {
+  if (on === game.paused || (on && game.state !== 'play')) return;      // only a run can be paused
+  game.paused = on;
+  if (on) {
+    platform.pause();
+    if (audio.ctx) audio.ctx.suspend();
+    showPause({ sound: platform.soundOn, music: save.music, sfx: save.sfx, shake: TUNE.shake }, {
+      resume: () => pause(false), restart: () => { pause(false); play(true); }, menu: save.unlocked > 1 ? () => { pause(false); title(); } : null,
+      sound: (v) => platform.setSound(v),
+      music: (v) => { save.music = v; setVolumes(save.music, save.sfx); platform.save(); },
+      sfx: (v) => { save.sfx = v; setVolumes(save.music, save.sfx); platform.save(); },
+      shake: (v) => { TUNE.shake = save.shake = v; platform.save(); },
+    });
+  } else {
+    platform.resume();
+    if (audio.ctx) audio.ctx.resume();
+    hideScreens();
+  }
 }
 
 // Key events are queued with their time stamps and applied on the simulation step they belong to,
@@ -74,10 +107,12 @@ function feedInput(age) {
   }
   if (k.ai) return;
   inp.steer = (keys.left ? 1 : 0) - (keys.right ? 1 : 0);
-  inp.gas = keys.gas ? 1 : 0;
+  inp.gas = keys.gas || (game.touch && !keys.brake) ? 1 : 0;       // on a touch screen the accelerator is automatic
   inp.brake = keys.brake ? 1 : 0;
   inp.drift = !!keys.drift;
+  if (inp.steer && inp.gas) game.steered++;
 }
+function press(name, down) { game.inq.push({ name, down, t: performance.now() }); }
 
 // World position -> CSS pixels on screen (z > 1 means behind the camera).
 function toScreen(x, y, z) {
@@ -86,34 +121,46 @@ function toScreen(x, y, z) {
   return v;
 }
 
-// The player has checked out: the receipt, and (when its table is due) the rest of the race played out.
+// The player has checked out: medal, record, the next store unlocked, the receipt, and (when its table
+// is due) the rest of the race played out.
 function finish() {
-  const sim = game.sim, p = sim.player, def = sim.def, best = platform.progress.best || (platform.progress.best = {});
-  const prev = best[def.id] || 0, isNew = p.receipt.total > prev;
-  if (isNew) { best[def.id] = p.receipt.total; platform.save(); }
-  platform.submit('receipt_l' + game.level, p.receipt.total, def.name);
+  const sim = game.sim, p = sim.player, def = sim.def, total = p.receipt.total;
+  const prev = save.best[def.id] || 0, isNew = total > prev, medal = 1 + (def.medals || []).filter((m) => total >= m).length;
+  if (isNew) save.best[def.id] = total;
+  save.medals[def.id] = Math.max(save.medals[def.id] || 0, medal);
+  save.fails = 0;
+  if (game.level >= 1 && game.level < LAST) save.unlocked = Math.max(save.unlocked, game.level + 1);
+  platform.save();
+  platform.submit('receipt_l' + game.level, total, def.name);
+  platform.submit('receipt_total', LEVELS.slice(1).reduce((s, d) => s + (save.best[d.id] || 0), 0), 'All stores');
   platform.runEnd(sim.t, game.level);
   game.state = 'receipt';
   showReceipt(p.receipt, () => {
     game.frozen = true;
     return settle(sim).map((k) => ({ name: k.player ? 'YOU' : k.def.name, total: k.receipt ? k.receipt.total : -1, me: k.player }));
-  }, { value: Math.max(prev, p.receipt.total), isNew: isNew && prev > 0 }, (def.zones[0] || {}).name || def.name, () => play(true));
+  }, { value: Math.max(prev, total), isNew: isNew && prev > 0 }, (def.zones[0] || {}).name || def.name, medal, () => play(true),
+  game.level >= 1 && game.level < LAST ? next : null, save.unlocked > 1 ? title : null);
 }
+function next() { game.level = Math.min(LAST, game.level + 1); play(false); }
 
-// Presentation of one simulation event: particles, scene reactions, interface, platform calls.
+// Presentation of one simulation event: sound, particles, scene reactions, interface, platform calls.
 function onEvent(e) {
   const sim = game.sim, p = sim.player, mine = e.cart === p, k = e.cart;
   if (game.probe && (mine || e.ref === p)) game.probe.log.push([e.type + (mine ? '' : '<'), +sim.t.toFixed(3)]);     // for the capture tool
+  audioEvent(e, sim);
   const shake = eventFx(e);
   sceneEvent(game.view, e);
   // What others do to the player, or near the player.
   if (!mine) {
-    if (e.type === 'warn' && e.ref === p) game.warner = k;
+    if (!k) return;
+    if (e.type === 'warn' && e.ref === p) {             // the first two warnings come with the keys that dodge them
+      game.warner = k; game.dodgeHint = !p.ai && (save.seen.dodge || 0) < 2;
+      if (game.dodgeHint) { save.seen.dodge = (save.seen.dodge || 0) + 1; platform.save(); }
+    }
     else if (e.type === 'ram' && e.ref === p) { game.hitstop = 0.06; gfx.cam.shake = Math.min(1, gfx.cam.shake + 0.6); popWord('RAMMED!', 'bad'); }
     else if (e.type === 'shout') { game.mark = e.ref; game.markT = 5; game.markText = 'HOT!'; const s = toScreen(k.x, 2.6, k.z); if (s.z < 1) floatText('MINE!', s.x, s.y, 'big'); }
     else if (e.type === 'finish') { const s = toScreen(k.x, 2.6, k.z); if (s.z < 1) floatText(money(e.value), s.x, s.y, ''); }
-    else if (e.type === 'gone' || !k) return;
-    if (e.type !== 'flash' && e.type !== 'flashend' && e.type !== 'closing') return;
+    return;
   }
   gfx.cam.shake = Math.min(1, gfx.cam.shake + shake);
   switch (e.type) {
@@ -127,6 +174,8 @@ function onEvent(e) {
     case 'bonk': popWord('TOO LIGHT!', 'bad'); break;
     case 'hot': popWord('HOT ITEM!', 'hot'); game.hitstop = 0.05; if (game.mark === e.ref) game.markT = 0; break;
     case 'smash': case 'glass': game.hitstop = 0.04; break;
+    case 'dash': if (!save.seen.dash && !p.ai) { save.seen.dash = true; platform.save(); } break;
+    case 'drift': if (!save.seen.drift && !p.ai) { save.seen.drift = true; platform.save(); } break;
     case 'ram':
       game.hitstop = 0.08;
       if (!game.rammed) { game.rammed = true; game.slowT = 0.5; }      // the first ram is shown in slow motion
@@ -138,6 +187,7 @@ function onEvent(e) {
       break;
     case 'flashend': if (game.mark === e.ref) game.markT = 0; break;
     case 'closing': announce('CLOSING TIME!', 'The checkouts are shutting one by one. So is your window.'); break;
+    case 'lanewarn': { const s = toScreen(e.ref.x, 3.4, e.ref.z); if (s.z < 1) floatText('CLOSING', s.x, s.y, 'loss'); break; }
     case 'stunt': {
       popWord(WORDS[e.ref.name] || e.ref.name.toUpperCase(), 'good');
       const s = toScreen(p.x, 2.2, p.z);
@@ -147,41 +197,64 @@ function onEvent(e) {
     case 'finish': game.state = 'finish'; break;       // handled after the event loop (it plays the race out)
     case 'timeup':
       game.state = 'closed';
+      save.fails = (save.fails || 0) + 1; platform.save();
       platform.runEnd(sim.t, game.level);
-      showClosed(() => play(true));
+      // Three failures in a row and the store can be skipped: nobody is locked out of the rest.
+      showClosed(() => play(true), save.fails >= 3 && game.level >= 1 && game.level < LAST ? () => { save.unlocked = Math.max(save.unlocked, game.level + 1); save.fails = 0; platform.save(); next(); } : null);
       break;
     default:
   }
 }
 
 // The arrow to the current event (the flash sale, a hot item someone shouted about, the checkouts at
-// closing time) and the "!" over a rival about to ram.
+// closing time), the "!" over a rival about to ram, and the key hints of the first runs.
 function pointers(dt) {
-  const sim = game.sim, p = sim.player;
+  const sim = game.sim, p = sim.player, playing = game.state === 'play';
   let m = game.markT > 0 ? game.mark : null, text = game.markText;
   game.markT -= dt;
-  if (!m && sim.closing && game.state === 'play') {       // closing time: the nearest open checkout
+  if (!m && sim.closing && playing) {                     // closing time: the nearest open checkout (one about to close only as a last resort)
     let best = 1e9;
-    for (const l of sim.world.lanes) { const d = Math.hypot(l.x - p.x, l.z - p.z); if (l.open && d < best) { best = d; m = l; } }
+    for (const l of sim.world.lanes) { const d = Math.hypot(l.x - p.x, l.z - p.z) + (l.warned ? 40 : 0); if (l.open && d < best) { best = d; m = l; } }
     text = 'CHECKOUT';
   }
-  if (m && game.state === 'play') {
+  if (m && playing) {
     const s = toScreen(m.x, 3.4, m.z), pad = gfx.h * 0.14;
     if (s.z < 1 && s.x > pad && s.x < gfx.w - pad && s.y > pad * 1.6 && s.y < gfx.h - pad) setArrow(true, s.x, s.y - gfx.h * 0.05, Math.PI, text);
-    else {                                                // off screen: on a circle round the middle, pointing the way
-      const rel = Math.atan2(m.x - p.x, m.z - p.z) - gfx.cam.yaw, r = Math.min(gfx.w, gfx.h) * 0.36;
+    else {                                                // off screen: on a circle round the middle, pointing the way to drive there
+      let tx = m.x, tz = m.z;                             // (along the route while the target is ahead on it and out of sight, never through a wall)
+      const wd = sim.world;
+      if (navDistAt(wd, m.x, m.z) < navDistAt(wd, p.x, p.z) + 2 && !clearPath(wd, p.x, p.z, m.x, m.z, 0.3) && navAim(wd, p.x, p.z, 5, 0.5, game.aim, 14)) { tx = game.aim.x; tz = game.aim.z; }
+      const rel = Math.atan2(tx - p.x, tz - p.z) - gfx.cam.yaw, r = Math.min(gfx.w, gfx.h) * 0.36;
       setArrow(true, gfx.w / 2 - Math.sin(rel) * r, gfx.h * 0.52 - Math.cos(rel) * r, -rel, text);
     }
   } else setArrow(false);
   const w = game.warner;
-  if (w && w.ai && (w.ai.warnT > 0 || w.ai.strikeT > 0) && game.state === 'play') { const s = toScreen(w.x, 2.8, w.z); setWarn(s.z < 1, s.x, s.y); }
-  else { setWarn(false); game.warner = null; }
+  if (w && w.ai && (w.ai.warnT > 0 || w.ai.strikeT > 0) && playing) {
+    const s = toScreen(w.x, 2.8, w.z), pad = gfx.h * 0.08;
+    if (s.z < 1 && s.x > pad && s.x < gfx.w - pad && s.y > pad * 2 && s.y < gfx.h - pad) setWarn(true, s.x, s.y);
+    else {                                                // out of the picture (it usually comes from behind): beside the player's cart, on the side it comes from
+      const rel = Math.atan2(w.x - p.x, w.z - p.z) - gfx.cam.yaw, c = toScreen(p.x, 0.6, p.z), r = gfx.h * 0.16;
+      setWarn(true, Math.max(pad, Math.min(gfx.w - pad, c.x - Math.sin(rel) * r)), Math.max(pad * 2, Math.min(gfx.h - pad * 0.4, c.y - Math.cos(rel) * r + gfx.h * 0.05)));
+    }
+  } else { setWarn(false); game.warner = null; }
+  // Teaching without text: steering and throttle at the start, the dash before the first thing to
+  // dash through, the drift before the first round display. Each goes away after its first use.
+  let keys = null;
+  if (playing && !p.ai && !game.custom) {
+    const seen = save.seen, fx = Math.sin(p.h), fz = Math.cos(p.h), ahead = (q, far) => { const dx = q.x - p.x, dz = q.z - p.z, d = dx * fx + dz * fz; return d > 2 && d < far && Math.abs(dx * fz - dz * fx) < 4; };
+    if (game.warner && game.dodgeHint) keys = game.touch ? ['◀', '▶'] : ['A', 'D'];
+    else if (!seen.drive) { keys = game.touch ? ['◀', '▶'] : ['A', 'D', 'W']; if (game.steered > 90) { seen.drive = true; platform.save(); } }
+    else if (!seen.dash && sim.world.pieces.some((q) => q.solid.on && q.solid.dash && ahead(q, 16))) keys = [game.touch ? 'DASH' : 'SHIFT'];
+    else if (!seen.drift && Math.abs(p.spd) > 7 && sim.world.pieces.some((q) => q.type === 'display' && ahead(q, 16))) keys = [game.touch ? 'DRIFT' : 'SPACE'];
+  }
+  if (keys) { const s = toScreen(p.x, 1.2, p.z); setHint(keys, s.x, s.y); } else setHint(null);
 }
 
 // One frame: read input, step the simulation by dt of real time, update the visuals, draw.
 function tick(dt, draw) {
   const sim = game.sim, t0 = performance.now(), p = sim.player;
   game.now = t0;
+  if (game.paused) { if (draw) renderFrame(); return; }
   game.clock += dt;
   // Hit-stop: a few frozen frames on a big impact; the shake and the particles keep moving.
   let simDt = game.state === 'play' ? dt * game.scale : game.state === 'receipt' && !game.frozen ? dt * 0.25 : 0;
@@ -194,8 +267,12 @@ function tick(dt, draw) {
   game.logicMs = performance.now() - t0;
   game.logicSum += game.logicMs; game.logicN++;
   for (const k of sim.carts) if (!k.done || k.player) cartFx(k, k.x, k.z, k.h, dt);
+  for (const q of sim.world.pieces) {                     // fountains spray
+    if (q.type === 'fountain' && Math.abs(q.x - p.x) < 30 && Math.abs(q.z - p.z) < 30) spark(q.x, 1.7, q.z, { color: 8, shape: 0, size: 0.2, ttl: 0.7, grav: 9, vx: Math.sin(game.clock * 37) * 2.5, vz: Math.cos(game.clock * 53) * 2.5, vy: 4 });
+  }
   updateFx(dt);
-  updateCamera(p, alpha, dt, game.view.towerH, sim.world, game.state === 'title' ? 0.7 + 0.35 * Math.sin(game.clock * 0.4) : undefined);
+  const swoop = game.state === 'play' && sim.t < 0 && sim.opts.countdown > 2 ? Math.pow(Math.min(1, -sim.t / 2), 2) : 0;   // the first countdown opens high above the route
+  updateCamera(p, alpha, dt, game.view.towerH, sim.world, game.state === 'title' ? 0.7 + 0.35 * Math.sin(game.clock * 0.4) : undefined, swoop);
   // Closing time washes the store in red, pulsing.
   const tint = gfx.u.uTintAmt;
   tint.value += ((sim.closing && game.state === 'play' ? 0.24 + 0.08 * Math.sin(game.clock * 6) : 0) - tint.value) * Math.min(1, dt * 4);
@@ -208,8 +285,14 @@ function tick(dt, draw) {
     if (game.gainT > 0) chainText('+' + money(game.gain), s.x, s.y, kind);
     else { chainText('', s.x, s.y); floatText('+' + money(game.gain), s.x, s.y, kind || 'big'); game.gain = 0; game.gainList = false; }
   }
+  // During the countdown every rival wears a name tag (the names come back in the receipt's table).
+  if (game.state === 'play' && sim.t < -0.3 && game.clock - game.tagAt > 0.8) {
+    game.tagAt = game.clock;
+    for (const k of sim.carts) if (!k.player) { const s = toScreen(k.x, 2.4 + (k.tower.length ? 1.6 : 0), k.z); if (s.z < 1) floatText(k.def.name.toUpperCase(), s.x, s.y, 'name'); }
+  }
   pointers(dt);
   updateHud(sim, dt);
+  audioFrame(sim, dt, game.state);
   if (game.probe) probeCamera(game.probe, p, dt);
   if (!draw) return;                           // capture mode skips only the GPU work between shots
   renderFrame();
@@ -249,25 +332,43 @@ function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.1, (now - game.last) / 1000);
   game.last = now;
-  if (!game.manual) tick(dt, true);
+  if (!game.manual) { tick(dt, true); if (game.state === 'play' && !game.paused) watchFrameRate(dt); }
 }
 
 async function boot() {
   await loadThree();
   await platform.init();
+  save = Object.assign({ best: {}, medals: {}, unlocked: 1, fails: 0, seen: {}, music: 0.55, sfx: 0.9, shake: TUNE.shake }, platform.progress);
+  platform.progress = save;
+  TUNE.shake = save.shake;
+  if (!query.has('level')) game.level = Math.min(LAST, Math.max(1, save.unlocked));     // carry on where the player left off
   initGfx(document.getElementById('game'));
   initFx();
   initUI(document.getElementById('ui'));
+  ui.onPause = () => pause(true);
   game.v = new THREE.Vector3();
+  // cover=1 and icon=1 are for the pictures of the handoff package: the title view without its buttons, or without any interface and closer.
+  if (query.has('cover')) document.body.classList.add('cover');
+  if (query.has('icon')) { document.body.classList.add('icon'); gfx.cam.near = true; }
+  setSound(platform.soundOn); setVolumes(save.music, save.sfx);
+  platform.onSound(setSound);
   platform.onTune(resizeGfx);
   addEventListener('resize', resizeGfx);
-  addEventListener('pointerdown', hurryUI);
+  addEventListener('pointerdown', (e) => {
+    unlockAudio(); hurryUI();
+    if (e.pointerType === 'touch' && !game.touch) { game.touch = true; showTouch(press); }
+  });
   addEventListener('keydown', (e) => {
     const k = KEYS[e.code];
-    hurryUI();
+    unlockAudio(); hurryUI();
+    if (e.code === 'KeyM') { platform.setSound(!platform.soundOn); return; }
+    if (e.code === 'KeyP' || e.code === 'Escape') { pause(!game.paused); return; }
+    if (game.paused) { if (e.code === 'KeyR') { pause(false); play(true); } return; }
     if (game.state !== 'play') {
-      // Any driving key starts from the title; R or Enter retries after a run.
-      if (game.state === 'title' ? (k || e.code === 'Enter') : (e.code === 'KeyR' || e.code === 'Enter')) { play(game.state !== 'title'); e.preventDefault(); }
+      // Any driving key starts from the title; R retries and Enter goes on after a run.
+      if (game.state === 'title') { if (k || e.code === 'Enter') { play(false); e.preventDefault(); } }
+      else if (e.code === 'KeyR') play(true);
+      else if (e.code === 'Enter') { if (game.state === 'receipt' && game.level >= 1 && game.level < LAST) next(); else play(true); }
       return;
     }
     if (k) {
@@ -276,7 +377,8 @@ async function boot() {
     } else if (e.code === 'KeyR') play(true);
   });
   addEventListener('keyup', (e) => { const k = KEYS[e.code]; if (k) game.inq.push({ name: k, down: false, t: e.timeStamp }); });
-  addEventListener('blur', () => { game.keys = {}; game.inq.length = 0; });
+  // Losing focus pauses a run.
+  addEventListener('blur', () => { game.keys = {}; game.inq.length = 0; if (game.state === 'play' && !game.manual && !game.bot) pause(true); });
   if (game.debug) {
     initDebug(document.getElementById('ui'), {
       tuneRaw: platform.tuneRaw, changed: resizeGfx,
@@ -295,7 +397,7 @@ async function boot() {
     game.probe = { v: new THREE.Vector3(), minX: 9, maxX: -9, minY: 9, maxY: -9, minRoad: 99, reversals: 0, lastSign: 0, lastYaw: 0, time: 0, lift: 0, log: [] };
     const born = new WeakMap();
     window.__db = {
-      game, gfx, TUNE, play,
+      game, gfx, TUNE, play, pause, title, save, audio, audioApi: { unlockAudio, audioEvent, audioCue, audioFrame },
       key(name, down) { game.inq.push({ name, down, t: -1e9 }); },     // a scripted key press, applied on the next step
       custom(def) { game.custom = def; play(false); },                 // a test level built by a tool
       // Advances `seconds` of game time in 60 Hz frames and draws the last one. The interface's CSS
@@ -316,7 +418,7 @@ async function boot() {
         const p = game.sim.player, pr = game.probe, st = game.sim.stats;
         return { t: game.sim.t, phase: game.sim.phase, state: game.state, calls: gfx.stats.calls, tris: gfx.stats.tris, renderMs: gfx.stats.ms,
           logicMs: game.logicSum / Math.max(1, game.logicN), x: p.x, z: p.z, h: p.h, spd: p.spd, load: p.load, items: p.tower.length, value: p.value, step: CFG.STEP,
-          mad: p.mad, madT: p.madT, place: p.place, modes: st.madModes, rammed: st.rammed, shoppers: game.sim.shoppers.length, rivals: game.sim.carts.length - 1,
+          doneT: p.doneT, receipt: p.receipt, mad: p.mad, madT: p.madT, place: p.place, modes: st.madModes, rammed: st.rammed, shoppers: game.sim.shoppers.length, rivals: game.sim.carts.length - 1,
           cam: { cartX: [pr.minX, pr.maxX], cartY: [pr.minY, pr.maxY], minRoadSeconds: pr.minRoad,
             yawReversalsPerSecond: pr.reversals / Math.max(pr.time, 1e-6), maxLift: pr.lift }, log: pr.log };
       },
@@ -324,7 +426,7 @@ async function boot() {
   }
   // A bot or the capture tool goes straight into the run; a person gets the title and one click.
   if (game.bot || game.manual || query.has('go')) play(false);
-  else { startLevel(false); showTitle(LEVELS[game.level].name, () => play(false)); }
+  else title();
   tick(1 / 60, true);
   game.last = performance.now();
   requestAnimationFrame(frame);

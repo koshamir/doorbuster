@@ -54,6 +54,8 @@ export const CFG = {
   dashTime: 0.33, dashBuffer: 0.15, dashSteer: 0.5, dashReach: 0.35,
   dashSag: 0.82,          // top speed share for a moment after a dash that hit nothing
   dashSagTime: 0.7,       // how long that lasts, seconds
+  ramWarn: 0.8,           // seconds between a rival's "!" and its lunge at the player (it holds its line meanwhile)
+  shedKnock: 5,           // speed into something (m/s) that shakes goods off an overloaded tower
   // walls
   wallBounce: 0.15, wallFriction: 0.25, wallAlign: 9,
   wallTurn: 6,            // fastest the body turns to follow a surface, rad/s
@@ -76,6 +78,12 @@ export const CFG = {
   pinYaw: 4.5,            // how fast a cart pinned nose-first swings along the wall, rad/s
   pinPatience: 0.3,       // seconds of pushing with no movement before the cart backs out by itself
   backTime: 0.32, backSpeed: 3.5, backYaw: 2.8,   // the automatic back-out: seconds, m/s, rad/s
+  // mall kit
+  beltSpeed: 5,           // a travelator carries a cart this fast, m/s (with it: faster; against it: about half speed)
+  jumpSpeed: 7,           // speed along a ramp needed to take off, m/s
+  jumpTime: 0.9,          // seconds in the air (at top speed that is 10.8 m)
+  jumpHeight: 1.7,        // how high the arc looks, metres
+  trainSpeed: 7, trainCars: 4,   // the cart train: m/s and carts in the string (1.5 m apart)
   countdown: 2.4,         // seconds from the click to GO
   camFollow: 6.5,         // how fast the camera's yaw follows the cart, 1/s (lag at full lock is about 14 degrees)
   // Madness: the meter runs over four segments (0..4); a full one is MADNESS mode
@@ -85,7 +93,7 @@ export const CFG = {
   madDrift: 0.3,          // gain per spark tier when a drift is released into its boost
   // scoring
   listBonus: 200,         // dollars for bringing all three list items to the checkout
-  stunts: { cleansweep: 50, strike: 150, ram: 75, takedown: 200, shave: 10, smash: 25, jump: 250 },
+  stunts: { cleansweep: 50, strike: 150, ram: 75, takedown: 200, shave: 10, smash: 25, jump: 250, dodge: 40 },
 };
 
 // ---- Palette (ART.md section 3). Stored as sRGB hex; rgb() converts to 0..1 floats. ----------

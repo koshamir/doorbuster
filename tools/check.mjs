@@ -63,7 +63,7 @@ for (const n in TUNE) ok(n in tune, `src/config.js has "${n}" but tune.json does
 notes.push(`tune.json: ${names.length} entries (limit 40)`);
 
 // ---- levels: well-formed plans, a start, a checkout, every floor tile can reach the checkout
-const LEGEND = ' .SMLo123@rcg><^v~R' + Object.keys(PIECES).join('');
+const LEGEND = ' .SMLo123@rcg><^v~R=' + Object.keys(PIECES).join('');
 LEVELS.forEach((def, li) => {
   const tag = `level ${li} "${def.id}"`;
   const w = def.plan[0].length;
@@ -82,7 +82,25 @@ LEVELS.forEach((def, li) => {
   let units = 0;
   for (const it of world.items) units += GOODS[it.good].w;
   for (const d of world.drops) units += GOODS[d.good].w;
-  notes.push(`${tag}: ${world.cols}x${world.rows} tiles, route ${world.navStart.toFixed(0)} m, timer ${def.timer} s, goods ${units} units (${(units / TUNE.loadfull).toFixed(1)} carts)`);
+  // The longest stretch of the route with nothing for the player within 5 m (goods, something to dash
+  // through, shoppers' huddle, travelator, wet floor, ramp, train): QUALITY 4 allows 25 m.
+  const things = [...world.items, ...world.drops, ...world.huddles, ...world.ramps, ...world.pieces.filter((p) => p.solid.dash || p.solid.soft || p.type === 'display' || p.type === 'fountain')];
+  let c = Math.floor(world.start.x / 2), r = Math.floor(world.start.z / 2), gap = 0, worst = 0;
+  for (let n = 0; n < 2000; n++) {
+    let best = world.nav[r * world.cols + c], bc = c, br = r;
+    for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+      const v = world.nav[(r + dr) * world.cols + c + dc];
+      if (v < best - 1e-3 && !(dc && dr && (world.block[r * world.cols + c + dc] || world.block[(r + dr) * world.cols + c]))) { best = v; bc = c + dc; br = r + dr; }
+    }
+    if (bc === c && br === r) break;
+    const step = Math.hypot(bc - c, br - r) * 2, i = br * world.cols + bc, x = bc * 2 + 1, z = br * 2 + 1;
+    c = bc; r = br;
+    const busy = world.belt[i] || world.wet[i] || world.plan[r][c] === '=' || things.some((t) => Math.abs(t.x - x) < 5 && Math.abs(t.z - z) < 5);
+    gap = busy ? 0 : gap + step;
+    worst = Math.max(worst, gap);
+  }
+  if (def.rivals && def.rivals.length) ok(worst <= 25, `${tag}: an empty stretch of ${worst.toFixed(0)} m on the route (limit 25 m)`);
+  notes.push(`${tag}: ${world.cols}x${world.rows} tiles, route ${world.navStart.toFixed(0)} m, timer ${def.timer} s, goods ${units} units (${(units / TUNE.loadfull).toFixed(1)} carts), longest empty stretch ${worst.toFixed(0)} m`);
 });
 
 // ---- size of everything except three.js

@@ -329,8 +329,9 @@ export function addShelf(b, s, accent) {
   }
 }
 
-// Static single-tile pieces (those that never change): counter, round display, plant, bench, fountain, tree.
-export function addPiece(b, type, x, z, accent) {
+// Static single-tile pieces (those that never change): counter, round display, plant, bench, fountain,
+// tree, ramp (ry turns it to face down the route), wet-floor sign.
+export function addPiece(b, type, x, z, accent, ry = 0) {
   place(b, x, 0, z);
   if (type === 'counter') {
     addBox(b, 1.4, 0.95, 2.0, PAL.white, { bevel: 0.08, top: PAL.night });
@@ -347,6 +348,15 @@ export function addPiece(b, type, x, z, accent) {
   } else if (type === 'fountain') {
     addCyl(b, 2.8, 2.8, 0.5, PAL.steel, { seg: 20, top: PAL.sky });
     place(b, x, 0.5, z); addCyl(b, 0.6, 0.4, 1.1, PAL.white, { seg: 10, top: PAL.sky });
+  } else if (type === 'ramp') {                     // a plank rising toward the front, on two side cheeks
+    const s = Math.sin(ry), c = Math.cos(ry);
+    place(b, x, 0.37, z, ry, -0.33); addBox(b, 1.8, 0.14, 2.3, PAL.steel, { bevel: 0.1, top: PAL.sale });
+    for (const side of [-0.95, 0.95]) { place(b, x + c * side + s * 0.55, 0, z - s * side + c * 0.55, ry); addBox(b, 0.14, 0.62, 1.1, PAL.shadow, { bevel: 0.1 }); }
+    for (const at of [-0.5, 0.2]) { place(b, x + s * at, 0.5 + at * 0.33, z + c * at, ry, -0.33); addBox(b, 1.0, 0.04, 0.22, PAL.shadow, { bevel: 0 }); }
+  } else if (type === 'wetsign') {                  // the yellow A-frame that stands by a wet patch
+    place(b, x, 0, z - 0.14, 0, 0.26); addBox(b, 0.5, 0.85, 0.05, PAL.sale, { bevel: 0.1 });
+    place(b, x, 0, z + 0.14, 0, -0.26); addBox(b, 0.5, 0.85, 0.05, PAL.sale, { bevel: 0.1 });
+    place(b, x, 0.3, z + 0.25, 0, -0.26); addBox(b, 0.1, 0.3, 0.02, PAL.shadow, { bevel: 0 });
   } else if (type === 'tree') {
     addCyl(b, 0.5, 0.5, 0.6, PAL.brown, { seg: 8 });
     for (let i = 0; i < 4; i++) { place(b, x, 0.5 + i * 1.0, z); addCyl(b, 1.7 - i * 0.38, 0.5 - i * 0.1, 1.2, PAL.leaf, { seg: 10 }); }
@@ -383,6 +393,12 @@ export function pieceGeometry(type) {
   } else if (type === 'boxes') {
     addBox(b, 0.7, 0.5, 0.6, PAL.brown, { bevel: 0.08, top: PAL.wall });
     place(b, 0.08, 0.5, 0, 0.5); addBox(b, 0.5, 0.4, 0.44, PAL.brown, { bevel: 0.08, top: PAL.wall });
+  } else if (type === 'glass') {                    // a shop window across a doorway: frame, pane, glare, a SALE sticker on both sides
+    place(b, 0, 0, 0); addBox(b, 2.0, 0.2, 0.3, PAL.white, { bevel: 0.2 });
+    place(b, 0, 2.0, 0); addBox(b, 2.0, 0.2, 0.3, PAL.white, { bevel: 0.2 });
+    place(b, 0, 0.2, 0); addBox(b, 1.96, 1.8, 0.1, PAL.sky, { bevel: 0 });
+    for (const [x, zz] of [[-0.45, 0.06], [-0.2, 0.06], [0.45, -0.06], [0.2, -0.06]]) { place(b, x, 0.25, zz, 0, 0, 0.5); addBox(b, 0.08, 1.5, 0.02, PAL.white, { bevel: 0 }); }
+    for (const zz of [0.07, -0.07]) { place(b, 0, 0.9, zz); addBox(b, 0.9, 0.42, 0.03, PAL.danger, { bevel: 0.2 }); place(b, 0, 1.03, zz * 1.2); addBox(b, 0.6, 0.12, 0.03, PAL.white, { bevel: 0 }); }
   } else if (type === 'star') {                     // the gold star that bobs over a hot item: four spikes and a core
     for (let i = 0; i < 4; i++) { place(b, 0, 0, 0, 0, 0, i * Math.PI / 2); addCyl(b, 0.17, 0, 0.5, PAL.hot, { seg: 4 }); }
     place(b, 0, 0, 0); addBall(b, 0.2, 0.2, 0.14, PAL.hot, { seg: 6, rings: 4 });

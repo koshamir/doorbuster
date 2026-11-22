@@ -10,10 +10,10 @@
 // Determinism: fixed step CFG.STEP, one seeded generator (sim.rng) for every random choice.
 // Events are { type, cart, value, ref }; the types are listed where they are emitted.
 
-import { TUNE, CFG, GOODS, GOOD, POOLS, makeRng, clamp } from './config.js';
+import { TUNE, CFG, GOODS, GOOD, POOLS, makeRng, clamp, wrapAngle } from './config.js';
 import { buildWorld, navBuild, navDistAt, blockedAt } from './world.js';
 import { makeCart, stepCart } from './cart.js';
-import { BOTS, makeDriver, rivalProfile, drive, spawnCrowd, stepCrowd } from './ai.js';
+import { BOTS, makeDriver, rivalProfile, drive, spawnCrowd, stepCrowd, spawnTrains, stepTrains } from './ai.js';
 
 // opts: bot ('beginner' | 'confident' | 'expert' | 'sloppy') drives the player's cart; countdown and
 // timer override the defaults (tests use countdown: 0); greed (0..1) overrides the bot's appetite;
@@ -25,17 +25,20 @@ export function createSim(def, seed, opts = {}) {
     def, seed, opts, rng, world,
     phase: 'count',                 // count -> run -> done (player checked out) | closed (time ran out)
     t: -(opts.countdown ?? CFG.countdown),   // seconds since GO
-    timer: opts.timer || def.timer || TUNE.timer,
-    carts: [], player: null, shoppers: [], events: [], acc: 0, tick: 0,
+    timer: opts.timer || (def.timer || 90) * TUNE.timer / 90,   // the tune value scales every level's own time: 90 = as designed
+    carts: [], player: null, shoppers: [], trains: [], events: [], acc: 0, tick: 0,
     sale: null,                     // the flash sale: { piece, t } while it runs
-    saleDone: false, closing: false, closed: 0, ramCool: 0, table: null,
+    saleDone: false, closing: false, closeT: 0, order: null, closed: 0, ramCool: 0, table: null,
     stats: { stuck: 0, crashes: 0, bumps: 0, zeroT: 0, lostNow: 0, lostMax: 0, taken: 0, spilled: 0, firstShelf: 0, firstGroup: -1,
       rammed: 0, rivalRams: 0, madModes: 0, x2At: -1, shaves: 0, strikes: 0, bowled: 0, rivalCrashes: 0, rivalStuck: 0, rivalModes: 0, pushOuts: 0 },
     emit(type, cart, value, ref) {
       sim.events.push({ type, cart, value, ref });
       if (type === 'boost') madGain(sim, cart, CFG.madDrift * value);        // a drift held to a boost feeds Madness
-      // An overloaded tower sheds its top when the cart knocks against something (no crash needed).
-      else if (type === 'bump' && value > 2.5 && cart.load > TUNE.loadfull && cart.madT <= 0) shed(sim, cart, 1 + Math.min(3, Math.floor(value / 3)));
+      // An overloaded tower sheds its top on a hard knock (no crash needed). Rubbing along the shelf
+      // being swept or a checkout counter never counts.
+      else if (type === 'bump' && value > CFG.shedKnock && !(ref && (ref.type === 'shelf' || ref.type === 'counter')) && cart.load > TUNE.loadfull && cart.madT <= 0) {
+        shed(sim, cart, 1 + Math.min(2, Math.floor((value - CFG.shedKnock) / 3)));
+      }
     },
     // A crash spills the top of the tower, harder hits spill more (never above spillmax), and costs a
     // segment of Madness.
@@ -49,6 +52,14 @@ export function createSim(def, seed, opts = {}) {
     },
     onSmash(k, solid) { smash(sim, k, solid); },
     onKnock(k, solid) { if (k.dashT <= 0 && k.madT <= 0) { k.vx *= 0.95; k.vz *= 0.95; } sim.emit('knock', k, 0, solid); },
+    // Back on the floor after a ramp. Clearing something on the way is a named trick; a hard landing
+    // shakes an overloaded tower.
+    onLand(k, over) {
+      sim.emit('land', k, over ? 1 : 0);
+      k.immuneT = Math.max(k.immuneT, 0.6);              // falling short costs the shortcut, not the goods
+      if (over) { stunt(sim, k, 'jump', k.x, k.z); madGain(sim, k, 1); }
+      if (k.load > TUNE.loadfull && k.madT <= 0) shed(sim, k, 2);
+    },
     stunt(k, name, x, z) { stunt(sim, k, name, x, z); },
     madGain(k, amount) { madGain(sim, k, amount); },
   };
@@ -68,6 +79,7 @@ export function createSim(def, seed, opts = {}) {
     });
     spawnCrowd(sim);
   }
+  spawnTrains(sim);
   sim.events.length = 0;
   return sim;
 }
@@ -193,17 +205,17 @@ function stunt(sim, k, name, x, z) {
 // Drops `share` of the tower (at most spillmax), top first, onto free floor a few metres from the
 // cart in the direction (dx, dz). Spilled goods flash for `recollect` seconds and anyone can take them.
 // One hit never costs more than spillmax of the tower's goods, top first; list items stay in the cart.
-// fan = true is a crash: the goods are thrown to both sides instead of along the direction, and the
-// loss is capped at spillmax of the tower's dollars too (anything dearer than that stays). A ram is
-// not capped in dollars: it must be able to knock a hot item off the top.
-// Emits 'spill' with value = goods and ref = { lost: dollars }.
+// fan = true is a crash: the goods are thrown to both sides instead of along the direction. The loss
+// is capped at spillmax of the tower's dollars too (anything dearer than that stays), with one
+// exception: a ram on a rival always knocks off its top item, so a hot item can be taken from it.
+// Emits 'spill' with value = goods and ref = { lost: dollars, crash }.
 function spill(sim, k, share, dx, dz, fan) {
   let n = 0, lost = 0;
   const want = Math.floor(k.tower.length * Math.min(share, TUNE.spillmax)), most = k.value * TUNE.spillmax;
   for (let i = k.tower.length - 1; i >= 0 && n < want; i--) {
     const e = k.tower[i];
     if (e.list) continue;
-    if (fan && lost + e.value > most) continue;
+    if ((fan || k.player || n > 0) && lost + e.value > most) continue;
     drop(sim, k, i, dx, dz, fan);
     n++; lost += e.value;
   }
@@ -217,13 +229,15 @@ function drop(sim, k, i, dx, dz, fan) {
   k.load -= GOODS[e.good].w; k.value -= e.value;
   scatter(sim, k.x, k.z, dx, dz, e.good, 0, TUNE.recollect, fan);
 }
-// An overloaded tower lets go of its top n goods (a knock, a long drift). Emits 'shed'.
+// An overloaded tower lets go of its top n goods (a hard knock, a long drift, a hard landing): never
+// a list item or a hot item, never more than spillmax of its dollars. Emits 'shed'.
 function shed(sim, k, n) {
   let done = 0, lost = 0;
-  const sp = Math.hypot(k.vx, k.vz) || 1;
+  const sp = Math.hypot(k.vx, k.vz) || 1, most = k.value * TUNE.spillmax;
   for (let i = k.tower.length - 1; i >= 0 && done < n; i--) {
-    if (k.tower[i].list) continue;
-    lost += k.tower[i].value;
+    const e = k.tower[i];
+    if (e.list || GOODS[e.good].size === 'H' || lost + e.value > most) continue;
+    lost += e.value;
     drop(sim, k, i, -k.vx / sp, -k.vz / sp, false);        // they are left behind the cart
     done++;
   }
@@ -249,6 +263,7 @@ const OUT = [];
 function makeRoom(sim, k, w, value) {
   let need = k.load + w - TUNE.loadfull * TUNE.overstack;
   if (need <= 0) return true;
+  if (!k.fullSaid) { k.fullSaid = true; sim.emit('full', k); }       // the cap is announced the moment it first matters
   OUT.length = 0;
   let sum = 0;
   while (need > 0) {
@@ -259,10 +274,7 @@ function makeRoom(sim, k, w, value) {
       rate = e.value / g.w; best = i;
     }
     if (best >= 0) { OUT.push(best); sum += k.tower[best].value; need -= GOODS[k.tower[best].good].w; }
-    if (best < 0 || sum >= value) {
-      if (!k.fullSaid) { k.fullSaid = true; sim.emit('full', k); }     // the first refusal is announced
-      return false;
-    }
+    if (best < 0 || sum >= value) return false;
   }
   OUT.sort((a, b) => b - a);
   const sp = Math.hypot(k.vx, k.vz) || 1;
@@ -301,6 +313,7 @@ function smash(sim, k, solid) {
 function ram(sim, a, b, nx, nz) {
   if (b.immuneT > 0 || b.done || a.ramCd > 0) return;
   if (b.player && a.ai && !(a.ai.strikeT > 0)) return;   // a rival's ram on the player counts only if it was announced
+  if (b.player && a.ai) a.ai.hit = true;
   a.ramCd = 0.5; a.dashHits++;
   if (b.char === 'granny' && a.load < TUNE.loadfull * 0.7 && a.boostT <= 0 && a.madT <= 0) {
     a.vx -= nx * 5; a.vz -= nz * 5;
@@ -319,6 +332,21 @@ function ram(sim, a, b, nx, nz) {
 }
 
 // ---- Checkout and the final table -----------------------------------------------------------------
+// The fourth invisible helper: a cart driving at an open checkout from within 7 m is eased onto the
+// lane's centre line and straightened, so that nobody's run ends on the corner of a counter.
+function funnel(world, k, dt) {
+  for (const l of world.lanes) {
+    if (!l.open) continue;
+    const b = l.bar, deep = b.hz >= b.hx;                // deep: the lane runs along z
+    const along = deep ? l.z - k.z : l.x - k.x, side = deep ? k.x - l.x : k.z - l.z, out = Math.abs(along) - (deep ? b.hz : b.hx);
+    if (out > 7 || out < -0.5 || Math.abs(side) > 2.4 || (deep ? k.vz : k.vx) * Math.sign(along) < 3) continue;
+    const pull = side * Math.min(1, dt * 3.5 * (1 - out / 9));
+    if (deep) k.x -= pull; else k.z -= pull;
+    k.h += clamp(wrapAngle((deep ? (along > 0 ? 0 : Math.PI) : (along > 0 ? 1 : -1) * Math.PI / 2) - k.h) * 2.5, -0.9, 0.9) * dt;
+    return;
+  }
+}
+
 // The receipt: ITEMS (prices already carry their multipliers), LIST, STUNTS, TIME, TOTAL (GDD 5.9).
 function checkout(sim, k, lane) {
   k.done = true; k.doneT = sim.t; k.lane = lane;
@@ -355,14 +383,15 @@ function events(sim, dt) {
   const live = sim.phase === 'run';
   // DOORS OPEN: pressing the accelerator right on GO (not holding it early) is a rocket start.
   if (live && sim.t < 0.25 && !p.rocket && p.input.gas > 0 && p.gasAt > -0.15) rocketStart(sim, p);
-  // FLASH SALE at 40% of the timer: a hot item appears at a sale spot ahead of the player for 10 s.
+  // FLASH SALE at 40% of the timer: a hot item appears at a sale spot ahead of the player for 10 s
+  // (rivals leave it alone for the first 4 s, see ai.js).
   if (live && !sim.saleDone && !sim.sale && sim.t >= sim.timer * 0.4) {
     const here = navDistAt(world, p.x, p.z);
     let best = null, bd = 1e9;
     for (const q of world.pieces) {
       if (!q.sale) continue;
       const ahead = here - navDistAt(world, q.x, q.z);
-      const score = ahead > 20 ? ahead : 1e6 - ahead;        // the nearest spot at least 20 m ahead, else the least far behind
+      const score = ahead > 24 ? ahead : 1e6 - ahead;        // the nearest spot at least 24 m ahead (two seconds at full speed), else the least far behind
       if (score < bd) { bd = score; best = q; }
     }
     sim.saleDone = true;
@@ -384,27 +413,32 @@ function events(sim, dt) {
       sim.sale = null;
     }
   }
-  // CLOSING TIME, the last 15 s: checkouts go dark one by one (2 s warning each), shutters come down.
-  if (!sim.closing && left <= 15) {
-    sim.closing = true;
-    sim.order = world.lanes.map((l) => l.id);        // the order in which lanes close: a seeded shuffle
-    for (let i = sim.order.length - 1; i > 0; i--) { const j = sim.rng.int(i + 1), t = sim.order[i]; sim.order[i] = sim.order[j]; sim.order[j] = t; }
-    sim.emit('closing', p);
+  // CLOSING TIME starts when the first cart comes within `closeAt` metres of the checkouts, or with
+  // `closing` seconds left on the clock, whichever is first: every run gets its finale, whatever the
+  // player's pace. From then the checkouts go dark one by one over `closing` seconds (2 s of warning
+  // each, and never in the face of a cart at the lane's mouth); the last one stays open until the
+  // store shuts.
+  const span = sim.def.closing || 15;
+  if (!sim.closing) {
+    let lead = 1e9;
+    for (const k of sim.carts) if (!k.done) lead = Math.min(lead, world.navStart - k.prog);
+    if (left <= span || (sim.t > 5 && lead < (sim.def.closeAt || 90))) {
+      sim.closing = true; sim.closeT = sim.t;
+      sim.order = world.lanes.map((l) => l.id);      // the order in which lanes close: a seeded shuffle
+      for (let i = sim.order.length - 1; i > 0; i--) { const j = sim.rng.int(i + 1), t = sim.order[i]; sim.order[i] = sim.order[j]; sim.order[j] = t; }
+      sim.emit('closing', p);
+    }
   }
   if (sim.closing) {
-    const n = world.lanes.length;
+    const n = world.lanes.length, since = sim.t - sim.closeT, gap = Math.min(span, sim.timer - sim.closeT) / n;
     for (let j = sim.closed; j < n - 1; j++) {
-      const at = 15 * (1 - (j + 1) / n), lane = world.lanes[sim.order[j]];
-      if (left <= at + 2 && !lane.warned) { lane.warned = true; sim.emit('lanewarn', p, 0, lane); }
-      if (left > at) break;
+      const at = gap * (j + 1), lane = world.lanes[sim.order[j]];
+      if (since >= at - 2 && !lane.warned) { lane.warned = true; navBuild(world); sim.emit('lanewarn', p, 0, lane); }
+      if (since < at || (since < at + 1.5 && sim.carts.some((k) => !k.done && Math.abs(k.x - lane.x) < 3.5 && Math.abs(k.z - lane.z) < 3.5))) break;
       lane.open = false; lane.bar.on = true; sim.closed = j + 1;
+      for (const i of lane.tiles) world.block[i] = 1;
       navBuild(world);
       sim.emit('laneclose', p, 0, lane);
-    }
-    for (const q of world.pieces) {
-      if (q.type !== 'shutter' || q.solid.on) continue;
-      if (left <= 13 && !q.warned) { q.warned = true; sim.emit('shutterwarn', p, 0, q); }
-      if (left <= 11) { q.solid.on = true; world.block[q.r * world.cols + q.c] = 1; navBuild(world); sim.emit('shutter', p, 0, q); }
     }
   }
 }
@@ -437,6 +471,7 @@ export function stepSim(sim) {
       if (k.done) { k.vx *= 0.94; k.vz *= 0.94; }
     }
     stepCart(k, k.input, sim, dt);
+    if (racing && k.air <= 0 && k.stunT <= 0) funnel(world, k, dt);
     if (k.ramCd > 0) k.ramCd -= dt;
     if (k.grudgeT > 0) k.grudgeT -= dt;
     if (k.spinT > 0) k.spinT -= dt;
@@ -447,7 +482,7 @@ export function stepSim(sim) {
     }
   }
   bumpCarts(sim);
-  if (racing) stepCrowd(sim, dt);
+  if (racing) { stepCrowd(sim, dt); stepTrains(sim, dt); }
 
   // Spilled goods wait a moment before they can be taken, then time out.
   for (const d of world.drops) {
@@ -463,10 +498,10 @@ export function stepSim(sim) {
     if (!racing) continue;
     madTick(sim, k, dt);
     if (k.air <= 0 && k.stunT <= 0) pickups(sim, k);
-    // An overloaded tower cannot take a long drift: past the first spark tier it sheds one item after another.
-    if (k.drift && k.tier >= 1 && k.load > TUNE.loadfull && k.madT <= 0) {
+    // An overloaded tower cannot take a long drift: past the second spark tier it sheds one item after another.
+    if (k.drift && k.tier >= 2 && k.load > TUNE.loadfull && k.madT <= 0) {
       k.shedT -= dt;
-      if (k.shedT <= 0) { k.shedT = 0.22; shed(sim, k, 1); }
+      if (k.shedT <= 0) { k.shedT = 0.25; shed(sim, k, 1); }
     } else k.shedT = 0;
     const c = Math.floor(k.x / CFG.TILE), r = Math.floor(k.z / CFG.TILE);
     const lane = c >= 0 && r >= 0 && c < world.cols && r < world.rows ? world.laneOf[r * world.cols + c] : -1;
@@ -477,10 +512,13 @@ export function stepSim(sim) {
   if (sim.phase === 'run') {
     const st = sim.stats;
     if (Math.abs(p.spd) < 1) st.zeroT += dt;
-    if (p.stunT > 0 || p.air > 0) { st.lostNow += dt; st.lostMax = Math.max(st.lostMax, st.lostNow); } else st.lostNow = 0;
-    if (sim.tick % 30 === 0) {                       // the player's place by the money in the cart right now
-      let place = 1;
-      for (const k of sim.carts) if (k !== p && (k.receipt ? k.receipt.total : k.value + k.stunts) > p.value + p.stunts) place++;
+    if (p.stunT > 0) { st.lostNow += dt; st.lostMax = Math.max(st.lostMax, st.lostNow); } else st.lostNow = 0;   // control taken away (a jump is the player's own choice)
+    if (sim.tick % 30 === 0) {                       // the player's place if everybody still out there checked out right now
+      const bonus = Math.max(0, Math.floor(sim.timer - sim.t)) * TUNE.timebonus;
+      let place = 1, mine = p.value + p.stunts + bonus, have = 0;
+      for (const e of p.tower) if (e.list) have |= 1 << e.list;
+      if (have === 14) mine += CFG.listBonus;
+      for (const k of sim.carts) if (k !== p && (k.receipt ? k.receipt.total : k.value + k.stunts + bonus) > mine) place++;
       p.place = place;
     }
     if (sim.t >= sim.timer) { sim.phase = 'closed'; sim.emit('timeup', p); }
@@ -514,8 +552,8 @@ function bumpCarts(sim) {
     const a = carts[i], b = carts[j];
     if (a.air > 0 || b.air > 0 || a.done || b.done) continue;
     if (Math.abs(b.x - a.x) > 3.2 || Math.abs(b.z - a.z) > 3.2) continue;
-    // the deepest overlap among the four pairs of circles; a dash reaches a little further
-    const reach = a.dashT > 0 || b.dashT > 0 ? CFG.dashReach : 0;
+    // the deepest overlap among the four pairs of circles; the player's own dash reaches a little further
+    const reach = (a.player && a.dashT > 0) || (b.player && b.dashT > 0) ? CFG.dashReach : 0;
     let over = 0, nx = 0, nz = 0;
     for (const [pa, ra] of PART) for (const [pb, rb] of PART) {
       const dx = b.x + Math.sin(b.h) * pb - a.x - Math.sin(a.h) * pa, dz = b.z + Math.cos(b.h) * pb - a.z - Math.cos(a.h) * pa;

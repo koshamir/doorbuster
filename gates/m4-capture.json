@@ -3,21 +3,21 @@
   "summary": [
     {
       "name": "title",
-      "loadMs": 821
+      "loadMs": 679
     },
     {
       "name": "start",
-      "loadMs": 209,
+      "loadMs": 225,
       "pink": {
-        "pinkPct": 1.34,
-        "ofVividPct": 15.3
+        "pinkPct": 1.39,
+        "ofVividPct": 16.6
       },
       "t": 4,
       "phase": "run",
-      "items": 28,
-      "value": 564,
-      "calls": 61,
-      "tris": 126156,
+      "items": 24,
+      "value": 416,
+      "calls": 62,
+      "tris": 127132,
       "gpu": "NVIDIA GeForce RTX 4060",
       "cam": {
         "cartX": [
@@ -25,7 +25,7 @@
           0
         ],
         "cartY": [
-          -0.4,
+          -0.44,
           -0.2
         ],
         "floorAheadSec": 2.53,
@@ -35,35 +35,35 @@
     },
     {
       "name": "run",
-      "loadMs": 207,
+      "loadMs": 223,
       "pink": {
-        "pinkPct": 0.91,
-        "ofVividPct": 13
+        "pinkPct": 0.88,
+        "ofVividPct": 20.9
       },
-      "t": 51.86,
+      "t": 51.91,
       "phase": "done",
-      "items": 30,
-      "value": 3570,
-      "calls": 52,
-      "tris": 101120,
+      "items": 32,
+      "value": 3430,
+      "calls": 53,
+      "tris": 99102,
       "gpu": "NVIDIA GeForce RTX 4060",
       "cam": {
         "cartX": [
-          -0.02,
-          0.02
+          -0.03,
+          0.03
         ],
         "cartY": [
-          -0.41,
-          -0.16
+          -0.44,
+          -0.15
         ],
-        "floorAheadSec": 2.37,
-        "yawRev": 0.86,
+        "floorAheadSec": 1.85,
+        "yawRev": 0.94,
         "lift": 0
       }
     },
     {
       "name": "ram",
-      "loadMs": 206,
+      "loadMs": 231,
       "eventAt": 0.683,
       "t": 0.78,
       "phase": "run",
@@ -78,7 +78,7 @@
           0.01
         ],
         "cartY": [
-          -0.4,
+          -0.44,
           -0.13
         ],
         "floorAheadSec": 1.86,
@@ -88,32 +88,32 @@
     },
     {
       "name": "rammed",
-      "loadMs": 207,
-      "eventAt": 23.658,
-      "t": 23.66,
+      "loadMs": 218,
+      "eventAt": 13.642,
+      "t": 13.64,
       "phase": "run",
-      "items": 24,
-      "value": 1644,
-      "calls": 57,
-      "tris": 123136,
+      "items": 10,
+      "value": 117,
+      "calls": 74,
+      "tris": 128388,
       "gpu": "NVIDIA GeForce RTX 4060",
       "cam": {
         "cartX": [
-          -0.02,
-          0.02
+          -0.03,
+          0.03
         ],
         "cartY": [
-          -0.4,
-          -0.16
+          -0.44,
+          -0.15
         ],
-        "floorAheadSec": 2.37,
-        "yawRev": 1.01,
+        "floorAheadSec": 1.85,
+        "yawRev": 0.9,
         "lift": 0
       }
     },
     {
       "name": "smash",
-      "loadMs": 205,
+      "loadMs": 227,
       "t": 2.22,
       "phase": "run",
       "items": 0,
@@ -127,7 +127,7 @@
           0
         ],
         "cartY": [
-          -0.4,
+          -0.44,
           -0.13
         ],
         "floorAheadSec": 2,
@@ -137,82 +137,82 @@
     },
     {
       "name": "hot",
-      "loadMs": 215,
-      "eventAt": 26.442,
-      "t": 26.72,
+      "loadMs": 226,
+      "eventAt": 26.258,
+      "t": 26.54,
       "phase": "run",
-      "items": 30,
-      "value": 6507,
-      "calls": 55,
-      "tris": 120238,
+      "items": 33,
+      "value": 4492,
+      "calls": 57,
+      "tris": 118956,
       "gpu": "NVIDIA GeForce RTX 4060",
       "cam": {
         "cartX": [
-          -0.04,
+          -0.02,
           0.03
         ],
         "cartY": [
-          -0.4,
+          -0.44,
           -0.13
         ],
         "floorAheadSec": 1.86,
-        "yawRev": 1.1,
+        "yawRev": 0.84,
         "lift": 0
       }
     },
     {
       "name": "madness",
-      "loadMs": 217,
-      "eventAt": 20.925,
-      "t": 22.47,
+      "loadMs": 215,
+      "eventAt": 17.825,
+      "t": 19.37,
       "phase": "run",
-      "items": 29,
-      "value": 4191,
+      "items": 19,
+      "value": 2636,
       "calls": 64,
-      "tris": 126746,
+      "tris": 124378,
       "gpu": "NVIDIA GeForce RTX 4060",
       "cam": {
         "cartX": [
-          -0.04,
+          -0.02,
           0.03
         ],
         "cartY": [
-          -0.4,
+          -0.44,
           -0.13
         ],
         "floorAheadSec": 1.86,
-        "yawRev": 1.14,
+        "yawRev": 0.8,
         "lift": 0
       }
     },
     {
       "name": "flash",
-      "loadMs": 205,
+      "loadMs": 218,
       "eventAt": 28.808,
       "t": 31.51,
       "phase": "run",
-      "items": 29,
-      "value": 2415,
-      "calls": 57,
-      "tris": 118350,
+      "items": 25,
+      "value": 1044,
+      "calls": 70,
+      "tris": 121436,
       "gpu": "NVIDIA GeForce RTX 4060",
       "cam": {
         "cartX": [
-          -0.02,
-          0.02
+          -0.03,
+          0.03
         ],
         "cartY": [
-          -0.4,
-          -0.16
+          -0.44,
+          -0.15
         ],
-        "floorAheadSec": 2.37,
+        "floorAheadSec": 1.85,
         "yawRev": 0.98,
         "lift": 0
       }
     },
     {
       "name": "strike",
-      "loadMs": 213,
+      "loadMs": 219,
       "t": 2.28,
       "phase": "run",
       "items": 0,
@@ -226,7 +226,7 @@
           0.01
         ],
         "cartY": [
-          -0.4,
+          -0.44,
           -0.13
         ],
         "floorAheadSec": 2,
@@ -236,7 +236,7 @@
     },
     {
       "name": "crowd",
-      "loadMs": 201,
+      "loadMs": 226,
       "t": 2.6,
       "phase": "run",
       "items": 0,
@@ -250,7 +250,7 @@
           0
         ],
         "cartY": [
-          -0.4,
+          -0.44,
           -0.2
         ],
         "floorAheadSec": 2.47,
@@ -260,31 +260,31 @@
     },
     {
       "name": "closing",
-      "loadMs": 205,
+      "loadMs": 223,
       "t": 50,
       "phase": "run",
-      "items": 48,
-      "value": 1232,
-      "calls": 45,
-      "tris": 101144,
+      "items": 33,
+      "value": 2141,
+      "calls": 47,
+      "tris": 102700,
       "gpu": "NVIDIA GeForce RTX 4060",
       "cam": {
         "cartX": [
           -0.01,
-          0.02
+          0
         ],
         "cartY": [
-          -0.4,
+          -0.44,
           -0.21
         ],
-        "floorAheadSec": 2.24,
-        "yawRev": 1.32,
+        "floorAheadSec": 2.87,
+        "yawRev": 1.3,
         "lift": 0
       }
     },
     {
       "name": "closed",
-      "loadMs": 208,
+      "loadMs": 221,
       "t": 72,
       "phase": "closed",
       "items": 0,
@@ -298,7 +298,7 @@
           0
         ],
         "cartY": [
-          -0.4,
+          -0.44,
           -0.37
         ],
         "floorAheadSec": 99,
@@ -308,63 +308,63 @@
     },
     {
       "name": "small",
-      "loadMs": 208,
-      "t": 25.21,
+      "loadMs": 215,
+      "t": 25.47,
       "phase": "run",
-      "items": 27,
-      "value": 2382,
-      "calls": 69,
-      "tris": 122364,
+      "items": 14,
+      "value": 531,
+      "calls": 70,
+      "tris": 126662,
       "gpu": "NVIDIA GeForce RTX 4060",
       "cam": {
         "cartX": [
-          -0.02,
-          0.02
+          -0.03,
+          0.03
         ],
         "cartY": [
-          -0.4,
-          -0.16
+          -0.44,
+          -0.15
         ],
-        "floorAheadSec": 2.37,
-        "yawRev": 0.95,
+        "floorAheadSec": 1.85,
+        "yawRev": 1.09,
         "lift": 0
       }
     },
     {
       "name": "phone",
-      "loadMs": 210,
-      "t": 25.21,
+      "loadMs": 211,
+      "t": 25.47,
       "phase": "run",
-      "items": 27,
-      "value": 2382,
-      "calls": 64,
-      "tris": 122412,
+      "items": 14,
+      "value": 531,
+      "calls": 59,
+      "tris": 122150,
       "gpu": "NVIDIA GeForce RTX 4060",
       "cam": {
         "cartX": [
-          -0.04,
-          0.04
+          -0.06,
+          0.06
         ],
         "cartY": [
-          -0.23,
-          -0.1
+          -0.26,
+          -0.09
         ],
         "floorAheadSec": 99,
-        "yawRev": 0.95,
+        "yawRev": 1.09,
         "lift": 0
       }
     },
     {
       "name": "realtime",
-      "loadMs": 220,
-      "fps": 164.91729084729832,
+      "loadMs": 230,
+      "fps": 165.00079327304368,
       "p95ms": 6.100000000000364,
-      "maxMs": 12.199999999999818,
-      "frames": 1975,
-      "calls": 68,
-      "tris": 125596,
-      "logicMs": 0.08641414138479064,
-      "renderMs": 0.6000000014901161
+      "maxMs": 6.200000000000728,
+      "frames": 1976,
+      "calls": 62,
+      "tris": 124044,
+      "logicMs": 0.10060575463776635,
+      "renderMs": 0.5
     }
   ],
   "problems": []

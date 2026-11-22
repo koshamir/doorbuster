@@ -186,6 +186,13 @@ export function eventFx(e) {
     case 'madmode':
       if (e.value) for (const c of MAD) burst(k.x, 1.4, k.z, 9, { color: c, shape: 2, size: 0.8, ttl: 0.7, grav: 1, drag: 2 }, 9, 5);
       return e.value ? 0.5 : 0;
+    case 'jump': burst(k.x, 0.4, k.z, 10, { color: PAL.white, shape: 1, size: 0.3, end: 0.7, ttl: 0.35, grav: -1, drag: 3 }, 3, 1, -fx * 4, -fz * 4); return 0.15;
+    case 'land':
+      burst(k.x, 0.2, k.z, 12, { color: PAL.white, shape: 1, size: 0.3, end: 0.8, ttl: 0.35, grav: -1, drag: 4 }, 4, 0.5);
+      if (e.value) burst(k.x, 1.2, k.z, 12, { color: PAL.sky, shape: 2, size: 0.6, ttl: 0.6, grav: 2, drag: 2 }, 6, 4);
+      return 0.35;
+    case 'wet': burst(k.x, 0.2, k.z, 8, { color: PAL.sky, shape: 0, size: 0.22, ttl: 0.4, grav: 9, drag: 1 }, 3, 3, k.vx * 0.3, k.vz * 0.3); return 0;
+    case 'selfie': burst(k.x, 2.0, k.z, 10, { color: PAL.white, shape: 2, size: 1.1, ttl: 0.25, grav: 0, drag: 6 }, 2, 0.5); return 0;
     case 'rocket':
       burst(k.x - fx * 0.9, 0.4, k.z - fz * 0.9, 14, { color: PAL.orange, shape: 0, size: 0.5, ttl: 0.45, grav: 0, drag: 3 }, 3, 1.5, -fx * 7, -fz * 7);
       return 0.25;

@@ -2,10 +2,10 @@
 // Opens the game in Playwright's Chromium (headless, GPU-accelerated) and captures: screenshots at
 // exact game times, frame strips (contact sheets of consecutive frames), console errors, failed and
 // external requests, render statistics and a real-time frame-rate sample.
-// Run: node tools/shots.mjs --set m0 [--out shots/m0] [--only name]
+// Run: node tools/shots.mjs --set m0 [--out shots/m0] [--only name,name]
 // Scenario sets live in tools/shotsets.mjs.
 import { chromium } from 'playwright-core';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync, renameSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { startServer } from './serve.mjs';
 import { ROOT, args, room } from './lib.mjs';
@@ -13,7 +13,7 @@ import { SETS } from './shotsets.mjs';
 
 const a = args();
 const setName = a.set || 'm0';
-const scenarios = (SETS[setName] || []).filter((s) => !a.only || s.name === a.only);
+const scenarios = (SETS[setName] || []).filter((s) => !a.only || String(a.only).split(',').includes(s.name));
 if (!scenarios.length) { console.error('no scenarios in set ' + setName); process.exit(1); }
 const outDir = resolve(ROOT, a.out || join('shots', setName));
 mkdirSync(outDir, { recursive: true });
@@ -67,6 +67,20 @@ async function sheet(files, cols, cellW, outFile) {
 
 for (const sc of scenarios) {
   const [vw, vh] = sc.viewport || [1280, 720];
+  if (sc.video) {
+    // A real-time recording (WebM) of `video` seconds of the page as a player would see it.
+    const vctx = await browser.newContext({ viewport: { width: vw, height: vh }, recordVideo: { dir: outDir, size: { width: vw, height: vh } } });
+    const vp = await vctx.newPage();
+    vp.on('pageerror', (e) => problems.push(`[${sc.name}] page error: ` + e.message));
+    await vp.goto(`${server.url}/index.html?${sc.query || ''}`);
+    await vp.waitForFunction(() => window.__ready === true, null, { timeout: 15000 });
+    await vp.waitForTimeout(sc.video * 1000);
+    const file = await vp.video().path();
+    await vctx.close();
+    renameSync(file, join(outDir, sc.name + '.webm'));
+    summary.push({ name: sc.name, video: sc.name + '.webm', seconds: sc.video });
+    continue;
+  }
   const ctx = await browser.newContext({ viewport: { width: vw, height: vh }, deviceScaleFactor: sc.dpr || 1, hasTouch: !!sc.touch, isMobile: !!sc.touch });
   const page = await ctx.newPage();
   const tag = (m) => `[${sc.name}] ${m}`;
@@ -94,6 +108,7 @@ for (const sc of scenarios) {
       };
     });
   }
+  if (sc.storage) await page.addInitScript((kv) => { for (const k in kv) localStorage.setItem(k, kv[k]); }, sc.storage);   // saved progress for the run
   page.on('request', (r) => { const u = r.url(); if (!u.startsWith(base) && !u.startsWith('data:') && !u.startsWith('blob:') && !(sc.platform && u === HOSTED)) problems.push(tag('EXTERNAL request: ' + u)); });
 
   const t0 = Date.now();
@@ -107,6 +122,9 @@ for (const sc of scenarios) {
   if (sc.plain) {
     // A plain page as a person gets it (no bot, no manual clock): wait, then screenshot.
     await page.waitForTimeout(sc.plain * 1000);
+    if (sc.tap) { await page.touchscreen.tap(sc.tap[0], sc.tap[1]); await page.waitForTimeout(3600); }      // a finger starts the run: touch controls appear
+    if (sc.click) { await page.mouse.click(sc.click[0], sc.click[1]); await page.waitForTimeout((sc.wait || 5) * 1000); }   // a real click (unlocks sound)
+    if (sc.after) row.after = await page.evaluate(sc.after);
     await page.screenshot({ path: join(outDir, sc.name + '.png') });
   } else if (sc.realtime) {
     // Real-time sample: count animation frames and collect frame gaps for `realtime` seconds.
@@ -183,8 +201,10 @@ for (const sc of scenarios) {
       return Object.assign(d.info(), { gpu: ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : 'unknown' });
     });
     if (sc.after) row.after = await page.evaluate(sc.after);       // an extra measurement run in the page
+    if (sc.after && sc.last) await page.screenshot({ path: join(outDir, sc.name + '_after.png') });
     if (sc.platform) row.platform = await page.evaluate(() => ({ hostedThree: null, calls: window.mindblown.__log, tuneMaxspeed: window.__db.TUNE.maxspeed, revision: window.THREE.REVISION }));
     if (sc.platform) row.platform.hostedThree = hosted;
+    if (sc.full) Object.assign(row, { doneT: info.doneT, receipt: info.receipt, log: info.log.filter((e) => ['ram', 'madmode', 'flash', 'finish'].includes(e[0])) });   // the numbers a port is checked against
     Object.assign(row, { t: +info.t.toFixed(2), phase: info.phase, items: info.items, value: info.value, calls: info.calls, tris: info.tris, gpu: info.gpu.replace(/^ANGLE \((\w+), ([^(]+?) \(.*$/, '$2') });
     if (info.cam) row.cam = { cartX: info.cam.cartX.map((v) => +v.toFixed(2)), cartY: info.cam.cartY.map((v) => +v.toFixed(2)),
       floorAheadSec: +info.cam.minRoadSeconds.toFixed(2), yawRev: +info.cam.yawReversalsPerSecond.toFixed(2), lift: +info.cam.maxLift.toFixed(2) };

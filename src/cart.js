@@ -12,7 +12,7 @@
 // speed, so in a steady turn sin(slip) = yawRate / grip.
 //
 // stepCart(cart, input, sim, dt) expects sim = { world, emit(type, cart, value, ref),
-// onCrash(cart, speedInto, solid), onSmash(cart, solid), onKnock(cart, solid) }.
+// onCrash(cart, speedInto, solid), onSmash(cart, solid), onKnock(cart, solid), onLand(cart, over) }.
 
 import { TUNE, CFG, CHARS, clamp, lerp, wrapAngle, approach } from './config.js';
 import { collide } from './world.js';
@@ -31,7 +31,7 @@ export function makeCart(id, charId, x, z, h) {
     boostT: 0, boostMul: 1,
     dashT: 0, dashCd: 0, dashBuf: 0, dashHits: 0, sagT: 0,
     stunT: 0, immuneT: 0, turnTo: null,      // turnTo: heading the body whips to after a crash
-    air: 0, airT: 0, wetT: 0, convX: 0, convZ: 0,
+    air: 0, airT: 0, over: false, wetT: 0, convX: 0, convZ: 0,   // in the air: seconds left, total, passed over something
     wallT: 0, wnx: 0, wnz: 0, scrapeT: 0, help: 0, helpN: 0,
     pinDir: 0, pinT: 0, backT: 0, backs: 0,  // pinned against something: swing direction, timers, count
     load: 0, tower: [], value: 0, stunts: 0, stuntLog: [],
@@ -213,6 +213,24 @@ export function stepCart(k, inp, sim, dt) {
   const lf = mad ? 0 : loadFactor(k);
   const top0 = TUNE.maxspeed * (1 - TUNE.loadtop * lf);
   const top = top0 * (k.boostT > 0 ? k.boostMul : k.sagT > 0 && k.dashT <= 0 ? CFG.dashSag : 1);
+
+  // ---- the floor under the cart: a travelator carries it, a wet patch takes the grip for a second,
+  // a ramp taken at speed throws it in an arc over whatever is low (no control in the air)
+  const ti = Math.floor(k.z / CFG.TILE) * world.cols + Math.floor(k.x / CFG.TILE), belt = k.air > 0 ? 0 : world.belt[ti] | 0;
+  k.convX = belt === 1 ? CFG.beltSpeed : belt === 3 ? -CFG.beltSpeed : 0;
+  k.convZ = belt === 2 ? CFG.beltSpeed : belt === 4 ? -CFG.beltSpeed : 0;
+  if (world.wet[ti] && k.air <= 0) { if (k.wetT <= 0.5) sim.emit('wet', k); k.wetT = 1; }
+  if (k.air > 0) {
+    k.air -= dt;
+    if (!k.over && collide(world, k.x, k.z, 0.3, false, true)) k.over = true;     // something low is passing underneath
+    if (k.air <= 0) sim.onLand(k, k.over);
+  } else for (const rp of world.ramps) {
+    if (Math.abs(k.x - rp.x) > 1 || Math.abs(k.z - rp.z) > 1 || k.vx * rp.dx + k.vz * rp.dz < CFG.jumpSpeed) continue;
+    if (k.drift) endDrift(k, top0, sim, false);
+    k.air = k.airT = CFG.jumpTime; k.over = false;
+    sim.emit('jump', k);
+    break;
+  }
   const backing = k.backT > 0;
   const free = k.stunT <= 0 && k.air <= 0 && !backing;   // the driver has control
 

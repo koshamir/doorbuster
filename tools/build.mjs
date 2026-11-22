@@ -36,6 +36,10 @@ for (const file of order) {
   code += `\n// ======== src/${file} ========\n` + text.trim() + '\n';
 }
 
+// The files now share one scope: parse the whole thing once, so a name declared twice (anywhere in a
+// declaration list) fails the build instead of the page.
+try { new Function('"use strict"; return async () => {' + code + String.fromCharCode(10) + '};'); } catch (e) { throw new Error('the combined script does not parse: ' + e.message); }
+
 let html = readFileSync(resolve(ROOT, 'index.html'), 'utf8');
 const tag = '<script type="module" src="src/main.js"></script>';
 if (!html.includes(tag)) throw new Error('index.html: entry script tag not found');

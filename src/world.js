@@ -12,10 +12,11 @@
 //   o  floor item      1 2 3  shopping-list item     @  player start     r  rival start
 //   c  checkout lane (finish)   C  checkout counter
 //   O round display  P can pyramid  G gift pile  K cardboard stand  H hot-item podium
-//   W glass window  U roller shutter  F fountain  X Christmas tree
+//   W glass window  F fountain  X Christmas tree
 //   t table  b boxes  m mannequin (light, fly away)   p plant  n bench (solid decor)
 //   > < ^ v travelator   ~ wet floor   R ramp   f flash-sale podium (dormant until the sale)
 //   g  huddle of six shoppers (a dash through the middle is a STRIKE)
+//   =  the cart train's track (floor; a straight run of these carries one train)
 
 import { CFG, GOODS, GOOD, POOLS } from './config.js';
 
@@ -32,7 +33,6 @@ export const PIECES = {
   H: { type: 'podium', r: 0.85, dash: 1, nav: 1 },
   f: { type: 'podium', r: 0.85, dash: 1, nav: 0, off: 1, sale: 1 },
   W: { type: 'glass', hx: 1, hz: 1, dash: 1, nav: 1 },
-  U: { type: 'shutter', hx: 1, hz: 1, nav: 0, off: 1 },
   F: { type: 'fountain', r: 2.8, low: 1, nav: 1 },
   X: { type: 'tree', r: 1.7, nav: 1 },
   C: { type: 'counter', hx: 0.7, hz: 1, nav: 1 },
@@ -59,6 +59,9 @@ export function buildWorld(def, rng) {
   const world = {
     def, plan, cols, rows, w: cols * T, h: rows * T,
     floor: new Uint8Array(n),       // 1 = walkable area (anything that is not void)
+    belt: new Uint8Array(n),        // travelator: 0 none, 1 east, 2 south, 3 west, 4 north
+    wet: new Uint8Array(n),         // 1 = wet floor
+    ramps: [], tracks: [],          // ramps { x, z, c, r, dx, dz }; train tracks { x0, z0, x1, z1, len }
     zone: new Uint8Array(n),        // index into def.zones (0 = first zone / corridor)
     block: new Uint8Array(n),       // 1 = navigation may not pass (void or a nav-blocking piece)
     nav: new Float32Array(n),       // metres to the nearest open checkout
@@ -75,7 +78,9 @@ export function buildWorld(def, rng) {
   for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
     const k = plan[r][c], i = r * cols + c;
     world.floor[i] = k === ' ' ? 0 : 1;
-    world.block[i] = k === ' ' || 'SML'.includes(k) || (PIECES[k] && PIECES[k].nav) ? 1 : 0;
+    world.block[i] = k === ' ' || 'SMLR'.includes(k) || (PIECES[k] && PIECES[k].nav) ? 1 : 0;   // drivers go round ramps: the jump is the player's
+    world.belt[i] = '>v<^'.indexOf(k) + 1;
+    world.wet[i] = k === '~' ? 1 : 0;
   }
   (def.zones || []).forEach((zn, zi) => {
     if (!zn.rect) return;
@@ -115,6 +120,16 @@ export function buildWorld(def, rng) {
       world.slots.push({ x, z });
     } else if (k === 'g') {
       world.huddles.push({ x, z });
+    } else if (k === 'R') {
+      world.ramps.push({ x, z, c, r, dx: 0, dz: 0 });
+    } else if (k === '=') {
+      // A train track: one train per straight run (found at the run's first tile).
+      for (const [dc, dr] of [[1, 0], [0, 1]]) {
+        if (ch(c - dc, r - dr) === '=' || ch(c + dc, r + dr) !== '=') continue;
+        let e = 1;
+        while (ch(c + dc * (e + 1), r + dr * (e + 1)) === '=') e++;
+        world.tracks.push({ x0: x, z0: z, x1: x + dc * e * T, z1: z + dr * e * T, len: e * T });
+      }
     } else if (k === 'c' && laneOf[i] < 0) {
       // Flood-fill one checkout lane.
       const lane = { id: world.lanes.length, tiles: [], x: 0, z: 0, open: true, warned: false, bar: null };
@@ -142,6 +157,14 @@ export function buildWorld(def, rng) {
   world.laneOf = laneOf;
   navBuild(world);
   world.navStart = navDistAt(world, world.start.x, world.start.z);
+  // A ramp points down the route: toward the neighbouring tile nearest to the checkouts.
+  for (const rp of world.ramps) {
+    let best = 1e9;
+    for (const [dc, dr] of NEIGH.slice(0, 4)) {
+      const v = world.nav[(rp.r + dr) * cols + rp.c + dc];
+      if (v < best) { best = v; rp.dx = dc; rp.dz = dr; }
+    }
+  }
   return world;
 }
 
@@ -341,7 +364,7 @@ export function navBuild(world) {
   const queue = [];
   for (const lane of world.lanes) {
     if (!lane.open) continue;
-    for (const i of lane.tiles) { nav[i] = 0; queue.push(i); }
+    for (const i of lane.tiles) { nav[i] = lane.warned ? 14 : 0; queue.push(i); }   // a lane about to close is worth a 14 m detour to another
   }
   for (let head = 0; head < queue.length; head++) {
     const i = queue[head], c = i % cols, r = (i - c) / cols;
@@ -351,7 +374,9 @@ export function navBuild(world) {
       const j = rr * cols + cc;
       if (block[j]) continue;
       if (dc && dr && (block[r * cols + cc] || block[rr * cols + c])) continue;   // no corner cutting
-      const d = nav[i] + w * T * cost[j];
+      // Stepping from tile j to tile i goes the way (-dc, -dr): with a travelator is cheap, against it dear.
+      const b = world.belt[j], flow = b ? -dc * (b === 1 ? 1 : b === 3 ? -1 : 0) - dr * (b === 2 ? 1 : b === 4 ? -1 : 0) : 0;
+      const d = nav[i] + w * T * cost[j] * (flow > 0 ? 0.6 : flow < 0 ? 3 : 1);
       if (d < nav[j] - 1e-4) { nav[j] = d; queue.push(j); }
     }
   }

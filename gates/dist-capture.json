@@ -3,25 +3,69 @@
   "summary": [
     {
       "name": "dist_bot",
-      "loadMs": 650,
-      "t": 42.08,
+      "loadMs": 656,
+      "doneT": 42.183333333331575,
+      "receipt": {
+        "items": 5134,
+        "list": 200,
+        "stunts": 545,
+        "time": 435,
+        "left": 29,
+        "count": 23,
+        "total": 6314
+      },
+      "log": [
+        [
+          "ram",
+          0.683
+        ],
+        [
+          "ram",
+          17.675
+        ],
+        [
+          "madmode",
+          17.825
+        ],
+        [
+          "ram",
+          20.192
+        ],
+        [
+          "ram",
+          22.708
+        ],
+        [
+          "madmode",
+          23.808
+        ],
+        [
+          "flash",
+          28.808
+        ],
+        [
+          "finish",
+          42.192
+        ]
+      ],
+      "t": 42.41,
       "phase": "done",
-      "items": 29,
-      "value": 4667,
+      "items": 23,
+      "value": 5134,
       "calls": 48,
-      "tris": 115624,
+      "tris": 114696,
       "gpu": "NVIDIA GeForce RTX 4060",
       "cam": {
         "cartX": [
-          -0.04,
+          -0.02,
           0.03
         ],
         "cartY": [
-          -0.4,
+          -0.44,
           -0.13
         ],
         "floorAheadSec": 1.86,
-        "yawRev": 0.98,
+        "yawRev": 0.84,
         "lift": 0
       }
     }
