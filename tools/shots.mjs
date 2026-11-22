@@ -22,6 +22,7 @@ function plan(t) {
   const [kind, arg] = t.split(':');
   if (kind === 'lineup') return [scene('cast', 'scene=lineup'), scene('crowd', 'scene=lineup&view=crowd'), scene('faces', 'scene=faces'),
     scene('faces40', 'scene=faces&small=1'), scene('flat', 'scene=lineup&flat=1'), scene('cart', 'scene=cart')];
+  if (kind === 'cart') return [scene('tiers', 'scene=cart'), scene('rivals', 'scene=cart&view=rivals')];
   if (kind === 'kit') return [scene('wide', `scene=kit&store=${arg}&view=wide`), scene('start', `scene=kit&store=${arg}&view=start`),
     scene('shelf', `scene=kit&store=${arg}&view=shelf`), scene('hazard', `scene=kit&store=${arg}&view=hazard`),
     scene('squint', `scene=kit&store=${arg}&view=start`, { small: 320 })];

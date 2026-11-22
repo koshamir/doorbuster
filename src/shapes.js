@@ -87,7 +87,7 @@ export function box(B, w, h, d, color, o = {}) {
       for (const [s1, s2] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { const q = [0, 0, 0]; q[ax] = s * hs[ax]; q[b1] = s1 * (hs[b1] - bv); q[b2] = s2 * (hs[b2] - bv); pts.push(P(q[0], q[1], q[2])); }
       const isTop = ax === 1 && s > 0, isBot = ax === 1 && s < 0, isFront = ax === 2 && s > 0;
       const tex = isFront && o.front ? o.front : ax !== 1 && o.sides ? o.sides : isTop && o.lid ? o.lid : null;
-      flatFace(B, pts, isTop ? ct : isBot ? cb : c, cen, tex, tex ? boxUV(pts, ax, s, hs, y0 + h / 2) : null);
+      flatFace(B, pts, isTop ? ct : isBot ? cb : c, cen, tex, tex ? boxUV(pts, ax, s, hs, y0 + h / 2, o.uvs) : null);
     }
   }
   if (bv <= 0) return B;
@@ -106,9 +106,13 @@ export function box(B, w, h, d, color, o = {}) {
 }
 const mixCol = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 // uv of a box face: x/z across, y up (v = 0 at the top of the face, like the canvas).
-function boxUV(pts, ax, s, hs, cy) {
-  return pts.map((p) => ax === 2 ? [(p[0] * s + hs[0]) / (2 * hs[0]), (cy + hs[1] - p[1]) / (2 * hs[1])]
-    : ax === 0 ? [(-p[2] * s + hs[2]) / (2 * hs[2]), (cy + hs[1] - p[1]) / (2 * hs[1])] : [(p[0] + hs[0]) / (2 * hs[0]), (p[2] + hs[2]) / (2 * hs[2])]);
+function boxUV(pts, ax, s, hs, cy, rep) {
+  const [su, sv] = rep || [1, 1];
+  return pts.map((p) => {
+    const u = ax === 2 ? [(p[0] * s + hs[0]) / (2 * hs[0]), (cy + hs[1] - p[1]) / (2 * hs[1])]
+      : ax === 0 ? [(-p[2] * s + hs[2]) / (2 * hs[2]), (cy + hs[1] - p[1]) / (2 * hs[1])] : [(p[0] + hs[0]) / (2 * hs[0]), (p[2] + hs[2]) / (2 * hs[2])];
+    return [u[0] * su, u[1] * sv];
+  });
 }
 function flatFace(B, pts, c, centre, tex, uvs) {
   const a = pts[0];

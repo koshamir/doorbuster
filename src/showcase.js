@@ -7,7 +7,8 @@
 // Depends on: render.js, rig.js, crowd.js, cast.js, kits.js, atlas.js and the global THREE.
 
 import { R, setGrade } from './render.js';
-import { makeCharacter, animate, setFace, poseRig } from './rig.js';
+import { makeCharacter, makeRacer, poseCart, animate, setFace, poseRig } from './rig.js';
+import { PAINTS, HATS, cartSpecFor } from './cartart.js';
 import { makeCrowd, syncCrowd, crowdPose } from './crowd.js';
 import { CAST, CAST_ORDER, CROWD_ORDER, CROWD_COLORS } from './cast.js';
 import { KITS, floorMaterial } from './kits.js';
@@ -30,7 +31,7 @@ function stage(kit, flat) {
 
 export function initShowcase(kind, q) {
   const kit = KITS[q.get('store')] || KITS.supermarket, flat = q.has('flat'), view = q.get('view') || '';
-  const show = { kind, t: 0, chars: [], crowd: null, people: [], cam: null };
+  const show = { kind, t: 0, chars: [], carts: [], crowd: null, people: [], cam: null };
   const floor = stage(kit, flat);
   if (kind === 'faces') floor.visible = false;
   const cam = R.camera;
@@ -69,9 +70,44 @@ export function initShowcase(kind, q) {
     cam.position.set(0, 0.05, 60); cam.lookAt(0, 0.05, 0); cam.fov = 2 * Math.atan(h / 2 / 60) * 180 / Math.PI; cam.updateProjectionMatrix();
     show.static = true;
   }
+  if (kind === 'cart') {
+    if (view === 'rivals') {
+      CAST_ORDER.forEach((id, i) => {
+        const c = makeRacer(id, null, id === 'penny' ? { hat: 'beanie' } : {});
+        c.mesh.position.set((i - 3) * 2.3, 0, i % 2 ? -0.6 : 0.6); c.mesh.rotation.y = 0.55; c.mesh.layers.enable(1);
+        R.scene.add(c.mesh); show.chars.push(c);
+      });
+      cam.position.set(1.5, 6.5, 11); cam.lookAt(0, 0.6, 0); cam.fov = 44;
+    } else {
+      // rows: wheels, basket, bumper, magnet tiers 0-3; the last column shows paints; the front row hats
+      const rows = ['wheels', 'basket', 'bumper', 'magnet'], paints = ['mint', 'gold', 'friday', 'candy'];
+      rows.forEach((u, r) => {
+        for (let t = 0; t <= 3; t++) {
+          if (t === 0 && r > 0) continue;
+          const c = makeCharacter('penny', null, { cartOnly: true });
+          const spec = { paint: 'pink', tiers: { [u]: t } };
+          const m = makeRacer('penny', spec, { cartOnly: true });
+          m.mesh.position.set((t - 2) * 2.4, 0, (r - 1.5) * 2.7); m.mesh.rotation.y = 0.5; R.scene.add(m.mesh); show.carts.push(m);
+          void c;
+        }
+        const p = makeRacer('penny', { paint: paints[r], tiers: {} }, { cartOnly: true });
+        p.mesh.position.set(2 * 2.4 + 0.4, 0, (r - 1.5) * 2.7); p.mesh.rotation.y = 0.5; R.scene.add(p.mesh); show.carts.push(p);
+      });
+      const gx = makeRacer('penny', { paint: 'galaxy', tiers: { wheels: 3, basket: 3, bumper: 3, magnet: 3 } }, { cartOnly: true });
+      gx.mesh.position.set(-2 * 2.4, 0, 1.2 * 2.7); gx.mesh.rotation.y = 0.5; R.scene.add(gx.mesh); show.carts.push(gx);
+      HATS.slice(1).forEach((h, i) => {
+        const c = makeCharacter('penny', null, { hat: h.id, headOnly: true });
+        c.mesh.position.set(-3.4 + i * 1.25, -0.25, 5.4); setFace(c.rig, 1); poseRig(c.rig); R.scene.add(c.mesh);
+      });
+      cam.position.set(0, 10.5, 12.5); cam.lookAt(0, 0, 0.8); cam.fov = 46;
+      show.static = true;
+    }
+    cam.updateProjectionMatrix();
+  }
   show.update = (dt) => {
     show.t += dt; R.clock = show.t;
-    if (!show.static) for (const c of show.chars) animate(c.rig, { mode: 'show', speed: 0 }, dt);
+    if (!show.static) for (const c of show.chars) animate(c.rig, { mode: kind === 'cart' ? 'count' : 'show', speed: 0 }, dt);
+    for (const c of show.carts) { poseCart(c.rig, { steer: Math.sin(show.t) * 0.6 }); poseRig(c.rig); }
     if (show.crowd) {
       for (const p of show.people) p.pose = crowdPose(p, show.t);
       syncCrowd(show.crowd, show.people, null);

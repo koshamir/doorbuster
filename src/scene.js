@@ -10,7 +10,7 @@
 import { TUNE, CFG, PAL, GOODS, rgb, mix, clamp, lerp, wrapAngle } from './config.js';
 import { R, celMaterial, hullMaterial, blendMaterial, MRT_OUT, AUX_NONE, v3 } from './render.js';
 import { floorMaterial, floorMap, kitOf } from './kits.js';
-import { makeCharacter, animate } from './rig.js';
+import { makeRacer, poseCart, animate } from './rig.js';
 import { makeCrowd, syncCrowd, crowdPose, disposeCrowd } from './crowd.js';
 import { CROWD, CROWD_COLORS } from './cast.js';
 import { EXPR } from './atlas.js';
@@ -234,20 +234,17 @@ export function buildScene(sim) {
   view.root.add(view.crowd.root);
   view.people = []; view.crowdList = [];
 
-  // Carts with their shoppers. `tilt` carries the lean, pitch and squash of the cart body.
+  // Racers: each character and its cart are one rigidly skinned mesh (rig.js, cartart.js); they cast
+  // the HIGH-tier shadow (layer 1).
   for (const k of sim.carts) {
-    const g = new THREE.Group(), tilt = new THREE.Group();
-    const glow = celMaterial({ rim: 0.55 });
-    view.own.push(glow);
-    const ch = makeCharacter(Object.keys(CAST_IDS).find((id) => CAST_IDS[id] === k.char) || 'penny');
-    ch.mesh.position.z = -1.3;
-    tilt.add(new THREE.Mesh(cartGeometry(k.def.color), [M.toonRim, M.lineBold]));
-    tilt.add(new THREE.Mesh(bumperGeometry(), [glow, M.lineBold]));
-    g.add(tilt); g.add(ch.mesh);
-    g.traverse((o) => o.layers.enable(1));
+    const g = new THREE.Group(), id = Object.keys(CAST_IDS).find((n) => CAST_IDS[n] === k.char) || 'penny';
+    const rc = makeRacer(id, null, k.player ? { hat: view.hat } : {});
+    g.add(rc.mesh);
+    rc.mesh.layers.enable(1);
     view.root.add(g);
-    view.carts.push({ k, g, tilt, ch, glow, st: { mode: 'count', handle: [1.3, 0.38, 0.34], look: null }, expr: null, exprT: 0, roll: 0, pitch: 0, squash: 0, stretch: 0, bob: 0, lastSpd: 0,
-      swayX: 0, swayXv: 0, swayZ: 0, swayZv: 0, pending: 0 });
+    view.own.push(rc.rig.cel);
+    view.carts.push({ k, g, rc, glow: rc.rig.cel, st: { mode: 'count', look: null }, cp: { pitch: 0, roll: 0, yaw: 0, sx: 1, sy: 1, sz: 1, steer: 0, swing: [0, 0] }, expr: null, exprT: 0, roll: 0, pitch: 0, squash: 0, stretch: 0, bob: 0, lastSpd: 0,
+      swayX: 0, swayXv: 0, swayZ: 0, swayZv: 0, pending: 0, basketY: rc.rig.cart.basketY });
   }
 
   // The hero's ring: a flat quad on the floor under the player's cart.
@@ -371,8 +368,12 @@ function syncCart(view, c, sim, alpha, dt) {
   const sq = c.squash * c.squash;
   c.stretch += ((k.dashT > 0 ? 1 : 0) - c.stretch) * (1 - Math.exp(-dt * 20));      // the dash stretches the cart forward
   const yawShow = k.slip * 0.35 + k.steer * 0.1 + k.drift * 0.18;   // a drift always shows a clear angle
-  c.tilt.rotation.set(c.pitch - (k.air > 0 ? 0.5 * (k.air / k.airT - 0.5) : 0), yawShow, c.roll);
-  c.tilt.scale.set((1 + sq * 0.16) * (1 - c.stretch * 0.1), 1 - sq * 0.3, (1 + sq * 0.16) * (1 + c.stretch * 0.24));
+  const cp = c.cp;
+  cp.pitch = c.pitch - (k.air > 0 ? 0.5 * (k.air / k.airT - 0.5) : 0); cp.yaw = yawShow; cp.roll = c.roll;
+  cp.sx = (1 + sq * 0.16) * (1 - c.stretch * 0.1); cp.sy = 1 - sq * 0.3; cp.sz = (1 + sq * 0.16) * (1 + c.stretch * 0.24);
+  cp.steer = k.steer + k.drift * 0.6;
+  cp.swing[0] = clamp(-acc * 0.01, -0.4, 0.4) + c.swayZ * 0.6; cp.swing[1] = clamp(lat * 0.01, -0.5, 0.5) + c.swayX * 0.6;
+  poseCart(c.rc.rig, cp);
   c.bob += speed * dt * 1.5;
   // the character: the simulation's cart state drives the procedural animation (rig.js)
   const st = c.st;
@@ -382,10 +383,10 @@ function syncCart(view, c, sim, alpha, dt) {
   c.exprT -= dt;
   st.expr = c.exprT > 0 ? c.expr : k.madT > 0 ? EXPR.happy : null;
   st.squash = c.squash > 0.5 ? c.squash : 0;
-  animate(c.ch.rig, st, dt);
+  animate(c.rc.rig, st, dt);
   const mad = k.madT > 0, ready = k.dashCd <= 0 || mad;
   const gl = ready ? 0.05 + (mad ? 0.3 : 0.16) * (0.5 + 0.5 * Math.sin(view.time * (mad ? 20 : 7))) : -0.45;
-  c.glow.uniforms.uGlow.value.set(gl, gl, ready ? gl * 0.4 : gl);
+  c.glow.uniforms.uGlow.value.set(Math.max(0, gl) * 1.6, Math.max(0, gl) * 1.5, ready ? gl * 0.5 : 0);
   const sh = Math.sin(h), ch0 = Math.cos(h);
   putShadow(view, x, z, 0.72 * (1 - gone) / (1 + up * 0.3), 0.95 * (1 - gone) / (1 + up * 0.3), h);
   putShadow(view, x - sh * 1.3, z - ch0 * 1.3, 0.42, 0.42, 0);
@@ -419,7 +420,7 @@ function syncCart(view, c, sim, alpha, dt) {
     const e = k.tower[i], ty = towY[i];
     // cart space -> world: shear with height (the lean), then rotate by the heading
     const lx = towX[i] + c.swayX * ty * 0.9, lz = towZ[i] + c.swayZ * ty * 0.9;
-    let wx = x + lx * ch + lz * shy, wy = up + BASKET_Y + ty * (1 - sq * 0.3), wz = z - lx * shy + lz * ch, scale = TOWER_SCALE * (1 - gone);
+    let wx = x + lx * ch + lz * shy, wy = up + c.basketY + ty * (1 - sq * 0.3), wz = z - lx * shy + lz * ch, scale = TOWER_SCALE * (1 - gone);
     const f = view.flights.get(e);
     if (f) {
       // On its way from the shelf: wait for its turn, then arc into place.

@@ -4,7 +4,7 @@
 //          to speed, riding the cart at boost, drift lean and leg kick, dash crouch and stretch, hit
 //          squash and head wobble, wipeout tumble, idle fidgets, taunt, victory and defeat poses, a head
 //          that looks at things, two-bone arms on the cart handle, spring hair and props, blinking.
-// Exports: makeCharacter, animate, poseRig, setFace, NBR
+// Exports: makeCharacter, makeRacer, poseCart, animate, poseRig, setFace, NBR
 // Depends on: config.js, shapes.js, figure.js, atlas.js, cast.js, render.js and the global THREE.
 
 import { clamp, wrapAngle } from './config.js';
@@ -13,15 +13,17 @@ import { BONE, NB, buildFigure, figureParts } from './figure.js';
 import { EXPR, faceAtlas, faceCell, patternAtlas } from './atlas.js';
 import { CAST, CROWD_FACES } from './cast.js';
 import { celMaterial, hullMaterial } from './render.js';
+import { buildCart, buildHat, cartSpecFor } from './cartart.js';
 
-export const NBR = NB + 6;           // a racer: the figure's bones and the cart's (cartart.js)
+export const NBR = NB + 6;           // a racer: the figure's bones and the cart's (cartart.js CART_BONES)
 const B_ = BONE;
 
 // Builds a character (and optionally its cart with cartFn(B, firstBone) -> cart info). Returns
 // { mesh, rig }; mesh carries [cel, hull] materials that share the bone array.
 export function makeCharacter(id, cartFn, o = {}) {
   const B = builder(), look = CAST[id];
-  const parts = buildFigure(B, id);
+  const parts = o.cartOnly ? figureParts(look) : buildFigure(B, id);
+  if (o.hat && o.hat !== 'none') buildHat(B, B_.head, o.hat, look.head.y, look.head.r);
   if (o.headOnly) keepBones(B, [B_.head, B_.hair1, B_.hair2]);
   let cart = null;
   if (cartFn) cart = cartFn(B, NB);
@@ -35,7 +37,7 @@ export function makeCharacter(id, cartFn, o = {}) {
   hull.uniforms.uBones.value = bones;
   const mesh = new THREE.Mesh(geo, [cel, hull]);
   mesh.frustumCulled = false;
-  const rig = { id, look, parts, cart, nb, bones, cel, mesh,
+  const rig = { id, look, parts, cart, nb, bones, cel, mesh, rootZ: cart ? cart.charZ : 0, seat: cart ? cart.seat : 0,
     q: new Float32Array(nb * 4), off: new Float32Array(nb * 3), sc: new Float32Array(nb * 3).fill(1), world: new Float32Array(nb * 12),
     ang: new Float32Array(nb * 3), phase: 0, t: 0, ride: 0, lean: 0, roll: 0, crouch: 0, blink: 2, expr: 0, exprT: 0, face: -1,
     hair: [0, 0, 0, 0], hairV: [0, 0, 0, 0], bag: [0, 0], bagV: [0, 0], belly: 0, bellyV: 0, wob: 0, sq: 0, last: null, prev: [0, 0, 0],
@@ -62,6 +64,22 @@ function keepBones(B, keep) {
     }
   }
   Object.assign(B, out);
+}
+
+// A racer: the character and its cart in one mesh. spec defaults to the character's own cart.
+export function makeRacer(id, spec, o = {}) {
+  return makeCharacter(id, (B, first) => buildCart(B, first, spec || cartSpecFor(id)), o);
+}
+// Poses the cart's bones: the body leans and squashes (c: pitch, roll, yaw, sx, sy, sz), the casters
+// swivel with the steering, the swinging extra (a bag, a ring light, a magnet) lags behind.
+export function poseCart(rig, c) {
+  if (!rig.cart) return;
+  const f = NB;
+  eul(rig, f, c.pitch || 0, c.yaw || 0, c.roll || 0);
+  rig.sc[f * 3] = c.sx || 1; rig.sc[f * 3 + 1] = c.sy || 1; rig.sc[f * 3 + 2] = c.sz || 1;
+  const st = c.steer || 0;
+  eul(rig, f + 1, 0, st * 0.6, 0); eul(rig, f + 2, 0, st * 0.6, 0); eul(rig, f + 3, 0, -st * 0.25, 0); eul(rig, f + 4, 0, -st * 0.25, 0);
+  eul(rig, f + 5, c.swing ? c.swing[0] : 0, 0, c.swing ? c.swing[1] : 0);
 }
 
 export function setFace(rig, e) {
@@ -181,14 +199,14 @@ const SHOW = {
 // dt in seconds. rootM (optional) is the character root's 3x4 matrix in its parent's space.
 export function animate(rig, s, dt, rootM) {
   const k = 1 - Math.exp(-dt * 14), kk = 1 - Math.exp(-dt * 6), L = rig.look, t = (rig.t += dt), mode = s.mode || 'push';
-  rig.q.fill(0); for (let b = 0; b < rig.nb; b++) rig.q[b * 4 + 3] = 1;
-  rig.off.fill(0); rig.sc.fill(1);
+  rig.q.fill(0, 0, NB * 4); for (let b = 0; b < NB; b++) rig.q[b * 4 + 3] = 1;
+  rig.off.fill(0, 0, NB * 3); rig.sc.fill(1, 0, NB * 3);
   const spd = Math.max(0, s.speed || 0), legLen = L.leg.len[0] + L.leg.len[1], fast = clamp(spd / 12, 0, 1.4);
   const posed = mode === 'victory' || mode === 'defeat' || mode === 'taunt' || mode === 'show';
   // riding: on the cart's rear bar at a boost, a dash or in the air
-  const rideT = !posed && mode === 'push' && (s.boost || (s.dash >= 0 && s.dash < 0.45) || s.air > 0 || s.seat) ? 1 : 0;
+  const rideT = !posed && mode === 'push' && !rig.seat && (s.boost || (s.dash >= 0 && s.dash < 0.45) || s.air > 0) ? 1 : 0;
   rig.ride += (rideT - rig.ride) * (1 - Math.exp(-dt * 10));
-  const ride = s.seat ? 1 : rig.ride;
+  const ride = rig.seat ? 0 : rig.ride;
   // the stride: frequency = speed / stride length, so planted feet keep pace with the floor
   const stride = legLen * (1.15 + 0.1 * Math.min(spd, 11));
   if (mode === 'push') rig.phase += spd / stride * Math.PI * 2 * dt * (1 - ride);
@@ -208,7 +226,7 @@ export function animate(rig, s, dt, rootM) {
   const sxz = 1 / Math.sqrt(sy);
   // the root: bob, ride height, squash
   const bob = Math.abs(Math.sin(ph)) * 0.035 * run * (0.6 + 0.4 * fast);
-  rig.off[1] = bob + ride * (s.seat ? 0 : 0.22);
+  rig.off[1] = bob + ride * (rig.seat ? 0 : 0.22) + (rig.seat ? rig.seat + 0.1 - rig.look.leg.at[1] : 0); rig.off[2] = rig.rootZ;
   rig.sc[0] = sxz; rig.sc[1] = sy; rig.sc[2] = sxz;
   eul(rig, B_.root, rig.lean * 0.35, 0, rig.roll);
   // hips and chest
@@ -225,6 +243,7 @@ export function animate(rig, s, dt, rootM) {
     }
     if (s.drift && side === -Math.sign(s.drift)) { tz = side * 0.55; tx -= 0.35; kn *= 0.3; }     // the outer leg kicks out
     if (mode === 'count' || mode === 'stand') { tx = 0.02 * side; kn = 0.05; fx = 0; }
+    if (rig.seat) { tx = -1.45; ty = 0; tz = side * 0.08; kn = 1.4; fx = 0.05; }
     go(rig, th, tx, ty, tz, k); go(rig, sh, kn, 0, 0, k); go(rig, ft, fx, 0, 0, k);
   };
   legs(1); legs(-1);
@@ -248,8 +267,12 @@ export function animate(rig, s, dt, rootM) {
   // secondary motion: hair, the belly, a handbag, the scarf (springs driven by the head's movement)
   secondary(rig, s, dt, rootM);
   // arms on the handle (or free in poses and the lineup)
-  const hold = s.handle && !posed && mode !== 'tumble' && mode !== 'stand';
-  if (hold) {
+  const hold = (s.handle || rig.cart) && !posed && mode !== 'tumble' && mode !== 'stand';
+  if (hold && rig.cart) {
+    poseRig(rig, rootM);
+    const g0 = mulV(rig.world, NB * 12, rig.cart.grips[0]), g1 = mulV(rig.world, NB * 12, rig.cart.grips[1]);
+    reach(rig, 1, g0, rootM); reach(rig, -1, g1, rootM);
+  } else if (hold) {
     const [hy0, hz0, hw] = s.handle;
     for (const side of [1, -1]) reach(rig, side, [side * hw, hy0, hz0], rootM);
   } else if (!posed && mode !== 'tumble') {

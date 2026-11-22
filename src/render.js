@@ -116,10 +116,11 @@ void main() {
   float gloss = vTex.z;
   if (gloss > 0.01) { vec3 h = normalize(uLight + v); c = mix(c, vec3(1.0), band(dot(n, h), 0.975 - 0.05 * gloss) * (0.35 + 0.55 * lit) * gloss); }
   if (uRim > 0.0) { float f = 1.0 - max(dot(n, v), 0.0); c = mix(c, uKey, band(f, 0.6) * smoothstep(-0.25, 0.35, nl) * uRim); }
-  c += uGlow;
+  float gm = vTex.w < 0.0 ? -vTex.w : 0.0;
+  c += uGlow * gm;
   c = mix(c, c * uTint, uTintAmt);
   if (uFlat > 0.5) c = uInk;
-  gl_FragColor = vec4(c, clamp(vTex.w + length(uGlow) * 0.6, 0.0, 1.0));
+  gl_FragColor = vec4(c, clamp(max(vTex.w, 0.0) + gm * length(uGlow) * 1.2, 0.0, 1.0));
   oAux = vec4(encN(n), (1.0 - lit) * uHalftone * 0.25 + 0.002, uInkW);
 }`;
 // The ink hull: back faces pushed out along the smoothed normal by a constant number of pixels.
