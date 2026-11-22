@@ -377,12 +377,16 @@ export function renderFrame(fx = {}, focus) {
     r.setClearAlpha(1); r.clear(true, true, false);
     gl.colorMask(true, true, true, false); cb.setLocked(true);
     r.autoClear = false;
+    const t0 = r.info.render.triangles;
     r.render(R.scene, R.camera);
+    R.stats.mainTris = r.info.render.triangles - t0;
     r.autoClear = true; cb.setLocked(false); cb.setMask(true); gl.colorMask(true, true, true, true);
     r.setClearAlpha(0);
   } else {
     r.setRenderTarget(R.main);
+    const t0 = r.info.render.triangles;
     r.render(R.scene, R.camera);
+    R.stats.mainTris = r.info.render.triangles - t0;
     const main = R.main.textures, P = R.post, g = R.grade;
     // bloom from the emissive mask: half-res bright pass, blurred, then a quarter-res copy blurred wider
     let bA = R.black, bB = R.black;
@@ -409,7 +413,7 @@ export function renderFrame(fx = {}, focus) {
     } else drawQuad(C, null);
   }
   R.stats.calls = r.info.render.calls;
-  R.stats.tris = r.info.render.triangles;
+  R.stats.tris = R.stats.mainTris || r.info.render.triangles;
   R.stats.ms = performance.now() - t0;
 }
 
@@ -429,10 +433,12 @@ function renderShadow(focus) {
   cam.updateMatrixWorld();
   cam.layers.set(1);
   R.u.uShadowPass.value = 1;
+  for (const m of R.hulls || []) m.visible = false;
   r.setRenderTarget(S.rt);
   r.clear();
   r.render(R.scene, cam);
   R.u.uShadowPass.value = 0;
+  for (const m of R.hulls || []) m.visible = true;
   r.setRenderTarget(null);
   R.u.uShadowMat.value.set(0.5, 0, 0, 0.5, 0, 0.5, 0, 0.5, 0, 0, 0.5, 0.5, 0, 0, 0, 1).multiply(cam.projectionMatrix).multiply(cam.matrixWorldInverse);
 }

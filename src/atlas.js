@@ -3,7 +3,7 @@
 //          blink for every named character, four shared crowd styles), patterns (fabrics, seams, prints,
 //          cart paints and decals), product labels and the store-kit signs. Each is one 2048 px canvas
 //          turned into a texture once and cached.
-// Exports: EXPR, PAT, LABELS, faceAtlas, faceCell, crowdCell, patternAtlas, labelAtlas, atlasTex, inkStyle
+// Exports: EXPR, PAT, LABELS, KIT, faceAtlas, faceCell, crowdCell, patternAtlas, labelAtlas, kitAtlas, atlasTex, inkStyle
 // Depends on: the global THREE (inside functions only).
 //
 // Faces: cells of 256 px, row = character (cast.js face.row), column = expression; the crowd styles sit
@@ -268,4 +268,54 @@ function drawLabel(g, [name, bg, band, ink, deco]) {
   g.fillStyle = ink; g.fillText(name, 128, 132);
   g.font = '900 22px "Arial Black", sans-serif'; g.fillStyle = INK; g.fillText(name.length % 3 ? 'NEW!' : 'XL', 206, 232);
   g.strokeStyle = INK; g.lineWidth = 8; g.strokeRect(4, 4, 248, 248);
+}
+
+// ---- store-kit signs and surfaces ---------------------------------------------------------------------------
+// Cells of 256 px (8 x 8). Signs are drawn for every store's own words (kits.js signs); the rest are shared
+// surfaces: price strips, frost, ice, awning, shutter slats, a checkout belt, wood, decals with a clear ground.
+export const KIT = { sign0: 0, checkout: 8, banner: 9, sale: 10, pct: 11, wet: 12, fish: 13, deli: 14, price: 15, frost: 16, ice: 17, awning: 18,
+  shutter: 19, belt: 20, wood: 21, chalk: 22, ring: 23, star: 24, dash: 25, press: 26, logo: 27, poster2: 28, poster3: 29, glare: 30, pegboard: 31, door: 32, arrow: 33 };
+export function kitAtlas(store) {
+  const key = 'kit_' + store.id;
+  if (cache[key]) return cache[key];
+  const cv = canvas(), g = cv.getContext('2d'), P = store.palette;
+  const cell = (i, fn) => { g.save(); g.translate((i % 8) * 256, Math.floor(i / 8) * 256); g.beginPath(); g.rect(0, 0, 256, 256); g.clip(); fn(); g.restore(); };
+  const text = (t, x, y, size, fill, stroke, maxW) => { g.font = '900 ' + size + 'px "Arial Black", Impact, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
+    while (g.measureText(t).width > (maxW || 236) && size > 14) { size -= 2; g.font = '900 ' + size + 'px "Arial Black", Impact, sans-serif'; }
+    if (stroke) { g.lineWidth = Math.max(5, size * 0.18); g.strokeStyle = stroke; g.strokeText(t, x, y); } g.fillStyle = fill; g.fillText(t, x, y); };
+  const burst = (x, y, r0, r1, n, fill) => { g.beginPath(); for (let k = 0; k < n * 2; k++) { const a = k / (n * 2) * 6.283 - Math.PI / 2, r = k % 2 ? r1 : r0; g.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r); } g.closePath(); g.fillStyle = fill; g.fill(); g.lineWidth = 8; g.strokeStyle = INK; g.stroke(); };
+  // aisle signs: a plum board, a number disc, the word (signs are half height: the top 128 px)
+  (store.signs || []).slice(0, 8).forEach((word, i) => cell(i, () => {
+    g.fillStyle = store.sign || '#3D2C5E'; g.fillRect(0, 0, 256, 128); g.fillStyle = P.b; g.fillRect(0, 108, 256, 20);
+    g.beginPath(); g.arc(40, 56, 30, 0, 7); g.fillStyle = P.c; g.fill(); g.lineWidth = 6; g.strokeStyle = INK; g.stroke();
+    text(String(i + 1), 40, 58, 40, '#FFFFFF', INK); text(word, 152, 58, 46, '#FFFFFF', INK, 170);
+    g.strokeStyle = INK; g.lineWidth = 8; g.strokeRect(4, 4, 248, 120);
+  }));
+  cell(KIT.checkout, () => { g.fillStyle = '#FFD23F'; g.fillRect(0, 0, 256, 128); g.fillStyle = INK; for (let x = -40; x < 300; x += 40) { g.beginPath(); g.moveTo(x, 110); g.lineTo(x + 20, 110); g.lineTo(x + 6, 128); g.lineTo(x - 14, 128); g.fill(); } text('CHECKOUT', 128, 54, 50, '#FFFFFF', INK); g.lineWidth = 8; g.strokeRect(4, 4, 248, 120); });
+  cell(KIT.banner, () => { g.fillStyle = P.c; g.fillRect(0, 0, 256, 128); g.fillStyle = P.d; g.fillRect(0, 0, 256, 18); g.fillRect(0, 110, 256, 18); text(store.name, 128, 62, 48, '#FFFFFF', INK); });
+  cell(KIT.sale, () => { g.fillStyle = '#E63946'; g.fillRect(0, 0, 256, 256); burst(128, 120, 110, 80, 16, '#FFD23F'); text('SALE', 128, 112, 72, '#E63946', INK); text('EVERYTHING MUST GO', 128, 222, 22, '#FFFFFF', INK); g.lineWidth = 8; g.strokeStyle = INK; g.strokeRect(4, 4, 248, 248); });
+  cell(KIT.pct, () => { burst(128, 128, 118, 92, 14, '#FFD23F'); text('50%', 128, 112, 64, '#E63946', INK); text('OFF', 128, 166, 40, '#FFFFFF', INK); });
+  cell(KIT.wet, () => { g.fillStyle = '#FFD23F'; g.beginPath(); g.moveTo(128, 14); g.lineTo(246, 230); g.lineTo(10, 230); g.closePath(); g.fill(); g.lineWidth = 10; g.strokeStyle = INK; g.stroke(); text('!', 128, 110, 90, INK); text('WET FLOOR', 128, 200, 30, INK); });
+  cell(KIT.fish, () => { g.fillStyle = '#3A86FF'; g.fillRect(0, 0, 256, 128); g.fillStyle = '#FFFFFF'; g.beginPath(); g.ellipse(52, 64, 34, 20, 0, 0, 7); g.fill(); g.beginPath(); g.moveTo(84, 64); g.lineTo(104, 46); g.lineTo(104, 82); g.fill(); text('FRESH FISH', 168, 64, 40, '#FFFFFF', INK, 150); g.lineWidth = 8; g.strokeStyle = INK; g.strokeRect(4, 4, 248, 120); });
+  cell(KIT.deli, () => { for (let x = 0; x < 256; x += 32) { g.fillStyle = (x / 32) % 2 ? '#FFFFFF' : '#E63946'; g.fillRect(x, 0, 32, 128); } text('DELI', 128, 64, 70, '#FFFFFF', INK); g.lineWidth = 8; g.strokeStyle = INK; g.strokeRect(4, 4, 248, 120); });
+  cell(KIT.price, () => { g.fillStyle = '#E63946'; g.fillRect(0, 0, 256, 256); for (let k = 0; k < 4; k++) { g.fillStyle = '#FFFFFF'; g.fillRect(k * 64 + 8, 70, 48, 116); text('$' + (k * 3 + 2), k * 64 + 32, 128, 30, '#E63946', null, 44); } });
+  cell(KIT.frost, () => { g.fillStyle = '#BFE9FF'; g.fillRect(0, 0, 256, 256); g.strokeStyle = 'rgba(255,255,255,0.85)'; g.lineWidth = 5; for (let k = 0; k < 9; k++) { const x = (k * 71) % 256, y = (k * 113) % 256; for (let a = 0; a < 6; a++) { g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * 22, y + Math.sin(a) * 22); g.stroke(); } } g.fillStyle = 'rgba(255,255,255,0.55)'; g.fillRect(0, 0, 256, 40); });
+  cell(KIT.ice, () => { g.fillStyle = '#DDF5FF'; g.fillRect(0, 0, 256, 256); for (let k = 0; k < 40; k++) { g.fillStyle = k % 3 ? '#FFFFFF' : '#A8E2FF'; const x = (k * 53) % 256, y = (k * 97) % 256; g.beginPath(); g.moveTo(x, y - 12); g.lineTo(x + 12, y); g.lineTo(x, y + 12); g.lineTo(x - 12, y); g.fill(); } });
+  cell(KIT.awning, () => { for (let x = 0; x < 256; x += 64) { g.fillStyle = '#E63946'; g.fillRect(x, 0, 32, 256); g.fillStyle = '#FFFFFF'; g.fillRect(x + 32, 0, 32, 256); } });
+  cell(KIT.shutter, () => { g.fillStyle = '#C9CED8'; g.fillRect(0, 0, 256, 256); for (let y = 0; y < 256; y += 21) { g.fillStyle = '#9AA1AE'; g.fillRect(0, y, 256, 5); g.fillStyle = '#E8EBF0'; g.fillRect(0, y + 6, 256, 3); } });
+  cell(KIT.belt, () => { g.fillStyle = '#2E2A3A'; g.fillRect(0, 0, 256, 256); g.fillStyle = '#4A4458'; for (let y = 0; y < 256; y += 32) g.fillRect(0, y, 256, 10); });
+  cell(KIT.wood, () => { g.fillStyle = '#C98A5B'; g.fillRect(0, 0, 256, 256); for (let y = 0; y < 256; y += 64) { g.fillStyle = '#A86E43'; g.fillRect(0, y, 256, 6); g.fillStyle = 'rgba(255,255,255,0.18)'; g.fillRect(0, y + 10, 256, 8); } text('FRESH', 128, 160, 50, 'rgba(255,246,234,0.85)', null); });
+  cell(KIT.chalk, () => { g.fillStyle = '#2F3B36'; g.fillRect(0, 0, 256, 256); g.lineWidth = 14; g.strokeStyle = '#C98A5B'; g.strokeRect(7, 7, 242, 242); text('ONLY', 128, 80, 40, '#FFFFFF'); text('$2', 128, 150, 80, '#FFD23F'); text('EACH!', 128, 214, 34, '#FFFFFF'); });
+  cell(KIT.ring, () => { g.lineWidth = 22; g.strokeStyle = '#FFFFFF'; g.beginPath(); g.arc(128, 128, 112, 0, 7); g.stroke(); g.setLineDash([26, 18]); g.lineWidth = 10; g.beginPath(); g.arc(128, 128, 82, 0, 7); g.stroke(); g.setLineDash([]); });
+  cell(KIT.star, () => { burst(128, 128, 116, 54, 5, '#FFD23F'); });
+  cell(KIT.dash, () => { g.fillStyle = '#FFFFFF'; g.fillRect(0, 104, 150, 48); });
+  cell(KIT.press, () => { g.fillStyle = '#FFD23F'; g.beginPath(); g.arc(128, 128, 120, 0, 7); g.fill(); g.lineWidth = 10; g.strokeStyle = INK; g.stroke(); text('PRESS FOR', 128, 104, 34, INK); text('SERVICE', 128, 150, 38, INK); });
+  cell(KIT.logo, () => { g.fillStyle = P.c; g.beginPath(); g.arc(128, 128, 120, 0, 7); g.fill(); g.lineWidth = 12; g.strokeStyle = INK; g.stroke(); g.lineWidth = 8; g.strokeStyle = '#FFFFFF'; g.beginPath(); g.arc(128, 128, 98, 0, 7); g.stroke(); const w = store.name.split(' '); text(w[0], 128, 108, 56, '#FFFFFF', INK, 200); text(w[1] || '', 128, 162, 56, P.b, INK, 200); });
+  cell(KIT.poster2, () => { g.fillStyle = P.b; g.fillRect(0, 0, 256, 256); burst(128, 100, 90, 66, 12, '#FFFFFF'); text('MEGA', 128, 86, 48, '#E63946', INK); text('DEALS', 128, 126, 40, P.c, INK); text('TODAY ONLY', 128, 222, 28, INK); g.lineWidth = 8; g.strokeStyle = INK; g.strokeRect(4, 4, 248, 248); });
+  cell(KIT.poster3, () => { g.fillStyle = '#2A2440'; g.fillRect(0, 0, 256, 256); text('BLACK', 128, 90, 60, '#FFD23F', null); text('FRIDAY', 128, 150, 60, '#FFFFFF', null); g.fillStyle = '#FF4FA3'; g.fillRect(30, 196, 196, 30); text('DOORBUSTERS', 128, 211, 24, '#FFFFFF', null); });
+  cell(KIT.glare, () => { g.fillStyle = 'rgba(255,255,255,0.0)'; g.fillRect(0, 0, 256, 256); g.fillStyle = 'rgba(255,255,255,0.8)'; g.beginPath(); g.moveTo(40, 256); g.lineTo(110, 0); g.lineTo(150, 0); g.lineTo(80, 256); g.fill(); });
+  cell(KIT.pegboard, () => { g.fillStyle = P.a; g.fillRect(0, 0, 256, 256); g.fillStyle = 'rgba(42,26,58,0.18)'; for (let y = 16; y < 256; y += 32) for (let x = 16; x < 256; x += 32) { g.beginPath(); g.arc(x, y, 5, 0, 7); g.fill(); } });
+  cell(KIT.door, () => { g.fillStyle = '#7CD5FF'; g.fillRect(0, 0, 256, 256); g.fillStyle = '#FFFFFF'; for (let y = 30; y < 256; y += 60) g.fillRect(14, y, 228, 10); g.fillStyle = 'rgba(255,255,255,0.6)'; g.beginPath(); g.moveTo(20, 256); g.lineTo(90, 0); g.lineTo(120, 0); g.lineTo(50, 256); g.fill(); g.lineWidth = 14; g.strokeStyle = '#DDE3EA'; g.strokeRect(7, 7, 242, 242); });
+  cell(KIT.arrow, () => { g.fillStyle = '#FFFFFF'; g.beginPath(); g.moveTo(128, 20); g.lineTo(230, 140); g.lineTo(170, 140); g.lineTo(170, 236); g.lineTo(86, 236); g.lineTo(86, 140); g.lineTo(26, 140); g.closePath(); g.fill(); g.lineWidth = 10; g.strokeStyle = INK; g.stroke(); });
+  return (cache[key] = atlasTex(cv));
 }

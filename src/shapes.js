@@ -332,7 +332,7 @@ export function clump(B, a, b, e, w, color, o = {}) {
 export function ring(B, rx, ry, t, d, color, o = {}) {
   const pts = [], n = o.seg || 20;
   for (let i = 0; i <= n; i++) { const a = i / n * Math.PI * 2; pts.push([Math.cos(a) * rx, Math.sin(a) * ry, 0]); }
-  return tube(B, pts, t, color, { seg: 6, flat: [1, d / t] });
+  return tube(B, pts, t, color, { seg: o.tseg || 5, flat: [1, d / t] });
 }
 
 // Builds the BufferGeometry: position, normal, color, uv, tex, bone, and onormal (normals averaged over

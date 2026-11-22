@@ -28,7 +28,7 @@ const BUILD = {
     bind(B, 0, WRAP(0.35)); at(B, 0, 0.06, 0); cyl(B, 0.5, 0.5, 0.88, G_W, { seg: 16, top: false, side: WRAP(0.35), uRep: 2 });
     bind(B, 0, FIX(0.9)); at(B, 0, 0.94, 0); cyl(B, 0.47, 0.47, 0.03, G_STEEL, { seg: 16 });
     at(B, 0, 0, 0); cyl(B, 0.47, 0.5, 0.06, G_STEEL, { seg: 16, top: false });
-    for (const y of [0.06, 0.94]) { at(B, 0, y, 0, 0, Math.PI / 2); ring(B, 0.5, 0.5, 0.035, 0.07, G_STEEL, { seg: 16 }); }
+    for (const y of [0.06, 0.94]) { at(B, 0, y, 0, 0, Math.PI / 2); ring(B, 0.5, 0.5, 0.035, 0.07, G_STEEL, { seg: 12 }); }
   },
   bottle(B) {
     bind(B, 0, FIX(0.8)); at(B, 0, 0, 0); lathe(B, [[0.001, 0], [0.42, 0.01], [0.46, 0.08], [0.46, 0.58], [0.4, 0.68], [0.2, 0.8], [0.15, 0.86]], 0xE4F4FA, { seg: 14 });
@@ -41,7 +41,7 @@ const BUILD = {
     bind(B, 0, FIX(0.3)); at(B, 0, 0, 0); tube(B, [[0.18, 0.86, 0], [0.42, 0.88, 0], [0.47, 0.55, 0]], 0.07, 0xFAFCFF, { seg: 6, caps: 'round' });
   },
   bag(B) {
-    bind(B, 0, TINT(0.5)); at(B, 0, 0.5, 0); ellipsoid(B, 0.5, 0.46, 0.27, G_W, { seg: 14, rings: 10, e1: 0.55, e2: 0.7, uv: 'face', fw: 0.5, fh: 0.46, faceZ: 0.05, faceTex: LBL(0.5) });
+    bind(B, 0, TINT(0.5)); at(B, 0, 0.5, 0); ellipsoid(B, 0.5, 0.46, 0.27, G_W, { seg: 10, rings: 8, e1: 0.55, e2: 0.7, uv: 'face', fw: 0.5, fh: 0.46, faceZ: 0.05, faceTex: LBL(0.5) });
     for (const y of [0.04, 0.96]) { at(B, 0, y - 0.04, 0); box(B, 1, 0.08, 0.1, G_W, { bevel: 0.3, sides: TINT(0.3) }); }
   },
   jar(B) {
@@ -54,9 +54,9 @@ const BUILD = {
     bind(B, 0, FIX(1)); at(B, 0, 0.12, 0.1); box(B, 0.6, 0.42, 0.12, 0xF4FAFF, { bevel: 0.45 });
   },
   fruit(B) {
-    bind(B, 0, TINT(0.5)); at(B, 0, 0.5, 0); ellipsoid(B, 0.5, 0.48, 0.5, G_W, { seg: 14, rings: 10 });
+    bind(B, 0, TINT(0.5)); at(B, 0, 0.5, 0); ellipsoid(B, 0.5, 0.48, 0.5, G_W, { seg: 10, rings: 7 });
     bind(B, 0, FIX(0.2)); at(B, 0, 0.94, 0); cyl(B, 0.04, 0.03, 0.12, 0x6B4226, { seg: 6 });
-    at(B, 0.12, 1.0, 0, 0, 0, -0.6); ellipsoid(B, 0.14, 0.04, 0.08, 0x3BB273, { seg: 8, rings: 5 });
+    at(B, 0.12, 1.0, 0, 0, 0, -0.6); ellipsoid(B, 0.14, 0.04, 0.08, 0x3BB273, { seg: 6, rings: 3 });
   },
   loaf(B) {
     bind(B, 0, FIX(0.2)); at(B, 0, 0, 0); box(B, 1, 0.7, 0.95, 0xE8B36A, { bevel: 0.42, top: 0xD99A4E });
@@ -72,7 +72,7 @@ const BUILD = {
     bind(B, 0, LBL(0.6)); at(B, 0, 0.3, 0); box(B, 1.02, 0.42, 1.02, G_W, { bevel: 0.25, front: LBL(0.6), sides: TINT(0.5) });
   },
   ball(B) {
-    bind(B, 0, TINT(0.45)); at(B, 0, 0.5, 0); ellipsoid(B, 0.5, 0.5, 0.5, G_W, { seg: 16, rings: 12 });
+    bind(B, 0, TINT(0.45)); at(B, 0, 0.5, 0); ellipsoid(B, 0.5, 0.5, 0.5, G_W, { seg: 12, rings: 8 });
     bind(B, 0, FIX(0)); for (const r of [0, Math.PI / 2]) { at(B, 0, 0.5, 0, r); ring(B, 0.5, 0.5, 0.025, 0.04, G_INK, { seg: 18 }); }
   },
   shoebox(B) {

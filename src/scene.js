@@ -5,28 +5,24 @@
 //          break or fly, checkout lamps and barriers, shadows and the hero's ring. Reads the
 //          simulation, never writes it.
 // Exports: buildScene, syncScene, sceneEvent, disposeScene
-// Depends on: config.js, render.js, kits.js, models.js and the global THREE (inside functions only).
+// Depends on: config.js, render.js, kits.js, fixtures.js, goods.js, rig.js, crowd.js, cast.js, atlas.js, shapes.js and the global THREE.
 
 import { TUNE, CFG, PAL, GOODS, rgb, mix, clamp, lerp, wrapAngle } from './config.js';
 import { R, celMaterial, hullMaterial, blendMaterial, MRT_OUT, AUX_NONE, v3 } from './render.js';
 import { floorMaterial, floorMap, kitOf } from './kits.js';
-import { makeRacer, poseCart, animate } from './rig.js';
+import { makeRacer, poseCart, animate, poseRig } from './rig.js';
 import { makeCrowd, syncCrowd, crowdPose, disposeCrowd } from './crowd.js';
 import { CROWD, CROWD_COLORS } from './cast.js';
-import { EXPR } from './atlas.js';
+import { EXPR, KIT, kitAtlas } from './atlas.js';
 import { makeGoods, beginGoods, endGoods, putGood, variantAt } from './goods.js';
-import { makeBuilder, place, addBox, addCyl, addBall, mGeometry, cartGeometry, bumperGeometry,
-  addShelf, addPiece, pieceGeometry } from './models.js';
+import { buildStore, pieceMesh, LOOSE } from './fixtures.js';
+import { builder, bind, box, cyl, ring, toGeometry } from './shapes.js';
 
 const CAST_IDS = { penny: 'player', granny: 'granny', dad: 'dad', queen: 'queen', selfie: 'selfie', bubba: 'bro' };
-const GOOD_CAP = 220;        // instances per kind of goods
 const SHADOW_CAP = 380;      // contact shadows (static ones first, then the moving blobs)
 const GLOW_CAP = 64;         // coloured discs on the floor: list items, hot items, rivals with a grudge
-const CROWD_CAP = 96;        // shoppers on foot
 const TOWER_SCALE = 0.85;    // goods shrink a little when they land in a cart
 const FLY_TIME = 0.2;        // seconds for a swept item to arc into the cart
-const BASKET_Y = 0.48;       // height of the basket floor
-const LOOSE = { pyramid: 1, gifts: 1, stand: 1, podium: 1, glass: 1, table: 1, boxes: 1, mannequin: 1 };   // pieces with their own mesh
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 const towX = new Float32Array(200), towY = new Float32Array(200), towZ = new Float32Array(200), towYaw = new Float32Array(200), towCol = new Float32Array(6);
 
@@ -62,35 +58,24 @@ const SIGN_VS = 'varying vec2 vUv; void main() { vUv = uv; gl_Position = project
 const SIGN_FS = `uniform sampler2D uMap; uniform float uOpacity; varying vec2 vUv; ${MRT_OUT}
 void main() { vec4 t = texture2D(uMap, vUv); gl_FragColor = vec4(t.rgb, t.a * uOpacity); oAux = vec4(0.0); }`;
 
-// A hanging banner with a name on it, drawn on a canvas (the only text in the 3D world). w and h are
-// half sizes in metres.
-function banner(text, color, w = 3.2, h = 0.6) {
-  const cv = document.createElement('canvas');
-  cv.width = 512; cv.height = 96;
-  const g = cv.getContext('2d'), hex = (v) => '#' + v.toString(16).padStart(6, '0');
-  g.fillStyle = hex(PAL.night); g.fillRect(0, 0, 512, 96);
-  g.fillStyle = hex(color); g.fillRect(0, 0, 512, 10); g.fillRect(0, 86, 512, 10);
-  g.font = '900 60px "Arial Black", Impact, system-ui, sans-serif';
-  g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.fillStyle = hex(PAL.sale); g.fillText(text, 256, 50, 470);
-  const tex = new THREE.CanvasTexture(cv);
-  // two quads back to back, each with the text the right way round
-  const geo = new THREE.BufferGeometry();
+// A hanging sign from a kit atlas cell (the top half of the cell), two quads back to back, tipped
+// toward the high camera; it fades as the player's cart comes near (it must never hide the cart).
+function banner(atlas, cell, w = 3.2, h = 0.6) {
+  const geo = new THREE.BufferGeometry(), u0 = (cell % 8) / 8, v0 = Math.floor(cell / 8) / 8, u1 = u0 + 1 / 8, v1 = v0 + 1 / 16;
   geo.setAttribute('position', new THREE.Float32BufferAttribute([-w, -h, 0, w, -h, 0, w, h, 0, -w, -h, 0, w, h, 0, -w, h, 0,
     w, -h, 0, -w, -h, 0, -w, h, 0, w, -h, 0, -w, h, 0, w, h, 0], 3));
-  geo.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1], 2));
-  const mesh = new THREE.Mesh(geo, blendMaterial(new THREE.ShaderMaterial({ uniforms: { uMap: { value: tex }, uOpacity: { value: 1 } }, vertexShader: SIGN_VS, fragmentShader: SIGN_FS })));
-  mesh.material.map = tex;
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute([u0, v1, u1, v1, u1, v0, u0, v1, u1, v0, u0, v0, u0, v1, u1, v1, u1, v0, u0, v1, u1, v0, u0, v0], 2));
+  const mesh = new THREE.Mesh(geo, blendMaterial(new THREE.ShaderMaterial({ uniforms: { uMap: { value: atlas }, uOpacity: { value: 1 } }, vertexShader: SIGN_VS, fragmentShader: SIGN_FS })));
+  mesh.material.map = atlas;
   mesh.rotation.order = 'YXZ';
-  mesh.rotation.x = -0.45;                              // tipped back toward the high camera
+  mesh.rotation.x = -0.45;
   return mesh;
 }
 
 // Builds everything for sim.world and returns the "view" that syncScene updates.
 export function buildScene(sim) {
   const kit = kitOf(sim.def), M = { toon: celMaterial({ halftone: true }), toonRim: celMaterial({ rim: 0.55 }), lineBold: hullMaterial(3), floor: floorMaterial(kit) };
-  const world = sim.world, zones = world.def.zones || [], T = CFG.TILE, cols = world.cols;
-  const accentOf = (i) => PAL.zones[((zones[world.zone[i]] || {}).color || 0) % 4];
+  const world = sim.world, T = CFG.TILE, cols = world.cols;
   const isFloor = (c, r) => c >= 0 && r >= 0 && c < cols && r < world.rows && world.floor[r * cols + c] === 1;
   const view = { root: new THREE.Group(), goods: [], counts: new Int32Array(GOODS.length), carts: [], pieces: [], own: [],
     flights: new Map(), time: 0, frame: 0, towerH: 0, doneAt: -1, shadows: null, fixed: 0, shadowN: 0, glows: null, glowN: 0, ring: null, ringMat: null,
@@ -99,7 +84,7 @@ export function buildScene(sim) {
   view.own.push(M.toon, M.toonRim, M.floor);
   view.kit = kit;
   const add = (mesh) => { mesh.frustumCulled = false; view.root.add(mesh); return mesh; };
-  const hang = (b, x, y, z, ry) => { b.position.set(x, y, z); b.rotation.y = ry; view.own.push(b.material.map, b.material); view.root.add(b); view.banners.push(b); };
+  const hang = (b, x, y, z, ry) => { b.position.set(x, y, z); b.rotation.y = ry; view.own.push(b.material); view.root.add(b); view.banners.push(b); };
 
   // Floor: one quad under the whole plan; the shader draws tiles, store tints, arrows and edge shadows.
   view.map = floorMap(world);
@@ -112,101 +97,51 @@ export function buildScene(sim) {
   floor.position.set(world.w / 2, 0, world.h / 2);
   view.root.add(floor);
 
-  // Walls: merged boxes with plum tops, so the rooms read as cut out of a block; every wall face that
-  // looks into a store carries a band in that store's colour.
-  const wb = makeBuilder();
-  for (const w of world.walls) {
-    place(wb, w.x, 0, w.z);
-    addBox(wb, w.hx * 2, CFG.WALL_H, w.hz * 2, PAL.wall, { bevel: 0, top: PAL.walltop });
-  }
-  const bulbs = [];
-  for (let r = 0; r < world.rows; r++) for (let c = 0; c < cols; c++) {
-    if (!isFloor(c, r)) continue;
-    for (const [dc, dr] of DIRS) {
-      if (isFloor(c + dc, r + dr)) continue;
-      place(wb, (c + 0.5 + dc * 0.49) * T, 1.5, (r + 0.5 + dr * 0.49) * T, dc ? Math.PI / 2 : 0);
-      addBox(wb, T, 0.6, 0.1, mix(accentOf(r * cols + c), PAL.wall, 0.25), { bevel: 0 });
-      if ((c + r) % 2 === 0) bulbs.push((c + 0.5 + dc * 0.56) * T, (r + 0.5 + dr * 0.56) * T);
-    }
-  }
-  view.root.add(new THREE.Mesh(mGeometry(wb), M.toon));
-
-  // Contact shadows: one instanced octagon; the static ones are written once, moving blobs every frame.
-  const sb = makeBuilder();
-  addCyl(sb, 1, 1, 0.001, PAL.shadow, { seg: 8 });
-  view.shadows = add(new THREE.InstancedMesh(mGeometry(sb), view.own[view.own.push(flatMat(0.2)) - 1], SHADOW_CAP));
+  // Contact shadows: one instanced disc; the static ones are written once, moving blobs every frame.
+  const disc = (seg) => { const b = builder(); bind(b, 0, [0, 0, 0, 0]); cyl(b, 1, 1, 0.001, 0xFFFFFF, { seg, top: true }); return toGeometry(b, { groups: false, hull: false }); };
+  view.shadows = add(new THREE.InstancedMesh(disc(10), view.own[view.own.push(flatMat(0.22)) - 1], SHADOW_CAP));
+  view.shadows.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(SHADOW_CAP * 3).fill(0.23), 3);
   view.shadows.renderOrder = 1;
-  const gb = makeBuilder();
-  addCyl(gb, 1, 1, 0.001, PAL.white, { seg: 12 });
-  view.glows = add(new THREE.InstancedMesh(mGeometry(gb), view.own[view.own.push(flatMat(0.5)) - 1], GLOW_CAP));
+  view.glows = add(new THREE.InstancedMesh(disc(16), view.own[view.own.push(flatMat(0.5)) - 1], GLOW_CAP));
   view.glows.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(GLOW_CAP * 3), 3);
   view.glows.renderOrder = 1;
 
-  // Furniture: shelves and the pieces that never change, in one static mesh with a thin outline.
-  const fb = makeBuilder();
-  for (const s of world.shelves) {
-    addShelf(fb, s, accentOf(Math.floor(s.z / T) * cols + Math.floor(s.x / T)));
-    putShadow(view, s.x, s.z, s.hx + 0.22, s.hz + 0.22, 0);
-  }
-  // A hot item stands in a hard-edged gold column with a star turning above it.
-  const beam = makeBuilder();
-  addCyl(beam, 0.3, 0.3, 5, PAL.hot, { seg: 8 });
-  const beamGeo = mGeometry(beam), beamMat = flatMat(0.42), starGeo = pieceGeometry('star');
-  view.own.push(beamMat);
-  const geos = {};
+  // Goods first: the store writes its shelf stock into them as a locked static prefix (goods.js).
+  view.gv = makeGoods(view.root);
+  view.hot = kit.hot || 'cheese';
+  // The store from its kit: walls, shelf runs, counters, displays, signs, decals (fixtures.js).
+  buildStore(view, sim, kit, (x, z, rx, rz, ry) => putShadow(view, x, z, rx, rz, ry));
+  // Pieces with a life of their own (they break, fly or open): one mesh each. A hot item stands in a
+  // gold column under a turning halo.
+  const bb = builder(); bind(bb, 0, [0, 0, 0, 0]); cyl(bb, 0.32, 0.32, 5, PAL.hot, { seg: 10, top: false });
+  const beamGeo = toGeometry(bb, { groups: false, hull: false }), beamMat = flatMat(0.32, true);
+  const hb = builder(); bind(hb, 0, [0, 0, 1, 0.7]); ring(hb, 0.5, 0.5, 0.06, 0.1, PAL.hot, { seg: 20 });
+  const haloGeo = toGeometry(hb, {}), haloMat = [celMaterial({ rim: 0.5 }), hullMaterial(2.5)];
+  view.own.push(beamMat, haloMat[0]);
   for (const p of world.pieces) {
-    const rad = p.solid.r || Math.max(p.solid.hx, p.solid.hz);
-    if (!LOOSE[p.type]) {
-      putShadow(view, p.x, p.z, (p.solid.r || p.solid.hx) + 0.15, (p.solid.r || p.solid.hz) + 0.15, 0);
-      addPiece(fb, p.type, p.x, p.z, accentOf(p.r * cols + p.c));
-      continue;
-    }
-    const mesh = new THREE.Mesh(geos[p.type] || (geos[p.type] = pieceGeometry(p.type)), M.toon);
+    if (!LOOSE[p.type]) continue;
+    const rad = p.solid.r || Math.max(p.solid.hx, p.solid.hz), mesh = pieceMesh(p.type, kit);
     mesh.position.set(p.x, 0, p.z);
     if (p.type === 'glass' && isFloor(p.c - 1, p.r) && isFloor(p.c + 1, p.r)) mesh.rotation.y = Math.PI / 2;   // across the way through
     view.root.add(mesh);
     const item = { p, mesh, beam: null, star: null, vx: 0, vy: 0, vz: 0, fly: 0, rad };
     if (p.type === 'podium') {
       item.beam = new THREE.Mesh(beamGeo, beamMat); item.beam.position.set(p.x, 0.3, p.z); view.root.add(item.beam);
-      item.star = new THREE.Mesh(starGeo, [M.toon, M.lineBold]); view.root.add(item.star);
+      item.star = new THREE.Mesh(haloGeo, haloMat); item.star.rotation.x = Math.PI / 2; view.root.add(item.star);
     }
     view.pieces.push(item);
   }
-  // Ramps face down the route; a wet patch gets one yellow sign at its first corner.
-  for (const rp of world.ramps) { addPiece(fb, 'ramp', rp.x, rp.z, PAL.sale, Math.atan2(rp.dx, rp.dz)); putShadow(view, rp.x, rp.z, 1.1, 1.3, Math.atan2(rp.dx, rp.dz)); }
-  for (let i = 0; i < world.wet.length; i++) {
-    if (world.wet[i] && !world.wet[i - 1] && !world.wet[i - cols]) addPiece(fb, 'wetsign', (i % cols) * T - 0.2, Math.floor(i / cols) * T - 0.2);
-  }
   view.fixed = view.shadowN;
-  view.root.add(new THREE.Mesh(mGeometry(fb), M.toon));
-  // The cart train: a string of steel carts.
-  const carGeo = sim.trains.length ? cartGeometry(PAL.danger) : null;
+  // The cart train: a string of red carts (cart-only racers).
   for (const tr of sim.trains) {
     const cars = [];
-    for (let i = 0; i < CFG.trainCars; i++) { const m = new THREE.Mesh(carGeo, M.toon); view.root.add(m); cars.push(m); }
+    for (let i = 0; i < CFG.trainCars; i++) { const m = makeRacer('penny', { paint: { body: 0xE63946, rim: 0xFFC9CC, trim: 0xFFD23F, gloss: 0.4 } }, { cartOnly: true }); poseRig(m.rig); view.root.add(m.mesh); cars.push(m.mesh); view.own.push(m.rig.cel); }
     view.trains.push({ tr, cars });
   }
 
-  // Holiday garlands: small warm-white bulbs along the top edge of the walls (decoration never uses a signal colour).
-  const lb = makeBuilder();
-  addBall(lb, 0.1, 0.1, 0.1, PAL.wall, { seg: 5, rings: 3 });
-  const lights = add(new THREE.InstancedMesh(mGeometry(lb), M.toon, Math.max(1, bulbs.length / 2)));
-  const mat4 = new THREE.Matrix4();
-  for (let i = 0; i < bulbs.length / 2; i++) lights.setMatrixAt(i, mat4.makeTranslation(bulbs[i * 2], CFG.WALL_H + 0.08, bulbs[i * 2 + 1]));
-
-  // Each store has a banner over its way in.
+  // The checkouts: a big CHECKOUT sign over the lanes facing the way the carts come from; over each lane a
+  // lamp (green = open) and, once it has closed, a barrier at both ends. One instanced box does lamps and bars.
   const navAt = (x, z) => isFloor(Math.floor(x / T), Math.floor(z / T)) ? world.nav[Math.floor(z / T) * cols + Math.floor(x / T)] : 1e9;
-  zones.forEach((zn) => {
-    if (!zn.rect) return;
-    const [c0, r0, c1, r1] = zn.rect, tall = r1 - r0 > c1 - c0, mid = tall ? (c0 + c1 + 1) / 2 : (r0 + r1 + 1) / 2;
-    const lowEnd = tall ? navAt(mid * T, (r0 + 1) * T) > navAt(mid * T, (r1 - 1) * T) : navAt((c0 + 1) * T, mid * T) > navAt((c1 - 1) * T, mid * T);   // the way in is at the low index
-    const at = lowEnd ? (tall ? r0 : c0) + 4 : (tall ? r1 : c1) - 3, face = lowEnd ? -1 : 1;
-    hang(banner(zn.name, PAL.zones[(zn.color || 0) % 4]), (tall ? mid : at) * T, 3.5, (tall ? at : mid) * T,
-      tall ? (face > 0 ? 0 : Math.PI) : (face > 0 ? Math.PI / 2 : -Math.PI / 2));
-  });
-
-  // The checkouts: a big sign over the lanes facing the way the carts come from; over each lane a lamp
-  // (green = open) and, once it has closed, a barrier at both ends. One instanced box does lamps and bars.
   const L = world.lanes;
   if (L.length) {
     let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9;
@@ -217,14 +152,11 @@ export function buildScene(sim) {
       const v = navAt(cx + dx * (hx + T * 1.5), cz + dz * (hz + T * 1.5));
       if (v < 1e8 && v > far) { far = v; ax = dx; az = dz; }
     }
-    hang(banner('CHECKOUT', PAL.sale, Math.max(4, ax ? hz : hx), 1.15), cx + ax * (hx + 0.4), 4.4, cz + az * (hz + 0.4), Math.atan2(ax, az));
-    view.lanes = add(new THREE.InstancedMesh(pieceGeometry('box'), M.toon, L.length * 3));
+    hang(banner(kitAtlas(kit), KIT.checkout, Math.min(3.2, Math.max(2.4, (ax ? hz : hx) * 0.6)), 0.75), cx + ax * (hx + 0.4), 4.2, cz + az * (hz + 0.4), Math.atan2(ax, az));
+    const lb = builder(); bind(lb, 0, [5, 0, 0.4, 0.5]); box(lb, 1, 1, 1, 0xFFFFFF, { bevel: 0.15, mid: true });
+    view.lanes = add(new THREE.InstancedMesh(toGeometry(lb, { groups: false, hull: false }), M.toon, L.length * 3));
     view.lanes.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(L.length * 9).fill(1), 3);
   }
-
-  // Goods: one instanced mesh per base shape serves shelves, the floor, the air and the towers (goods.js).
-  view.gv = makeGoods(view.root);
-  view.hot = kit.hot || 'cheese';
 
   // The crowd: one instanced shopper in three muted colours.
   view.crowdKinds = kit.crowd;
