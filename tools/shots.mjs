@@ -8,7 +8,7 @@ import { chromium } from 'playwright-core';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { startServer } from './serve.mjs';
-import { ROOT, args } from './lib.mjs';
+import { ROOT, args, room } from './lib.mjs';
 import { SETS } from './shotsets.mjs';
 
 const a = args();
@@ -21,7 +21,8 @@ mkdirSync(outDir, { recursive: true });
 const server = await startServer(a.root ? resolve(ROOT, a.root) : ROOT, 0);
 const browser = await chromium.launch({
   channel: 'chromium', headless: true,          // Playwright's own Chromium in new headless mode (real GPU)
-  args: ['--ignore-gpu-blocklist', '--enable-gpu', '--use-angle=d3d11', '--enable-unsafe-swiftshader', '--mute-audio'],
+  args: ['--ignore-gpu-blocklist', '--enable-gpu', '--use-angle=d3d11', '--enable-unsafe-swiftshader', '--mute-audio',
+    '--host-resolver-rules=MAP *.mindblown.ai 127.0.0.1'],   // lets a scenario serve the page under a platform host name
 });
 const problems = [];          // console errors, page errors, failed or external requests
 const summary = [];
@@ -44,18 +45,47 @@ for (const sc of scenarios) {
   page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') problems.push(tag(m.type() + ': ' + m.text())); });
   page.on('pageerror', (e) => problems.push(tag('page error: ' + e.message)));
   page.on('requestfailed', (r) => problems.push(tag('request failed: ' + r.url())));
-  page.on('request', (r) => { const u = r.url(); if (!u.startsWith(server.url) && !u.startsWith('data:') && !u.startsWith('blob:')) problems.push(tag('EXTERNAL request: ' + u)); });
+  // A platform scenario serves the page as play.mindblown.ai, answers the hosted three.js URL from
+  // the local copy and installs a recording stand-in for window.mindblown (see sdk.md).
+  const HOSTED = 'https://mindblown.ai/lib/three-0.185.1/three.min.js';
+  const base = sc.platform ? server.url.replace('127.0.0.1', 'play.mindblown.ai') : server.url;
+  let hosted = 0;
+  if (sc.platform) {
+    await ctx.route(HOSTED, (r) => { hosted++; r.fulfill({ path: resolve(ROOT, 'lib', 'three.min.js'), contentType: 'text/javascript' }); });
+    await page.addInitScript(() => {
+      const log = [];
+      window.mindblown = {
+        __log: log,
+        viewer: { id: 'u_test', username: 'Tester', signedIn: true, onchange(fn) { fn(); return () => {}; } },
+        run: { start() { log.push('run.start'); }, end(p) { log.push('run.end ' + JSON.stringify(p)); }, pause() { log.push('run.pause'); }, resume() { log.push('run.resume'); } },
+        tune: Object.assign(async () => { log.push('tune'); return { maxspeed: 12.5 }; }, { on() { log.push('tune.on'); return () => {}; } }),
+        load: async (key) => { log.push('load ' + key); return { value: null, revision: null }; },
+        save: async (key) => { log.push('save ' + key); return { revision: 1 }; },
+        leaderboard: { submit: async (m, v) => { log.push('submit ' + m + ' ' + v); }, top: async () => [], mine: async () => null },
+        sound: { on: true, set(v) { this.on = v; log.push('sound.set ' + v); return v; }, onchange() { return () => {}; } },
+      };
+    });
+  }
+  page.on('request', (r) => { const u = r.url(); if (!u.startsWith(base) && !u.startsWith('data:') && !u.startsWith('blob:') && !(sc.platform && u === HOSTED)) problems.push(tag('EXTERNAL request: ' + u)); });
 
   const t0 = Date.now();
-  await page.goto(`${server.url}/${sc.page || 'index.html'}?${sc.query || ''}${sc.realtime ? '' : '&manual=1'}${sc.realtime ? '&debug=1' : ''}`);
+  await page.goto(`${base}/${sc.page || 'index.html'}?${sc.query || ''}${sc.plain ? '' : sc.realtime ? '&debug=1' : '&manual=1'}`);
   await page.waitForFunction(() => window.__ready === true, null, { timeout: 15000 });
   const loadMs = Date.now() - t0;
   const row = { name: sc.name, loadMs };
+  if (sc.room) await page.evaluate((def) => window.__db.custom(def), room(sc.room[0], sc.room[1]));
 
-  if (sc.realtime) {
+  if (sc.plain) {
+    // A plain page as a person gets it (no bot, no manual clock): wait, then screenshot.
+    await page.waitForTimeout(sc.plain * 1000);
+    await page.screenshot({ path: join(outDir, sc.name + '.png') });
+  } else if (sc.realtime) {
     // Real-time sample: count animation frames and collect frame gaps for `realtime` seconds.
+    // Wait for GO, then sample the frame gaps of real play.
+    await page.waitForFunction(() => window.__db.game.sim.t > 0.2, null, { timeout: 15000 });
     const res = await page.evaluate((secs) => new Promise((done) => {
-      const gaps = []; let last = performance.now(); const start = last;
+      const gaps = []; let last = performance.now(); const start = last, g = window.__db.game;
+      g.logicSum = 0; g.logicN = 0;
       const loop = (now) => {
         gaps.push(now - last); last = now;
         if (now - start < secs * 1000) requestAnimationFrame(loop); else done({ gaps, info: window.__db.info() });
@@ -66,6 +96,7 @@ for (const sc of scenarios) {
     row.fps = 1000 / (g.reduce((s, v) => s + v, 0) / g.length);
     row.p95ms = g[Math.floor(g.length * 0.95)];
     row.maxMs = g[g.length - 1];
+    row.frames = g.length;
     Object.assign(row, { calls: res.info.calls, tris: res.info.tris, logicMs: res.info.logicMs, renderMs: res.info.renderMs });
     await page.screenshot({ path: join(outDir, sc.name + '.png') });
   } else {
@@ -79,9 +110,18 @@ for (const sc of scenarios) {
     for (const e of events) {
       const now = await page.evaluate(() => window.__db.game.sim.t);
       if (e.t > now + 1e-6) await page.evaluate((d) => window.__db.advance(d), e.t - now);
-      if (e.key) await page.evaluate(([k, v]) => { const g = window.__db.game; if (k === 'dash') g.dash = true; else g.keys[k] = v; }, [e.key, e.value]);
+      if (e.key) await page.evaluate(([k, v]) => { window.__db.key(k, v); if (k === 'dash') window.__db.key(k, false); }, [e.key, e.value]);
       if (e.shot) await page.screenshot({ path: join(outDir, e.shot) });
       if (e.strip !== undefined) { const f = join(outDir, `_${sc.name}_f${e.strip}.png`); await page.screenshot({ path: f }); stripFiles.push(f); }
+    }
+    if (sc.until) {
+      // Run on until the game reaches a state (e.g. 'receipt'), then give the interface real time to animate.
+      for (let i = 0; i < 400; i++) {
+        if (await page.evaluate((s) => window.__db.game.state === s, sc.until)) break;
+        await page.evaluate(() => window.__db.advance(0.5));
+      }
+      await page.waitForTimeout(sc.wait || 2600);
+      await page.screenshot({ path: join(outDir, sc.name + '_' + sc.until + '.png') });
     }
     if (stripFiles.length) await sheet(stripFiles, sc.strip.cols || 4, sc.strip.cell || 480, join(outDir, sc.name + '_strip.png'));
     if (sc.squint && sc.shots && sc.shots.length) {
@@ -92,7 +132,10 @@ for (const sc of scenarios) {
       const d = window.__db, gl = d.gfx.renderer.getContext(), ext = gl.getExtension('WEBGL_debug_renderer_info');
       return Object.assign(d.info(), { gpu: ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : 'unknown' });
     });
-    Object.assign(row, { t: +info.t.toFixed(2), phase: info.phase, calls: info.calls, tris: info.tris, gpu: info.gpu.replace(/^ANGLE \((\w+), ([^(]+?) \(.*$/, '$2') });
+    if (sc.after) row.after = await page.evaluate(sc.after);       // an extra measurement run in the page
+    if (sc.platform) row.platform = await page.evaluate(() => ({ hostedThree: null, calls: window.mindblown.__log, tuneMaxspeed: window.__db.TUNE.maxspeed, revision: window.THREE.REVISION }));
+    if (sc.platform) row.platform.hostedThree = hosted;
+    Object.assign(row, { t: +info.t.toFixed(2), phase: info.phase, items: info.items, value: info.value, calls: info.calls, tris: info.tris, gpu: info.gpu.replace(/^ANGLE \((\w+), ([^(]+?) \(.*$/, '$2') });
     if (info.cam) row.cam = { cartX: info.cam.cartX.map((v) => +v.toFixed(2)), cartY: info.cam.cartY.map((v) => +v.toFixed(2)),
       roadSec: +info.cam.minRoadSeconds.toFixed(2), yawRev: +info.cam.yawReversalsPerSecond.toFixed(2), lift: +info.cam.maxLift.toFixed(2) };
   }

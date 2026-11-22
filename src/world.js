@@ -64,6 +64,7 @@ export function buildWorld(def, rng) {
     solids: [], cells: [], walls: [], shelves: [], items: [], itemCells: [], groups: [],
     pieces: [], lanes: [], drops: [], spots: [], crowdTiles: [],
     start: { x: T, z: T, h: def.heading || 0 }, slots: [],
+    edge: { type: 'wall', on: true, r: 0, hx: 0, hz: 0 },   // stands in for the border of the plan
   };
   for (let i = 0; i < n; i++) { world.cells.push([]); world.itemCells.push([]); }
   const ch = (c, r) => (c < 0 || r < 0 || c >= cols || r >= rows) ? ' ' : plan[r][c];
@@ -98,10 +99,10 @@ export function buildWorld(def, rng) {
       world.pieces.push(piece);
     } else if (k === 'o') {
       const id = pool.S[(dropKind++ >> 2) % pool.S.length];
-      world.drops.push({ x, z, good: GOOD[id], ttl: -1, live: true, list: false, arm: 0 });
+      world.drops.push({ x, z, good: GOOD[id], ttl: -1, live: true, list: 0, arm: 0 });
     } else if (k === '1' || k === '2' || k === '3') {
       const id = (def.list || [])[Number(k) - 1];
-      if (id) world.drops.push({ x, z, good: GOOD[id], ttl: -1, live: true, list: true, arm: 0 });
+      if (id) world.drops.push({ x, z, good: GOOD[id], ttl: -1, live: true, list: Number(k), arm: 0 });   // list = which of the three
     } else if (k === '@') {
       world.start.x = x; world.start.z = z;
     } else if (k === 'r') {
@@ -286,6 +287,11 @@ export function collide(world, x, z, rad, air, skipSoft) {
       if (depth > best) { best = depth; hit.nx = nx; hit.nz = nz; hit.depth = depth; hit.solid = s; }
     }
   }
+  // The border of the plan is solid even where a level leaves floor on the edge.
+  if (rad - x > best) { best = rad - x; hit.nx = 1; hit.nz = 0; hit.depth = best; hit.solid = world.edge; }
+  if (x + rad - world.w > best) { best = x + rad - world.w; hit.nx = -1; hit.nz = 0; hit.depth = best; hit.solid = world.edge; }
+  if (rad - z > best) { best = rad - z; hit.nx = 0; hit.nz = 1; hit.depth = best; hit.solid = world.edge; }
+  if (z + rad - world.h > best) { best = z + rad - world.h; hit.nx = 0; hit.nz = -1; hit.depth = best; hit.solid = world.edge; }
   return hit.solid ? hit : null;
 }
 
@@ -355,9 +361,11 @@ export function navDistAt(world, x, z) {
 }
 
 // Where to drive from (x, z): walks the field downhill for up to `steps` tiles and returns in `out`
-// the farthest point on that walk that is visible in a straight line (out.x, out.z), the end of the
-// walk (out.fx, out.fz) and the distance left (out.left). Returns false if there is no way.
-export function navAim(world, x, z, steps, rad, out) {
+// the farthest point on that walk that is visible in a straight line and no more than `reach` metres
+// along it (out.x, out.z), the end of the walk (out.fx, out.fz) and the distance left (out.left).
+// A short reach keeps a driver on the path through narrow places; a long one cuts corners.
+// Returns false if there is no way.
+export function navAim(world, x, z, steps, rad, out, reach) {
   const { cols, rows, nav, block } = world;
   let c = Math.min(cols - 1, Math.max(0, Math.floor(x / T))), r = Math.min(rows - 1, Math.max(0, Math.floor(z / T)));
   if (nav[r * cols + c] >= 1e8) {               // standing on a blocked tile: hop to the best neighbour
@@ -372,20 +380,26 @@ export function navAim(world, x, z, steps, rad, out) {
   }
   out.left = nav[r * cols + c];
   out.x = out.fx = (c + 0.5) * T; out.z = out.fz = (r + 0.5) * T;
+  let len = 0;
   for (let s = 0; s < steps; s++) {
-    let best = nav[r * cols + c], bc = c, br = r;
+    const here = nav[r * cols + c];
+    let best = here, bc = c, br = r, near = 1e9;
     for (const [dc, dr] of NEIGH) {
       const cc = c + dc, rr = r + dr;
       if (cc < 0 || rr < 0 || cc >= cols || rr >= rows) continue;
       if (dc && dr && (block[r * cols + cc] || block[rr * cols + c])) continue;
       const d = nav[rr * cols + cc];
-      if (d < best - 1e-4) { best = d; bc = cc; br = rr; }
+      if (d >= here - 1e-4 || d > best + 0.75) continue;
+      // Two ways of nearly the same length (either side of an island): take the one nearer the cart.
+      const off = Math.hypot((cc + 0.5) * T - x, (rr + 0.5) * T - z);
+      if (d < best - 0.75 || off < near) { best = Math.min(best, d); bc = cc; br = rr; near = off; }
     }
     if (bc === c && br === r) break;
+    len += bc !== c && br !== r ? T * 1.414 : T;
     c = bc; r = br;
     const px = (c + 0.5) * T, pz = (r + 0.5) * T;
     out.fx = px; out.fz = pz;
-    if (s < 2 || clearPath(world, x, z, px, pz, rad)) { out.x = px; out.z = pz; }
+    if (s < 2 || (len <= reach && clearPath(world, x, z, px, pz, rad))) { out.x = px; out.z = pz; }
   }
   return true;
 }

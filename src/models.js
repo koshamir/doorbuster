@@ -162,8 +162,8 @@ export function cartGeometry(color) {
   place(b, 0, 0.38, 0); addBox(b, 1.0, 0.1, 1.4, color, { bevel: 0.2 });                  // basket floor
   for (const x of [-0.46, 0.46]) { place(b, x, 0.42, 0); addBox(b, 0.1, 0.52, 1.4, color, { bevel: 0.2 }); }
   for (const z of [-0.66, 0.66]) { place(b, 0, 0.42, z); addBox(b, 0.84, 0.52, 0.1, color, { bevel: 0.2 }); }
-  for (const x of [-0.49, 0.49]) { place(b, x, 0.9, 0); addBox(b, 0.16, 0.13, 1.54, PAL.white, { bevel: 0.3 }); }   // rim
-  for (const z of [-0.69, 0.69]) { place(b, 0, 0.9, z); addBox(b, 0.84, 0.13, 0.16, PAL.white, { bevel: 0.3 }); }
+  for (const x of [-0.49, 0.49]) { place(b, x, 0.9, 0); addBox(b, 0.18, 0.15, 1.58, color, { bevel: 0.3 }); }       // rim, in the cart's colour
+  for (const z of [-0.7, 0.7]) { place(b, 0, 0.9, z); addBox(b, 0.84, 0.15, 0.18, color, { bevel: 0.3 }); }
   for (const z of [-0.4, 0, 0.4]) for (const x of [-0.53, 0.53]) {                        // ribs
     place(b, x, 0.44, z); addBox(b, 0.07, 0.46, 0.12, PAL.white, { bevel: 0.3 });
   }

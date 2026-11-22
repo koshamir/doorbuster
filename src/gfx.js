@@ -16,7 +16,7 @@ export const gfx = {
   renderer: null, scene: null, camera: null, w: 1, h: 1, ratio: 1,
   u: null,                         // uniforms shared by every material
   mats: null,                      // the shared materials: toon, toonRim, lineThin, lineBold, floor
-  cam: { yaw: 0, zoom: 0, x: 0, z: 0, shake: 0, ready: false, tower: 0, lift: 0, t: 0 },
+  cam: { yaw: 0, zoom: 0, x: 0, z: 0, shake: 0, ready: false, tower: 0, lift: 0, punch: 0, t: 0 },
   stats: { calls: 0, tris: 0, ms: 0, fps: 60 },
 };
 
@@ -190,10 +190,10 @@ export function updateCamera(k, alpha, dt, towerHeight, world) {
   const cam = gfx.cam, camera = gfx.camera;
   const x = lerp(k.px, k.x, alpha), z = lerp(k.pz, k.z, alpha);
   const h = k.ph + wrapAngle(k.h - k.ph) * alpha;
-  const want = h - k.slip * 0.55 + k.yaw * 0.22;       // follow the travel direction, lead into the turn
+  const want = h - k.slip * 0.55;                      // follow the travel direction; the lag below lets a turning cart yaw on screen
   if (!cam.ready) { cam.yaw = want; cam.zoom = 0; cam.ready = true; cam.tower = 0; cam.lift = 0; }
   cam.t += dt;
-  cam.yaw += wrapAngle(want - cam.yaw) * (1 - Math.exp(-dt * 5.5));
+  cam.yaw += wrapAngle(want - cam.yaw) * (1 - Math.exp(-dt * CFG.camFollow));
   const sf = clamp(Math.abs(k.spd) / TUNE.maxspeed, 0, 1.7);
   cam.zoom += (sf - cam.zoom) * (1 - Math.exp(-dt * 2.5));
   cam.tower += ((towerHeight || 0) - cam.tower) * (1 - Math.exp(-dt * 2));
@@ -221,7 +221,9 @@ export function updateCamera(k, alpha, dt, towerHeight, world) {
   camera.lookAt(lx + fz * sx * 0.5, 0.6, lz - fx * sx * 0.5);
   // Field of view: wider with speed, and wider still on tall screens so the corridor stays visible.
   const aspect = gfx.w / gfx.h;
-  const base = TUNE.camfov + 9 * fast;
+  const kick = k.dashT > 0 ? 1 : k.boostT > 0 ? 0.6 : 0;       // a dash or boost punches the view wider at once
+  cam.punch += (kick - cam.punch) * (1 - Math.exp(-dt * (kick > cam.punch ? 16 : 3)));
+  const base = TUNE.camfov + 9 * fast + 7 * cam.punch;
   const tall = aspect < 1.3 ? Math.min(1.7, 1.3 / aspect) : 1;
   const fov = 2 * Math.atan(Math.tan(base * Math.PI / 360) * tall) * 180 / Math.PI;
   if (Math.abs(fov - camera.fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }

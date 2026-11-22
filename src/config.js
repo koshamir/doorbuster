@@ -8,10 +8,10 @@
 
 // ---- Tune values. tune.json must list the same names; these are the in-code defaults. ----------
 export const TUNE = {
-  maxspeed: 12, accel: 14, brake: 20, turnrate: 3, turnattop: 0.55, grip: 20, driftgrip: 4.5,
-  driftturn: 1.4, turbopower: 1.4, dashspeed: 6, dashcooldown: 1.5,
+  maxspeed: 12, accel: 14, brake: 20, turnrate: 3, turnattop: 0.55, grip: 20, driftgrip: 3.5,
+  driftturn: 1.15, turbopower: 1.4, dashspeed: 6, dashcooldown: 1.5,
   loadfull: 30, loadfree: 0.3, loadaccel: 0.55, loadbrake: 0.3, loadtop: 0.1, loadturn: 0.2,
-  overstack: 1.5, spillmax: 0.4, recollect: 3, sweepgap: 0.6, magnet: 0.9,
+  overstack: 1.5, spillmax: 0.4, recollect: 4, sweepgap: 0.6, magnet: 0.9,
   madnessfill: 1, madnessdrain: 1, madnesstime: 6, ramdrop: 0.3, immunity: 1.5,
   timer: 90, timebonus: 15, rivals: 5, rivalskill: 1, rivalaggro: 1, crowd: 1,
   camheight: 7, campitch: 40, camfov: 55, shake: true, outline: true,
@@ -41,26 +41,38 @@ export const CFG = {
   // drift and boost
   driftMinSpeed: 0.4,     // share of top speed needed to start or keep a drift
   driftTiers: [0.6, 1.2, 2.0],   // seconds of drift for spark tiers 1..3
-  driftRange: [0.5, 1.0], // yaw multiplier when steering out of / into the drift (1 = driftturn in full)
+  driftRange: [0.53, 1.0], // yaw multiplier when steering out of / into the drift (1 = driftturn in full)
+  driftKick: 10,          // how fast the body swings out to its drift angle and back, 1/s
+  driftStraight: 0.18,    // seconds the body takes to swing back onto its path after a drift
   driftScrub: 0.35,       // speed bled per second at full slip, 1/s
   boostScale: [0.5, 1, 1.5],     // tier boost = 1 + (turbopower - 1) * scale
   boostTime: [0.7, 1.0, 1.4],    // seconds of boost per tier
   boostAccel: 2.5,        // acceleration multiplier while boosting
   // dash
   dashTime: 0.33, dashBuffer: 0.15, dashSteer: 0.5, dashReach: 0.35,
+  dashSag: 0.75,          // top speed share for a moment after a dash that hit nothing
+  dashSagTime: 0.8,       // how long that lasts, seconds
   // walls
   wallBounce: 0.15, wallFriction: 0.25, wallAlign: 9,
-  scrapeDrag: 0.6,        // share of speed lost per second while rubbing a wall or shelf
+  wallPeel: 0.5,          // how fast a rubbing cart turns away from the surface, rad/s
+  scrapeDrag: 0.4,        // share of speed lost per second while rubbing a wall or shelf
   crashSpeed: 6.5,        // speed into a wall (along its normal) that counts as a crash, m/s
   crashCos: 0.72,         // and the hit must be this head-on (cos of the angle to the normal)
-  crashBounce: 0.45,      // how much of the speed a crash throws back
+  crashKeep: 0.55,        // share of speed a crash keeps, redirected along the surface
+  crashWhip: 14,          // how fast the nose swings round after a crash, rad/s
   crashStun: 0.4,         // seconds of lost control after a crash
   stunGrip: 3,            // side grip while spinning or stunned
   wetGrip: 1.2,           // side grip on a wet floor
   assistLook: 0.45,       // seconds ahead the wall-avoid helper looks
   assistYaw: 0.7,         // strongest helper yaw, rad/s
   pinYaw: 4.5,            // how fast a cart pinned nose-first swings along the wall, rad/s
+  pinPatience: 0.3,       // seconds of pushing with no movement before the cart backs out by itself
+  backTime: 0.32, backSpeed: 3.5, backYaw: 2.8,   // the automatic back-out: seconds, m/s, rad/s
   countdown: 2.4,         // seconds from the click to GO
+  camFollow: 6.5,         // how fast the camera's yaw follows the cart, 1/s (lag at full lock is about 14 degrees)
+  // scoring
+  listBonus: 200,         // dollars for bringing all three list items to the checkout
+  stunts: { cleansweep: 50, strike: 150, ram: 75, takedown: 200, shave: 10, smash: 25, jump: 250 },
 };
 
 // ---- Palette (ART.md section 3). Stored as sRGB hex; rgb() converts to 0..1 floats. ----------

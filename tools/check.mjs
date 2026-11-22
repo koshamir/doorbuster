@@ -6,7 +6,9 @@
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { ROOT } from './lib.mjs';
-import { TUNE } from '../src/config.js';
+import { TUNE, GOODS, makeRng } from '../src/config.js';
+import { LEVELS } from '../src/levels.js';
+import { buildWorld, PIECES } from '../src/world.js';
 
 const fails = [], notes = [];
 const ok = (cond, msg) => { if (!cond) fails.push(msg); };
@@ -59,6 +61,29 @@ for (const n of names) {
 }
 for (const n in TUNE) ok(n in tune, `src/config.js has "${n}" but tune.json does not`);
 notes.push(`tune.json: ${names.length} entries (limit 40)`);
+
+// ---- levels: well-formed plans, a start, a checkout, every floor tile can reach the checkout
+const LEGEND = ' .SMLo123@rcCf><^v~R' + Object.keys(PIECES).join('');
+LEVELS.forEach((def, li) => {
+  const tag = `level ${li} "${def.id}"`;
+  const w = def.plan[0].length;
+  ok(def.plan.every((l) => l.length === w), `${tag}: rows differ in length`);
+  ok(def.plan[0].trim() === '' && def.plan[def.plan.length - 1].trim() === '' && def.plan.every((l) => l[0] === ' ' && l[l.length - 1] === ' '), `${tag}: the border of the plan must be void`);
+  const text = def.plan.join('');
+  for (const ch of text) ok(LEGEND.includes(ch), `${tag}: unknown plan character "${ch}"`);
+  ok((text.match(/@/g) || []).length === 1, `${tag}: needs exactly one start (@)`);
+  ok(text.includes('c'), `${tag}: needs a checkout lane (c)`);
+  ok((text.match(/r/g) || []).length >= (def.rivals || []).length, `${tag}: fewer rival starts (r) than rivals`);
+  const world = buildWorld(def, makeRng(1));
+  let lost = 0;
+  for (let i = 0; i < world.nav.length; i++) if (world.floor[i] && !world.block[i] && world.nav[i] > 1e8) lost++;
+  ok(lost === 0, `${tag}: ${lost} floor tiles cannot reach a checkout`);
+  for (const [name, c, r] of def.marks || []) ok(world.floor[r * world.cols + c] === 1, `${tag}: mark "${name}" is not on floor`);
+  let units = 0;
+  for (const it of world.items) units += GOODS[it.good].w;
+  for (const d of world.drops) units += GOODS[d.good].w;
+  notes.push(`${tag}: ${world.cols}x${world.rows} tiles, route ${world.navStart.toFixed(0)} m, timer ${def.timer} s, goods ${units} units (${(units / TUNE.loadfull).toFixed(1)} carts)`);
+});
 
 // ---- size of everything except three.js
 let bytes = 0;

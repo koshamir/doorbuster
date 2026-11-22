@@ -50,21 +50,33 @@ export function room(cols = 60, rows = 40, edit) {
 export function runOne(def, seed, bot, opts = {}) {
   const sim = createSim(def, seed, { bot, countdown: 0, ...opts });
   const p = sim.player;
-  let dist = 0, steps = 0, maxSpd = 0;
+  let dist = 0, steps = 0, maxSpd = 0, still = 0, stillMax = 0;
   const counts = {};
+  // Obstacle marks (test levels): when each was reached and what went wrong on the way to it.
+  const marks = (def.marks || []).map(([name, c, r]) => ({ name, x: (c + 0.5) * CFG.TILE, z: (r + 0.5) * CFG.TILE, t: -1, crashes: 0, stuck: 0, bumps: 0 }));
+  let mi = 0, lastT = 0, lastCrash = 0, lastStuck = 0, lastBump = 0;
   const limit = Math.ceil((sim.timer + 5) / CFG.STEP);
+  const t0 = process.hrtime.bigint();
   while (sim.phase !== 'done' && sim.phase !== 'closed' && steps < limit) {
     stepSim(sim);
     steps++;
     dist += Math.hypot(p.x - p.px, p.z - p.pz);
     maxSpd = Math.max(maxSpd, Math.abs(p.spd));
+    if (Math.abs(p.spd) < 1 && sim.phase === 'run') { still += CFG.STEP; stillMax = Math.max(stillMax, still); } else still = 0;
     for (const e of sim.events) counts[e.type] = (counts[e.type] || 0) + 1;
     sim.events.length = 0;
+    const m = marks[mi];
+    if (m && Math.hypot(p.x - m.x, p.z - m.z) < 4.5) {
+      const trouble = sim.stats.stuck + p.backs;
+      m.t = sim.t - lastT; m.crashes = sim.stats.crashes - lastCrash; m.stuck = trouble - lastStuck; m.bumps = (counts.bump || 0) - lastBump;
+      lastT = sim.t; lastCrash = sim.stats.crashes; lastStuck = trouble; lastBump = counts.bump || 0; mi++;
+    }
     if (opts.onStep) opts.onStep(sim);
   }
+  const usPerStep = Number(process.hrtime.bigint() - t0) / 1000 / Math.max(1, steps);
   return { sim, finished: sim.phase === 'done', time: sim.t, dist, avg: dist / Math.max(sim.t, 1e-6), maxSpd,
-    zero: sim.stats.zeroT / Math.max(sim.t, 1e-6), lost: sim.stats.lostMax, stuck: sim.stats.stuck,
-    crashes: sim.stats.crashes, counts };
+    zero: sim.stats.zeroT / Math.max(sim.t, 1e-6), lost: sim.stats.lostMax, stuck: sim.stats.stuck + p.backs, stillMax,
+    crashes: sim.stats.crashes, counts, marks, usPerStep };
 }
 
 export function table(title, head, rows) {

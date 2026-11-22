@@ -6,7 +6,7 @@
 // Depends on: config.js, gfx.js and the global THREE (inside functions only).
 //
 // Particles are camera-facing quads; the fragment shader cuts the shape (0 diamond, 1 round puff,
-// 2 four-point star, 3 square) and draws a dark rim, so they match the outlined look (ART.md 4).
+// 2 four-point star, 3 square, 4 plain sliver) and draws a dark rim, so they match the outlined look (ART.md 4).
 
 import { CFG, PAL, rgb } from './config.js';
 import { gfx } from './gfx.js';
@@ -27,8 +27,8 @@ attribute vec3 iPos; attribute vec4 iParam; attribute vec3 iColor;
 varying vec2 vUv; varying vec3 vColor; varying float vShape;
 void main() {
   float c = cos(iParam.y), s = sin(iParam.y);
-  vec2 q = vec2(position.x * c - position.y * s, position.x * s + position.y * c) * iParam.x;
-  q.x *= iParam.w;                                    // aspect (streaks are long and thin)
+  vec2 p = vec2(position.x * iParam.w, position.y);   // aspect first: streaks are long and thin
+  vec2 q = vec2(p.x * c - p.y * s, p.x * s + p.y * c) * iParam.x;
   vec4 mv = viewMatrix * vec4(iPos, 1.0);
   mv.xy += q;
   vUv = position.xy * 2.0; vColor = iColor; vShape = iParam.z;
@@ -45,7 +45,7 @@ void main() {
   else if (vShape < 2.5) d = pow(pow(p.x, 0.55) + pow(p.y, 0.55), 1.8); // four-point star
   else d = max(p.x, p.y);                                            // square
   if (d > 1.0) discard;
-  gl_FragColor = vec4(d > 0.8 ? uRimColor : vColor, 1.0);
+  gl_FragColor = vec4(d > 0.8 && vShape < 3.5 ? uRimColor : vColor, 1.0);   // shape 4 is a plain sliver, no rim
 }`;
 
 export function initFx() {
@@ -67,7 +67,7 @@ export function initFx() {
 export function clearFx() { fxCount = 0; if (fxMesh) fxMesh.geometry.instanceCount = 0; }
 
 // One particle. o: { vx, vy, vz, ttl, size, end (size at death), shape, color (index into FX_COLORS or a
-// palette hex), grav, drag, spin, aspect }.
+// palette hex), grav, drag, spin, rot, aspect }.
 export function spark(x, y, z, o) {
   if (fxCount >= FX_CAP) return;
   const i = fxCount++ * FX_STRIDE;
@@ -77,7 +77,7 @@ export function spark(x, y, z, o) {
   fxData[i + 3] = o.vx || 0; fxData[i + 4] = o.vy || 0; fxData[i + 5] = o.vz || 0;
   fxData[i + 6] = 0; fxData[i + 7] = o.ttl || 0.4;
   fxData[i + 8] = o.size || 0.2; fxData[i + 9] = o.end === undefined ? 0 : o.end;
-  fxData[i + 10] = fxRnd() * 6.28; fxData[i + 11] = o.spin === undefined ? (fxRnd() - 0.5) * 8 : o.spin;
+  fxData[i + 10] = o.rot === undefined ? fxRnd() * 6.28 : o.rot; fxData[i + 11] = o.spin === undefined ? (fxRnd() - 0.5) * 8 : o.spin;
   fxData[i + 12] = o.grav === undefined ? 9 : o.grav; fxData[i + 13] = o.drag || 0;
   fxData[i + 14] = (o.shape || 0) + (o.aspect ? 10 * o.aspect : 0); fxData[i + 15] = ci;
 }
@@ -101,7 +101,7 @@ export function cartFx(k, x, z, h, dt) {
     const side = -k.drift;
     for (let n = 0; n < (k.tier > 0 ? 2 : 1); n++) {
       fxOpt.color = TIER_COLORS[k.tier]; fxOpt.shape = k.tier > 0 ? 0 : 1; fxOpt.size = k.tier > 0 ? 0.16 + 0.05 * k.tier : 0.22; fxOpt.end = 0;
-      fxOpt.ttl = 0.22 + fxRnd() * 0.2; fxOpt.grav = k.tier > 0 ? 7 : -1; fxOpt.drag = 2; fxOpt.spin = undefined; fxOpt.aspect = 0;
+      fxOpt.ttl = 0.22 + fxRnd() * 0.2; fxOpt.grav = k.tier > 0 ? 7 : -1; fxOpt.drag = 2; fxOpt.spin = undefined; fxOpt.rot = undefined; fxOpt.aspect = 0;
       fxOpt.vx = -fx * speed * 0.35 + rx * side * (1 + fxRnd() * 2.5); fxOpt.vz = -fz * speed * 0.35 + rz * side * (1 + fxRnd() * 2.5); fxOpt.vy = 1 + fxRnd() * 2.2;
       spark(x - fx * 0.55 + rx * side * 0.45, 0.12, z - fz * 0.55 + rz * side * 0.45, fxOpt);
     }
@@ -109,9 +109,16 @@ export function cartFx(k, x, z, h, dt) {
   if (k.boostT > 0 || k.dashT > 0) {
     // Flame diamonds and long streaks behind the cart.
     fxOpt.color = k.dashT > 0 ? PAL.white : TIER_COLORS[Math.min(3, Math.round((k.boostMul - 1) / 0.2))] || PAL.sale;
-    fxOpt.shape = 0; fxOpt.size = 0.3; fxOpt.end = 0; fxOpt.ttl = 0.2; fxOpt.grav = 0; fxOpt.drag = 3; fxOpt.spin = 0; fxOpt.aspect = 0;
+    fxOpt.shape = 0; fxOpt.size = 0.3; fxOpt.end = 0; fxOpt.ttl = 0.2; fxOpt.grav = 0; fxOpt.drag = 3; fxOpt.spin = 0; fxOpt.rot = undefined; fxOpt.aspect = 0;
     fxOpt.vx = -fx * 3 + (fxRnd() - 0.5) * 2; fxOpt.vz = -fz * 3 + (fxRnd() - 0.5) * 2; fxOpt.vy = fxRnd() * 1.5;
     spark(x - fx * 1.0 + rx * (fxRnd() - 0.5) * 0.7, 0.35 + fxRnd() * 0.4, z - fz * 1.0 + rz * (fxRnd() - 0.5) * 0.7, fxOpt);
+    // Streaks: long thin slivers left hanging in the air beside the cart (they read as speed lines).
+    for (let n = 0; n < (k.dashT > 0 ? 3 : 1); n++) {
+      fxOpt.color = PAL.white; fxOpt.shape = 4; fxOpt.size = 0.09; fxOpt.end = 0.03; fxOpt.ttl = 0.16; fxOpt.grav = 0; fxOpt.drag = 0;
+      fxOpt.spin = 0; fxOpt.rot = Math.PI / 2; fxOpt.aspect = 14; fxOpt.vx = -fx * 5; fxOpt.vz = -fz * 5; fxOpt.vy = 0;
+      const off = (fxRnd() < 0.5 ? -1 : 1) * (0.7 + fxRnd() * 1.6);
+      spark(x + fx * (fxRnd() * 2 - 0.5) + rx * off, 0.3 + fxRnd() * 1.1, z + fz * (fxRnd() * 2 - 0.5) + rz * off, fxOpt);
+    }
   }
 }
 
