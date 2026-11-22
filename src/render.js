@@ -364,6 +364,8 @@ export function setGrade(g = {}) {
 // ---- frame --------------------------------------------------------------------------------------------
 const drawQuad = (mat, target) => { R.quad.material = mat; R.renderer.setRenderTarget(target); R.renderer.render(R.quadScene, R.quadCam); };
 // fx: { speed 0..1, impact 0..1 } for the grade pass. focus: { x, z } the point the shadow map centres on.
+const _cv = { set(x, y, z) { this.x = x; this.y = y; this.z = z; return this; }, x: 0, y: 0, z: 0 };
+const _lk = { x: 0, y: 0, z: 0, set(x, y, z) { this.x = x; this.y = y; this.z = z; return this; }, lerp(v, t) { this.x += (v.x - this.x) * t; this.y += (v.y - this.y) * t; this.z += (v.z - this.z) * t; return this; } };
 export function renderFrame(fx = {}, focus) {
   const T = THREE, r = R.renderer, t0 = performance.now(), tier = TIERS[R.tier];
   r.info.reset();
@@ -460,8 +462,9 @@ export function watchFrameRate(dt) {
 // tips up over a wall that would hide the cart. orbit (radians) is a showcase view: lower, closer, turned
 // by that angle. intro (1 -> 0 over the first countdown) swoops down from high above. aside (metres) is the
 // receipt view, tipped steeply over the checkout with the cart to the left of the paper.
-export function updateCamera(k, alpha, dt, towerHeight, world, orbit, intro = 0, aside) {
+export function updateCamera(k, alpha, dt, towerHeight, world, orbit, intro = 0, aside, close) {
   const cam = R.cam, camera = R.camera;
+  cam.close = (cam.close || 0) + ((close ? 1 : 0) - (cam.close || 0)) * (1 - Math.exp(-dt * (close ? 7 : 3)));
   const x = lerp(k.px, k.x, alpha), z = lerp(k.pz, k.z, alpha);
   const h = k.ph + wrapAngle(k.h - k.ph) * alpha;
   const stunned = k.stunT > 0 && Math.hypot(k.vx, k.vz) > 1;
@@ -495,6 +498,14 @@ export function updateCamera(k, alpha, dt, towerHeight, world, orbit, intro = 0,
   cam.shake = Math.max(0, cam.shake - dt * 1.8);
   camera.position.set(lx - fx * back + fz * sx, height + sy, lz - fz * back - fx * sx);
   camera.lookAt(lx + fz * sx * 0.5, 0.6, lz - fx * sx * 0.5);
+  if (cam.close > 0.001) {
+    // the checkout close-up: in front of the hero and a little to the side, at head height
+    const hx = Math.sin(h), hz = Math.cos(h), cx = x - hx * 1.3, cz = z - hz * 1.3, u = cam.close, e = u * u * (3 - 2 * u);
+    const px = cx + hx * 1.3 - hz * 2.15, pz = cz + hz * 1.3 + hx * 2.15;
+    camera.position.lerp(_cv.set(px, 1.45, pz), e);
+    _lk.set(lx, 0.6, lz).lerp(_cv.set(cx, 1.12, cz), e);
+    camera.lookAt(_lk.x, _lk.y, _lk.z);
+  }
   const aspect = R.w / R.h;
   const base = TUNE.camfov - 5 + 8 * Math.min(cam.zoom, 1) + 6 * fast + 7 * cam.punch;
   const tall = aspect < 1.3 ? Math.min(1.7, 1.3 / aspect) : 1;

@@ -282,6 +282,7 @@ export function animate(rig, s, dt, rootM) {
   const P = posed && (mode === 'show' ? SHOW[rig.id] : null);
   if (P && P.hands) { for (const [side, key] of [[1, 'L'], [-1, 'R']]) if (P.hands[key]) reach(rig, side, P.hands[key], rootM); if (P.shake) { const b = B_[P.shake], q = rig.q, w = Math.sin(t * 26) * 0.18, c = Math.cos(w / 2), sn = Math.sin(w / 2), o = b * 4; const x = q[o], y = q[o + 1], z = q[o + 2], ww = q[o + 3]; q[o] = ww * sn + x * c; q[o + 1] = y * c + z * sn; q[o + 2] = z * c - y * sn; q[o + 3] = ww * c - x * sn; } }
   // props shown only in a pose (Penny's receipt)
+  if (rig.id === 'penny' && !(mode === 'victory')) { const o = B_.prop * 3; rig.sc[o] = rig.sc[o + 1] = rig.sc[o + 2] = 0.001; }
   // face: an event face wins for a moment, otherwise blink now and then
   let e = s.expr !== undefined && s.expr !== null ? s.expr : rig.poseFace !== undefined && posed ? rig.poseFace : s.stun > 0 ? EXPR.dizzy : EXPR.neutral;
   rig.blink -= dt;

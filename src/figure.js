@@ -307,6 +307,10 @@ function extra(B, x, L, P) {
     at(B, w[0] - 0.03, w[1] - 0.2, w[2] + 0.1); cyl(B, 0.085, 0.11, 0.3, 0xE63946, { seg: 16, top: 0xFFFFFF, side: [4, PAT.stripes, 0, 0] });
     at(B, w[0] - 0.03, w[1] + 0.1, w[2] + 0.1); cyl(B, 0.115, 0.105, 0.035, 0xFFFFFF, { seg: 16 });
     at(B, 0, 0, 0); tube(B, [[w[0] - 0.02, w[1] + 0.1, w[2] + 0.1], [w[0] - 0.02, w[1] + 0.28, w[2] + 0.12], [w[0] + 0.04, w[1] + 0.33, w[2] + 0.12]], 0.012, 0xFFD23F, { seg: 6, caps: 'round' });
+  } else if (x === 'receipt') {
+    bind(B, BONE.prop, [3, PAT.receipt, 0, 0], null);
+    const w = P.wristR;
+    at(B, w[0] - 0.01, w[1] - 0.02, w[2] + 0.06, 0, 0.1); box(B, 0.13, 0.36, 0.006, 0xFFFDF6, { bevel: 0, front: [3, PAT.receipt, 0, 0], sides: [0, 0, 0, 0] });
   } else if (x === 'scarf') {
     const T = L.torso;
     bind(B, BONE.chest, [4, PAT.stripes, 0, 0], null);

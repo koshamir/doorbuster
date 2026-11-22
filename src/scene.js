@@ -302,6 +302,7 @@ function syncCart(view, c, sim, alpha, dt) {
   // the character: the simulation's cart state drives the procedural animation (rig.js)
   const st = c.st;
   st.mode = sim.phase === 'count' ? 'count' : 'push';
+  if (view.heroPose) { if (k.player) st.mode = view.heroPose; else if (Math.hypot(k.x - sim.player.x, k.z - sim.player.z) < 14) st.mode = view.heroPose === 'victory' ? 'defeat' : 'victory'; }
   st.speed = k.spd; st.accel = acc; st.yaw = k.yaw; st.steer = k.steer; st.drift = k.drift;
   st.dash = k.dashT > 0 ? CFG.dashTime - k.dashT : -1; st.boost = k.boostT > 0; st.air = k.air > 0 ? 1 : 0; st.stun = k.stunT;
   c.exprT -= dt;

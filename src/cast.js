@@ -19,7 +19,7 @@ export const CAST = {
     shoe: { w: 0.07, l: 0.3, h: 0.135, color: 0xFFFFFF, sole: 0xFFD23F, trim: 0xFF4FA3, style: 'sneaker' },
     hair: { style: 'ponytail', color: 0xE8338C, accent: 0xFFD23F },
     top: { hood: 1, logo: 1, pocket: 1, strings: 0xFFFFFF },
-    extras: ['shadesUp'],
+    extras: ['shadesUp', 'receipt'],
     face: { row: 0, iris: 0x3A86FF, lash: 1, blush: 0xFF6FA0, freckles: 0xD9896A, brow: 0xB02A6E, browW: 10 },
     idle: 'bounce', victory: 'trophy', defeat: 'slump', voice: 'penny',
   },

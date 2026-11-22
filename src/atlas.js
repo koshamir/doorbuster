@@ -164,7 +164,7 @@ function mouth(g, x, y, mw, f, e) {
 // Cells of 256 px on an 8 x 8 grid. RGB is the print's colour, alpha its coverage over the base colour.
 export const PAT = { seams: 0, stripes: 1, dots: 2, floral: 3, track: 4, logo: 5, plaid: 6, knit: 7, grid: 8, candy: 9, galaxy: 10, flames: 11,
   number: 12, coupons: 13, hazard: 14, tartan: 15, denim: 16, mesh: 17, checker: 18, net: 19, screen: 20, chrome: 21, cuff: 22, sole: 23, leopard: 24,
-  ringlight: 25, logoBlue: 26, zip: 27, camo: 28, laces: 29, star: 30, vest: 31 };
+  ringlight: 25, logoBlue: 26, zip: 27, camo: 28, laces: 29, star: 30, vest: 31, receipt: 32 };
 export function patternAtlas() {
   if (cache.pat) return cache.pat;
   const cv = canvas(), g = cv.getContext('2d'), S = 256;
@@ -210,6 +210,7 @@ export function patternAtlas() {
   cell(PAT.laces, () => { g.strokeStyle = '#FFFFFF'; g.lineWidth = 10; for (let k = 0; k < 4; k++) { g.beginPath(); g.moveTo(70, 40 + k * 50); g.lineTo(186, 64 + k * 50); g.moveTo(186, 40 + k * 50); g.lineTo(70, 64 + k * 50); g.stroke(); } });
   cell(PAT.star, () => { g.fillStyle = '#FFD23F'; g.strokeStyle = INK; g.lineWidth = 10; g.beginPath(); for (let k = 0; k < 10; k++) { const a = k / 10 * 6.283 - Math.PI / 2, r = k % 2 ? 50 : 110; g.lineTo(128 + Math.cos(a) * r, 128 + Math.sin(a) * r); } g.closePath(); g.fill(); g.stroke(); });
   cell(PAT.vest, () => { g.fillStyle = 'rgba(255,255,255,0.95)'; g.fillRect(0, 150, 256, 18); g.fillStyle = '#FFD23F'; g.fillRect(0, 172, 256, 10); });
+  cell(PAT.receipt, () => { g.fillStyle = '#FFFDF6'; g.fillRect(0, 0, 256, 256); g.fillStyle = 'rgba(42,26,58,0.55)'; for (let y = 34; y < 200; y += 22) g.fillRect(28 + (y % 3) * 6, y, 120 + (y % 5) * 14, 9); g.fillStyle = '#E63946'; g.fillRect(28, 206, 200, 16); g.fillStyle = '#FFFDF6'; g.beginPath(); for (let x = 0; x <= 256; x += 16) { g.lineTo(x, 246); g.lineTo(x + 8, 256); } g.lineTo(256, 256); g.lineTo(0, 256); g.fill(); });
   return (cache.pat = atlasTex(cv));
 }
 

@@ -20,7 +20,7 @@ import { R, initRender, resizeRender, updateCamera, renderFrame, watchFrameRate,
 import { buildScene, syncScene, sceneEvent, disposeScene } from './scene.js';
 import { goodIcon } from './goods.js';
 import { initFx, clearFx, cartFx, eventFx, updateFx, spark } from './fx.js';
-import { initShowcase } from './showcase.js';
+import { initShowcase, makeTitle } from './showcase.js';
 import { audio, unlockAudio, setSound, setVolumes, audioEvent, audioCue, audioFrame } from './audio.js';
 import { ui, initUI, updateHud, popWord, announce, floatText, chainText, setList, setArrow, setWarn, setHint, showTouch, showTitle, showReceipt,
   showClosed, showPause, hideScreens, hurryUI, money, initDebug, updateDebug } from './ui.js';
@@ -51,6 +51,7 @@ const WORDS = { cleansweep: 'CLEAN SWEEP', strike: 'STRIKE!', ram: 'RAM!', taked
 
 // Builds the level. quick = a restart: shorter countdown, straight into play.
 function startLevel(quick) {
+  if (game.titleShow) { game.titleShow.dispose(); game.titleShow = null; }
   if (game.view) disposeScene(game.view);
   clearFx();
   const def = game.custom || LEVELS[game.level];
@@ -77,8 +78,21 @@ function title() {
   game.state = 'title';
   const cards = save.unlocked > 1 || save.best[LEVELS[1].id] ? LEVELS.slice(1).map((d, i) => ({ name: d.name, medal: save.medals[d.id] || 0,
     best: save.best[d.id] || 0, locked: i + 1 > save.unlocked, on: i + 1 === game.level })) : null;
-  R.cam.lead = cards ? -1.8 : 0.5;                   // with the loyalty card on screen the cart stands above it
-  showTitle(LEVELS[game.level].name, () => play(false), cards, (i) => { game.level = i + 1; title(); });
+  // the cast of this store lined up behind the mall doors, Penny in the middle
+  const ids = (LEVELS[game.level].rivals || []).map((r) => ({ bro: 'bubba' }[r] || r)).filter((r) => r !== 'selfie').slice(0, 4);
+  ids.splice(Math.floor(ids.length / 2), 0, 'penny');
+  game.titleShow = makeTitle(game.view.kit, ids);
+  game.view.root.visible = false;
+  game.opening = 0;
+  showTitle(LEVELS[game.level].name, startFromTitle, cards, (i) => { game.level = i + 1; title(); });
+}
+// START on the title: the doors slide open, then the run begins.
+function startFromTitle() {
+  if (!game.titleShow) { play(false); return; }
+  if (game.opening > 0) return;
+  game.titleShow.open = 0; game.opening = 0.55;
+  hideScreens(); ui.hud.classList.add('off');
+  audioCue('kaching');
 }
 function pause(on) {
   if (on === game.paused || (on && game.state !== 'play')) return;      // only a run can be paused
@@ -137,13 +151,21 @@ function finish() {
   platform.submit('receipt_l' + game.level, total, def.name);
   platform.submit('receipt_total', LEVELS.slice(1).reduce((s, d) => s + (save.best[d.id] || 0), 0), 'All stores');
   platform.runEnd(sim.t, game.level);
-  game.state = 'receipt';
-  showReceipt(p.receipt, () => {
+  game.state = 'closeup'; game.closeT = 1.5;
+  game.view.heroPose = p.place === 1 || medal >= 2 ? 'victory' : 'defeat';
+  ui.hud.classList.add('off'); setArrow(false); setWarn(false); setHint(null);
+  game.result = () => showReceipt(p.receipt, () => {
     game.frozen = true;
     return settle(sim).map((k) => ({ name: k.player ? 'YOU' : k.def.name, total: k.receipt ? k.receipt.total : -1, me: k.player }));
   }, { value: Math.max(prev, total), isNew: isNew && prev > 0 }, def.name, medal, () => play(true),
   game.level >= 1 && game.level < LAST ? next : null, save.unlocked > 1 ? title : null,
   medal < 3 && def.medals ? { medal: medal + 1, at: def.medals[medal - 1] } : null);      // (the Black Card stays a secret)
+}
+// After the close-up the receipt prints.
+function closeupTick(dt) {
+  if (game.state !== 'closeup' || (game.closeT -= dt) > 0) return;
+  game.state = 'receipt';
+  game.result();
 }
 function next() { game.level = Math.min(LAST, game.level + 1); play(false); }
 
@@ -264,13 +286,22 @@ function pointers(dt) {
 
 // One frame: read input, step the simulation by dt of real time, update the visuals, draw.
 function tick(dt, draw) {
+  if (game.state === 'title' && game.titleShow) {
+    game.clock += dt; R.clock = game.clock;
+    game.titleShow.update(dt);
+    if (game.opening > 0 && (game.opening -= dt) <= 0) { play(false); return; }
+    audioFrame(game.sim, dt, 'title');
+    if (draw) renderFrame({}, { x: 0, z: -2 });
+    return;
+  }
   if (game.show) { game.show.update(dt); game.clock += dt; if (draw) renderFrame({}, { x: 0, z: 0 }); return; }
   const sim = game.sim, t0 = performance.now(), p = sim.player;
   game.now = t0;
   if (game.paused) { audioFrame(sim, dt, 'pause'); if (draw) renderFrame({}, R.cam); return; }   // the music carries on under water
   game.clock += dt; R.clock = game.clock; game.flash -= dt;
   // Hit-stop: a few frozen frames on a big impact; the shake and the particles keep moving.
-  let simDt = game.state === 'play' ? dt * game.scale : game.state === 'receipt' && !game.frozen ? dt * 0.25 : 0;
+  let simDt = game.state === 'play' ? dt * game.scale : (game.state === 'receipt' || game.state === 'closeup') && !game.frozen ? dt * 0.25 : 0;
+  closeupTick(dt);
   if (game.slowT > 0) { game.slowT -= dt; simDt *= 0.3; }
   if (game.hitstop > 0) { game.hitstop -= dt; simDt = 0; }
   const alpha = simDt > 0 ? advanceSim(sim, simDt, feedInput) : sim.acc / CFG.STEP;
@@ -287,7 +318,7 @@ function tick(dt, draw) {
   const swoop = game.state === 'play' && sim.t < 0 && sim.opts.countdown > 2 ? Math.pow(Math.min(1, -sim.t / 2), 2) : 0;   // the first countdown opens high above the route
   // The title circles the start grid; the receipt is read from steep above the checkout, the cart to the left of the paper.
   updateCamera(p, alpha, dt, game.view.towerH, sim.world, game.state === 'title' ? 0.7 + 0.35 * Math.sin(game.clock * 0.4) : undefined, swoop,
-    game.state === 'receipt' ? (R.w > R.h ? 3 : 0) : undefined);
+    game.state === 'receipt' ? (R.w > R.h ? 3 : 0) : undefined, game.state === 'closeup');
   // Closing time washes the store in red, pulsing.
   const tint = R.u.uTintAmt;
   tint.value += ((sim.closing && game.state === 'play' ? 0.24 + 0.08 * Math.sin(game.clock * 6) : 0) - tint.value) * Math.min(1, dt * 4);
@@ -382,7 +413,7 @@ async function boot() {
     if (game.paused) { if (e.code === 'KeyR') { pause(false); play(true); } return; }
     if (game.state !== 'play') {
       // Any driving key starts from the title; R retries and Enter goes on after a run.
-      if (game.state === 'title') { if (k || e.code === 'Enter') { play(false); e.preventDefault(); } }
+      if (game.state === 'title') { if (k || e.code === 'Enter') { startFromTitle(); e.preventDefault(); } }
       else if (e.code === 'KeyR') play(true);
       else if (e.code === 'Enter') { if (game.state === 'receipt' && game.level >= 1 && game.level < LAST) next(); else play(true); }
       return;
@@ -443,6 +474,7 @@ async function boot() {
   }
   // A showcase scene, or: a bot or the capture tool goes straight into the run; a person gets the title and one click.
   if (query.get('scene')) { game.show = initShowcase(query.get('scene'), query); ui.hud.classList.add('off'); }
+  else if (query.has('title')) title();
   else if (game.bot || game.manual || query.has('go')) play(false);
   else title();
   tick(1 / 60, true);
