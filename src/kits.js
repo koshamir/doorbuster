@@ -13,7 +13,7 @@ import { R, MRT_OUT, CEL_COMMON, v3 } from './render.js';
 // colour and the route arrows; pools: light pools every `grid` metres; grade: render.js setGrade.
 export const KITS = {
   supermarket: {
-    id: 'supermarket', name: 'PRICE PANIC', palette: { a: '#FFF6EA', b: '#8EE3C8', c: '#FF5A4E', d: '#FFD23F' }, sign: '#3D2C5E',
+    id: 'supermarket', name: 'PRICE PANIC', palette: { a: '#FFF6EA', b: '#8EE3C8', c: '#FF5A4E', d: '#FFD23F' }, sign: '#3D2C5E', top: '#6E5C96',
     signs: ['SNACKS', 'DRINKS', 'CANNED', 'BAKERY', 'DAIRY', 'FROZEN', 'PRODUCE', 'CEREAL'],
     shelves: { S: 'gondola', M: 'produce', L: 'freezer' }, fixture: { body: 0xFFF6EA, accent: 0x8EE3C8, trim: 0xFF5A4E, dark: 0x3D2C5E },
     floor: { a: 0xFFF3E2, b: 0xA9EBD5, grout: 0xD9CBB6, checker: 1, paint: 0xFF5A4E, arrow: 0xFFFFFF, vary: 0.035, wet: 0x7CC6FE },

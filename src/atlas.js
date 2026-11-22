@@ -275,7 +275,7 @@ function drawLabel(g, [name, bg, band, ink, deco]) {
 // Cells of 256 px (8 x 8). Signs are drawn for every store's own words (kits.js signs); the rest are shared
 // surfaces: price strips, frost, ice, awning, shutter slats, a checkout belt, wood, decals with a clear ground.
 export const KIT = { sign0: 0, checkout: 8, banner: 9, sale: 10, pct: 11, wet: 12, fish: 13, deli: 14, price: 15, frost: 16, ice: 17, awning: 18,
-  shutter: 19, belt: 20, wood: 21, chalk: 22, ring: 23, star: 24, dash: 25, press: 26, logo: 27, poster2: 28, poster3: 29, glare: 30, pegboard: 31, door: 32, arrow: 33 };
+  shutter: 19, belt: 20, wood: 21, chalk: 22, ring: 23, star: 24, dash: 25, press: 26, logo: 27, poster2: 28, poster3: 29, glare: 30, pegboard: 31, door: 32, arrow: 33, walltop: 34 };
 export function kitAtlas(store) {
   const key = 'kit_' + store.id;
   if (cache[key]) return cache[key];
@@ -318,5 +318,6 @@ export function kitAtlas(store) {
   cell(KIT.pegboard, () => { g.fillStyle = P.a; g.fillRect(0, 0, 256, 256); g.fillStyle = 'rgba(42,26,58,0.18)'; for (let y = 16; y < 256; y += 32) for (let x = 16; x < 256; x += 32) { g.beginPath(); g.arc(x, y, 5, 0, 7); g.fill(); } });
   cell(KIT.door, () => { g.fillStyle = '#7CD5FF'; g.fillRect(0, 0, 256, 256); g.fillStyle = '#FFFFFF'; for (let y = 30; y < 256; y += 60) g.fillRect(14, y, 228, 10); g.fillStyle = 'rgba(255,255,255,0.6)'; g.beginPath(); g.moveTo(20, 256); g.lineTo(90, 0); g.lineTo(120, 0); g.lineTo(50, 256); g.fill(); g.lineWidth = 14; g.strokeStyle = '#DDE3EA'; g.strokeRect(7, 7, 242, 242); });
   cell(KIT.arrow, () => { g.fillStyle = '#FFFFFF'; g.beginPath(); g.moveTo(128, 20); g.lineTo(230, 140); g.lineTo(170, 140); g.lineTo(170, 236); g.lineTo(86, 236); g.lineTo(86, 140); g.lineTo(26, 140); g.closePath(); g.fill(); g.lineWidth = 10; g.strokeStyle = INK; g.stroke(); });
+  cell(KIT.walltop, () => { g.fillStyle = store.top || '#6E5C96'; g.fillRect(0, 0, 256, 256); g.fillStyle = 'rgba(42,26,58,0.22)'; for (let k = -256; k < 512; k += 64) { g.beginPath(); g.moveTo(k, 0); g.lineTo(k + 28, 0); g.lineTo(k + 28 + 256, 256); g.lineTo(k + 256, 256); g.fill(); } g.fillStyle = 'rgba(255,255,255,0.12)'; g.fillRect(0, 0, 256, 10); });
   return (cache[key] = atlasTex(cv));
 }

@@ -32,7 +32,7 @@ export function buildStore(view, sim, kit, shadow) {
   const B = builder(), W = builder(), D = builder();
   // walls: blocks with a plinth, a band, a stripe and a dark cap; posters on some faces; bulbs along the top
   bind(W, 0, PL(0));
-  for (const w of world.walls) { at(W, w.x, 0, w.z); box(W, w.hx * 2, CFG.WALL_H, w.hz * 2, kit.walls.face, { bevel: 0, top: kit.walls.top }); }
+  for (const w of world.walls) { at(W, w.x, 0, w.z); box(W, w.hx * 2, CFG.WALL_H, w.hz * 2, kit.walls.face, { bevel: 0, top: 0xFFFFFF, lid: KW(KIT.walltop), uvs: [w.hx * 2 / 4, w.hz * 2 / 4] }); }
   const bulbs = [];
   let face = 0;
   for (let r = 0; r < world.rows; r++) for (let c = 0; c < cols; c++) {
