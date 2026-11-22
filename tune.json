@@ -10,7 +10,7 @@
   "turbopower":   { "value": 1.4,  "min": 1.1, "max": 2,   "step": 0.05, "label": "Drift turbo speed multiplier (middle tier)" },
   "dashspeed":    { "value": 6,    "min": 2,   "max": 12,  "step": 0.5,  "label": "Dash burst, m/s" },
   "dashcooldown": { "value": 1.5,  "min": 0.5, "max": 4,   "step": 0.1,  "label": "Dash cooldown, s" },
-  "loadfull":     { "value": 30,   "min": 10,  "max": 60,  "step": 1,    "label": "Weight units of a full cart" },
+  "loadfull":     { "value": 40,   "min": 10,  "max": 60,  "step": 1,    "label": "Weight units of a full cart" },
   "loadfree":     { "value": 0.3,  "min": 0,   "max": 0.6, "step": 0.05, "label": "Share of load with no handling penalty" },
   "loadaccel":    { "value": 0.55, "min": 0,   "max": 0.8, "step": 0.05, "label": "Acceleration lost with a full cart" },
   "loadbrake":    { "value": 0.3,  "min": 0,   "max": 0.6, "step": 0.05, "label": "Braking lost with a full cart" },

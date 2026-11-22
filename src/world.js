@@ -14,7 +14,8 @@
 //   O round display  P can pyramid  G gift pile  K cardboard stand  H hot-item podium
 //   W glass window  U roller shutter  F fountain  X Christmas tree
 //   t table  b boxes  m mannequin (light, fly away)   p plant  n bench (solid decor)
-//   > < ^ v travelator   ~ wet floor   R ramp   f flash-sale spot
+//   > < ^ v travelator   ~ wet floor   R ramp   f flash-sale podium (dormant until the sale)
+//   g  huddle of six shoppers (a dash through the middle is a STRIKE)
 
 import { CFG, GOODS, GOOD, POOLS } from './config.js';
 
@@ -29,6 +30,7 @@ export const PIECES = {
   G: { type: 'gifts', r: 0.9, dash: 1, nav: 1 },
   K: { type: 'stand', r: 0.7, dash: 1, nav: 1 },
   H: { type: 'podium', r: 0.85, dash: 1, nav: 1 },
+  f: { type: 'podium', r: 0.85, dash: 1, nav: 0, off: 1, sale: 1 },
   W: { type: 'glass', hx: 1, hz: 1, dash: 1, nav: 1 },
   U: { type: 'shutter', hx: 1, hz: 1, nav: 0, off: 1 },
   F: { type: 'fountain', r: 2.8, low: 1, nav: 1 },
@@ -62,7 +64,7 @@ export function buildWorld(def, rng) {
     nav: new Float32Array(n),       // metres to the nearest open checkout
     navStart: 0,
     solids: [], cells: [], walls: [], shelves: [], items: [], itemCells: [], groups: [],
-    pieces: [], lanes: [], drops: [], spots: [], crowdTiles: [],
+    pieces: [], lanes: [], drops: [], huddles: [], crowdTiles: [],
     start: { x: T, z: T, h: def.heading || 0 }, slots: [],
     edge: { type: 'wall', on: true, r: 0, hx: 0, hz: 0 },   // stands in for the border of the plan
   };
@@ -92,15 +94,18 @@ export function buildWorld(def, rng) {
     const pool = POOLS[zdef.pool || 'market'];
     if (PIECES[k]) {
       const p = PIECES[k];
-      const piece = { type: p.type, x, z, c, r, alive: true, t: 0, solid: null,
-        good: p.type === 'podium' ? GOOD[['tv', 'bear', 'console', 'robovac'][rng.int(4)]] : -1 };   // the hot item on a podium
+      const piece = { type: p.type, x, z, c, r, alive: true, t: 0, solid: null, sale: !!p.sale,
+        good: p.type === 'podium' && !p.sale ? GOOD[['tv', 'bear', 'console', 'robovac'][rng.int(4)]] : -1 };   // the hot item on a podium
       // Counters next to each other along z read as one long counter; keep each tile's own box.
       piece.solid = addSolid(world, { x, z, r: p.r || 0, hx: p.hx || 0, hz: p.hz || 0, type: p.type,
         on: !p.off, low: !!p.low, soft: !!p.soft, dash: !!p.dash, piece });
       world.pieces.push(piece);
     } else if (k === 'o') {
+      // A trail item next to a shelf lies 0.7 m toward it: whoever follows the trail sweeps the shelf.
       const id = pool.S[(dropKind++ >> 2) % pool.S.length];
-      world.drops.push({ x, z, good: GOOD[id], ttl: -1, live: true, list: 0, arm: 0 });
+      let ox = 0, oz = 0;
+      for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if ('SML'.includes(ch(c + dc, r + dr))) { ox = dc * 0.7; oz = dr * 0.7; }
+      world.drops.push({ x: x + ox, z: z + oz, good: GOOD[id], ttl: -1, live: true, list: 0, arm: 0 });
     } else if (k === '1' || k === '2' || k === '3') {
       const id = (def.list || [])[Number(k) - 1];
       if (id) world.drops.push({ x, z, good: GOOD[id], ttl: -1, live: true, list: Number(k), arm: 0 });   // list = which of the three
@@ -108,23 +113,28 @@ export function buildWorld(def, rng) {
       world.start.x = x; world.start.z = z;
     } else if (k === 'r') {
       world.slots.push({ x, z });
-    } else if (k === 'f') {
-      world.spots.push({ x, z });
+    } else if (k === 'g') {
+      world.huddles.push({ x, z });
     } else if (k === 'c' && laneOf[i] < 0) {
       // Flood-fill one checkout lane.
-      const lane = { id: world.lanes.length, tiles: [], x: 0, z: 0, open: true };
+      const lane = { id: world.lanes.length, tiles: [], x: 0, z: 0, open: true, warned: false, bar: null };
+      let c0 = c, c1 = c, r0 = r, r1 = r;
       const stack = [[c, r]];
       laneOf[i] = lane.id;
       while (stack.length) {
         const [cc, rr] = stack.pop();
         lane.tiles.push(rr * cols + cc);
         lane.x += (cc + 0.5) * T; lane.z += (rr + 0.5) * T;
+        c0 = Math.min(c0, cc); c1 = Math.max(c1, cc); r0 = Math.min(r0, rr); r1 = Math.max(r1, rr);
         for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
           const j = (rr + dr) * cols + cc + dc;
           if (ch(cc + dc, rr + dr) === 'c' && laneOf[j] < 0) { laneOf[j] = lane.id; stack.push([cc + dc, rr + dr]); }
         }
       }
       lane.x /= lane.tiles.length; lane.z /= lane.tiles.length;
+      // A closed lane is a solid block (switched on at closing time).
+      lane.bar = addSolid(world, { x: (c0 + c1 + 1) * T / 2, z: (r0 + r1 + 1) * T / 2, r: 0, hx: (c1 - c0 + 1) * T / 2, hz: (r1 - r0 + 1) * T / 2,
+        type: 'barrier', on: false });
       world.lanes.push(lane);
     }
     if (k === '.' || k === 'o') world.crowdTiles.push(i);
@@ -400,7 +410,8 @@ export function navAim(world, x, z, steps, rad, out, reach) {
     c = bc; r = br;
     const px = (c + 0.5) * T, pz = (r + 0.5) * T;
     out.fx = px; out.fz = pz;
-    if (s < 2 || (len <= reach && clearPath(world, x, z, px, pz, rad))) { out.x = px; out.z = pz; }
+    // The next tile is always reachable; anything further must be in plain sight (never round a corner).
+    if (s < 1 || (len <= reach && clearPath(world, x, z, px, pz, rad))) { out.x = px; out.z = pz; }
   }
   return true;
 }

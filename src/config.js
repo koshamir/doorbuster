@@ -10,7 +10,7 @@
 export const TUNE = {
   maxspeed: 12, accel: 14, brake: 20, turnrate: 3, turnattop: 0.5, grip: 20, driftgrip: 3.5,
   driftturn: 1.35, turbopower: 1.4, dashspeed: 6, dashcooldown: 1.5,
-  loadfull: 30, loadfree: 0.3, loadaccel: 0.55, loadbrake: 0.3, loadtop: 0.1, loadturn: 0.2,
+  loadfull: 40, loadfree: 0.3, loadaccel: 0.55, loadbrake: 0.3, loadtop: 0.1, loadturn: 0.2,
   overstack: 1.5, spillmax: 0.4, recollect: 4, sweepgap: 0.6, magnet: 0.9,
   madnessfill: 1, madnessdrain: 1, madnesstime: 6, ramdrop: 0.3, immunity: 1.5,
   timer: 90, timebonus: 15, rivals: 5, rivalskill: 1, rivalaggro: 1, crowd: 1,
@@ -66,6 +66,7 @@ export const CFG = {
   crashWhip: 8,           // how fast the nose swings round after a crash, rad/s
   crashStun: 0.4,         // seconds of lost control after a crash
   stunGrip: 3,            // side grip while spinning or stunned
+  spinDrag: 2.2,          // share of speed a rammed rival loses per second while it spins
   wetGrip: 1.2,           // side grip on a wet floor
   assistLook: 0.45,       // seconds ahead the wall-avoid helper looks
   assistYaw: 0.7,         // strongest helper yaw, rad/s
@@ -74,6 +75,11 @@ export const CFG = {
   backTime: 0.32, backSpeed: 3.5, backYaw: 2.8,   // the automatic back-out: seconds, m/s, rad/s
   countdown: 2.4,         // seconds from the click to GO
   camFollow: 6.5,         // how fast the camera's yaw follows the cart, 1/s (lag at full lock is about 14 degrees)
+  // Madness: the meter runs over four segments (0..4); a full one is MADNESS mode
+  madWait: 2.5,           // seconds without a gain before the meter starts to drain
+  madDrain: 0.12,         // segments per second once it drains
+  madTake: { S: 0.047, M: 0.082, L: 0.17, H: 0.45 },   // gain per item taken, by size (a chain of takes adds up to double)
+  madDrift: 0.3,          // gain per spark tier when a drift is released into its boost
   // scoring
   listBonus: 200,         // dollars for bringing all three list items to the checkout
   stunts: { cleansweep: 50, strike: 150, ram: 75, takedown: 200, shave: 10, smash: 25, jump: 250 },
@@ -136,8 +142,8 @@ export const CHARS = {
   player: { name: 'You',          color: PAL.player,    skill: 1,    pace: 1,    greed: 1,    aggro: 1 },
   granny: { name: 'Granny Tank',  color: PAL.rivals[0], skill: 0.6,  pace: 0.84, greed: 1,    aggro: 0.1 },
   selfie: { name: 'Selfie Star',  color: PAL.rivals[1], skill: 0.7,  pace: 0.95, greed: 0.6,  aggro: 0.3 },
-  queen:  { name: 'Coupon Queen', color: PAL.rivals[2], skill: 0.8,  pace: 0.96, greed: 0.7,  aggro: 0.4 },
-  dad:    { name: 'Sprint Dad',   color: PAL.rivals[3], skill: 0.95, pace: 1,    greed: 0.35, aggro: 0.6 },
+  queen:  { name: 'Coupon Queen', color: PAL.rivals[2], skill: 0.8,  pace: 0.96, greed: 1,    aggro: 0.4 },
+  dad:    { name: 'Sprint Dad',   color: PAL.rivals[3], skill: 0.95, pace: 1,    greed: 0.75, aggro: 0.6 },
   bro:    { name: 'Bulk Bro',     color: PAL.rivals[4], skill: 0.65, pace: 0.92, greed: 0.8,  aggro: 0.9 },
 };
 

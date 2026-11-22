@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { resolve, dirname } from 'node:path';
 import { applyTune, TUNE, CFG } from '../src/config.js';
-import { createSim, stepSim } from '../src/sim.js';
+import { createSim, stepSim, settle } from '../src/sim.js';
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -64,6 +64,7 @@ export function runOne(def, seed, bot, opts = {}) {
     maxSpd = Math.max(maxSpd, Math.abs(p.spd));
     if (Math.abs(p.spd) < 1 && sim.phase === 'run') { still += CFG.STEP; stillMax = Math.max(stillMax, still); } else still = 0;
     for (const e of sim.events) counts[e.type] = (counts[e.type] || 0) + 1;
+    if (opts.onStep) opts.onStep(sim);
     sim.events.length = 0;
     const m = marks[mi];
     if (m && Math.hypot(p.x - m.x, p.z - m.z) < 4.5) {
@@ -71,11 +72,12 @@ export function runOne(def, seed, bot, opts = {}) {
       m.t = sim.t - lastT; m.crashes = sim.stats.crashes - lastCrash; m.stuck = trouble - lastStuck; m.bumps = (counts.bump || 0) - lastBump;
       lastT = sim.t; lastCrash = sim.stats.crashes; lastStuck = trouble; lastBump = counts.bump || 0; mi++;
     }
-    if (opts.onStep) opts.onStep(sim);
   }
   const usPerStep = Number(process.hrtime.bigint() - t0) / 1000 / Math.max(1, steps);
-  return { sim, finished: sim.phase === 'done', time: sim.t, dist, avg: dist / Math.max(sim.t, 1e-6), maxSpd,
-    zero: sim.stats.zeroT / Math.max(sim.t, 1e-6), lost: sim.stats.lostMax, stuck: sim.stats.stuck + p.backs, stillMax,
+  const runT = sim.t;
+  if (!opts.noSettle) settle(sim);
+  return { sim, finished: sim.phase === 'done', time: runT, dist, avg: dist / Math.max(runT, 1e-6), maxSpd,
+    zero: sim.stats.zeroT / Math.max(runT, 1e-6), lost: sim.stats.lostMax, stuck: sim.stats.stuck + p.backs, stillMax,
     crashes: sim.stats.crashes, counts, marks, usPerStep };
 }
 

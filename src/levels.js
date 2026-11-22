@@ -5,7 +5,8 @@
 // Depends on: nothing.
 //
 // Fields: id, name, timer (seconds), marks (test only: [name, col, row] after each obstacle), heading (start direction, radians; 0 = +z/south, PI/2 = +x/east,
-//         PI = north, -PI/2 = west), rivals (character ids), crowd (shoppers), list (three goods ids
+//         PI = north, -PI/2 = west), rivals (character ids), crowd (shoppers), maxRams (how many times
+//         rivals may ram the player in one run), list (three goods ids
 //         for plan characters 1 2 3), zones (first entry is the default; others paint a rect of tiles
 //         [col0, row0, col1, row1] with a goods pool and an accent colour), plan (rows of tiles).
 
@@ -43,9 +44,12 @@ export const LEVELS = [
     ],
   },
   {
-    // 1. DOORS OPEN — a supermarket of five aisles snaking to the checkouts (route about 450 m).
-    // New: steering, sweeping, the first dash (pyramid, ribbon, rival). Rivals and crowd arrive in M4.
-    id: 'doors', name: 'DOORS OPEN', timer: 75, heading: Math.PI, rivals: ['dad', 'queen', 'granny'], crowd: 24,
+    // 1. DOORS OPEN — a supermarket of five aisles snaking to the checkouts (route about 380 m).
+    // New: steering, sweeping, the first dash (pyramid, ribbon, rival). Beats: the crush at the start and
+    // a trail into the first shelf; left or right shelf; a pyramid on the racing line; an aisle split
+    // into a wide lane and a narrow dear one behind a huddle; the hot item; dear goods late; the hall.
+    // Every hairpin turns round an island stand.
+    id: 'doors', name: 'DOORS OPEN', timer: 72, heading: Math.PI, rivals: ['dad', 'queen', 'granny'], crowd: 24, maxRams: 3,
     list: ['cereal', 'melon', 'microwave'],
     zones: [
       { pool: 'market', color: 0, name: 'PRICE PANIC' },
@@ -53,47 +57,47 @@ export const LEVELS = [
       { pool: 'market', color: 2, name: 'HOME STRETCH', rect: [13, 1, 17, 39] },
       { pool: 'market', color: 3, name: 'MEGA DEALS', rect: [19, 1, 23, 39] },
       { pool: 'market', color: 0, name: 'LAST CHANCE', rect: [25, 1, 29, 39] },
-      { pool: 'market', color: 1, name: 'CHECKOUT', rect: [31, 1, 37, 33] },
+      { pool: 'market', color: 1, name: 'CHECKOUT', rect: [31, 1, 37, 25] },
     ],
     plan: [
       '                                       ',
       ' ........... ........... ............. ',
       ' ........... ........... ............. ',
+      ' .....S..... .....S..... ............. ',
       ' ........... ........... ............. ',
-      ' ........... ........... ............. ',
-      ' ........... ........... ............. ',
+      ' ........... ........... .........o... ',
+      ' ..... ..o.. ..... ..... ..... ....... ',
+      ' ..... ..o.. ..... ..... ..o.. ...o... ',
       ' ..... ..... ..... ..... ..o.. ....... ',
-      ' ..... ..... ..... ..... ..o.. ....... ',
-      ' ..... ..... S.... ..... ..o.. ....... ',
-      ' ..... ..P.. S.... .G... ..o.. ....... ',
-      ' ....M ..... S.... ..... ..... ...o... ',
-      ' ....M ..... S.... ..... ..... ....... ',
-      ' ..... S.... ..... ..... M.... ...f... ',
-      ' ..... S.... ...O. ..... M.... ....... ',
-      ' ..1.. S.... ..... ..... M.... ...o... ',
-      ' ..... S.... ..... ..... ..... ....... ',
-      ' ..... ..... .O... ..H.. ..... ...o... ',
-      ' ..... ..... ..... ..... ..... ....... ',
-      ' ..S.. ..... ..... ..... ..... ...o... ',
-      ' ..... ..... ..... ..... ..... ....... ',
-      ' ..... ..M.. ....L L.... ..P.. ....... ',
-      ' ..... ..... ....L L.... ..... ....... ',
-      ' ..... ..... ..... ..... ..... ....... ',
-      ' ..... ..... ..... ..... ..... ....... ',
-      ' ..... .t.b. ..... ..f.. ..... ....... ',
-      ' ....S ..... ..... ..... ..... ....... ',
-      ' ....S ..... .b.t. ..... ..3.. ....... ',
-      ' ....S ..... ..... ..... ..... ....... ',
-      ' ....S ..2.. ..... ....M ..... ....... ',
-      ' ....S ..... ..... ....M ..... ....... ',
-      ' ..... ...o. M.... ....M ....S cCcCcCc ',
-      ' ...o. ...o. M.... ..... ....S cCcCcCc ',
-      ' ...o. ...o. M.... ..o.. ....S ....... ',
-      ' ...o. ...o. ..... ..o.. ....S ....... ',
-      ' ...o. ..... ..... ..o.. .....         ',
-      ' ..... ........... ..o........         ',
+      ' ..... ..P.. ..... .G... ..o.. ....... ',
+      ' ..... ..... ..... ..... ..... ...f... ',
+      ' ..S.. ..... ..... ..... ..... ....... ',
+      ' ..... S.... ..S.. ..o.. L.... ....... ',
+      ' ..... S...L ..S.. ..o.. L.... p.....p ',
+      ' ..... S...L .oS.. ..... L.... ....... ',
+      ' ..1.. S.... ..... ..... L.... ....... ',
+      ' ..... S.... .o... ..H.. ..... ..K.... ',
+      ' ..... ..... ....L ..... ...m. ....... ',
+      ' ..... ..... ..M.L ..... ..... ....K.. ',
+      ' M...S ..... ..M.L ..... ..... ....... ',
+      ' M...S ..M.. ....L L.... ..P.. ....... ',
+      ' M...S ..... ..... L.... ..... ....... ',
+      ' M.... ..... ...g. ..... ..... cCcCcCc ',
+      ' ..... ..... ..... ..... ..... cCcCcCc ',
+      ' ..... .t.b. ..L.. ..... ..... ....... ',
+      ' ..... ..... ..... ..f.. ..... ....... ',
+      ' ...oS ..... ..... ..... ..3..         ',
+      ' ....S ..... ...t. ..... .....         ',
+      ' ...oS ..2.. .b... ....M .....         ',
+      ' ....S ..... ..... ....M .....         ',
+      ' ...oS ...oM ..... ....M ....S         ',
+      ' ..... ....M M.... ..... ....S         ',
+      ' ...o. ...oM M.... ..o.. ....S         ',
+      ' ..... ....M M.... ..o.. ....S         ',
+      ' ..o.. ..... ..... ..o.. .....         ',
+      ' ..... ........... ...........         ',
       ' ..@.. ........... ...........         ',
-      ' .r.r. ........... ...........         ',
+      ' .r.r. .....M..... .....M.....         ',
       ' ..r.. ........... ...........         ',
       ' ..... ........... ...........         ',
       '                                       ',

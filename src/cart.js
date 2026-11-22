@@ -35,8 +35,12 @@ export function makeCart(id, charId, x, z, h) {
     wallT: 0, wnx: 0, wnz: 0, scrapeT: 0, help: 0, helpN: 0,
     pinDir: 0, pinT: 0, backT: 0, backs: 0,  // pinned against something: swing direction, timers, count
     load: 0, tower: [], value: 0, stunts: 0, stuntLog: [],
-    mad: 0, madT: 0, madIdle: 0,
-    done: false, doneT: 0, lane: -1, place: 1, prog: 0,
+    mad: 0, madT: 0, madIdle: 0, chain: 0, chainT: -9, shedT: 0,
+    gasAt: -9, gasWas: false, rocket: false,           // when the accelerator went down (rocket start)
+    ramCd: 0, ramT: 0, rammedBy: null, down: false, spinT: 0,   // rams given and taken
+    grudge: null, grudgeT: 0,                 // who rammed this cart, remembered for five seconds
+    dashKnocks: 0, shaveT: 0, crashes: 0,     // shoppers bowled over in this dash; close-shave throttle; crash count
+    done: false, doneT: 0, lane: -1, place: 1, prog: 0, receipt: null,
     input: makeInput(), ai: null,
   };
 }
@@ -201,7 +205,7 @@ export function stepCart(k, inp, sim, dt) {
     k.dashBuf -= dt;
     if (k.dashCd <= 0 && free) {
       if (k.drift) endDrift(k, top0, sim, true);    // a dash out of a drift keeps the earned boost
-      k.dashBuf = 0; k.dashT = CFG.dashTime; k.dashCd = TUNE.dashcooldown; k.dashHits = 0; k.sagT = 0;
+      k.dashBuf = 0; k.dashT = CFG.dashTime; k.dashCd = TUNE.dashcooldown; k.dashHits = 0; k.dashKnocks = 0; k.sagT = 0;
       const v = Math.max(Math.hypot(k.vx, k.vz) + TUNE.dashspeed, top0 * 0.65);
       k.vx = Math.sin(k.h) * v; k.vz = Math.cos(k.h) * v;
       sim.emit('dash', k);
@@ -225,7 +229,7 @@ export function stepCart(k, inp, sim, dt) {
   }
 
   // ---- yaw
-  const roll = clamp(Math.abs(k.spd) / 2.5, free && inp.gas > 0 ? 0.45 : 0, 1);   // a pushed cart can pivot
+  const roll = clamp(Math.abs(k.spd) / 2.5, free && (inp.gas > 0 || inp.brake > 0) ? 0.45 : 0, 1);   // a pushed or pulled cart can pivot
   const rate = TUNE.turnrate * lerp(1, TUNE.turnattop, clamp(Math.abs(k.spd) / TUNE.maxspeed, 0, 1)) *
     (1 - TUNE.loadturn * lf) * roll;
   let yaw;
@@ -257,7 +261,8 @@ export function stepCart(k, inp, sim, dt) {
   let v = Math.hypot(k.vx, k.vz);
   let slip = v > 0.05 ? wrapAngle(k.h - Math.atan2(k.vx, k.vz)) : 0;
   let back = false;
-  if (Math.abs(slip) > Math.PI / 2 && k.turnTo === null) { back = true; slip = wrapAngle(slip - Math.PI); v = -v; }
+  if (v <= 0.05) { if (k.vx * Math.sin(k.h) + k.vz * Math.cos(k.h) < 0) { back = true; v = -v; } }   // creeping: forward or back by the nose
+  else if (Math.abs(slip) > Math.PI / 2 && k.turnTo === null) { back = true; slip = wrapAngle(slip - Math.PI); v = -v; }
   const grip = back ? TUNE.grip : k.wetT > 0 ? CFG.wetGrip : k.drift ? TUNE.driftgrip : k.straightT > 0 ? CFG.stunGrip : free ? TUNE.grip : CFG.stunGrip;
   slip -= Math.sin(slip) * (1 - Math.exp(-grip * dt));
 
@@ -266,7 +271,9 @@ export function stepCart(k, inp, sim, dt) {
   if (backing) {
     v = -CFG.backSpeed; slip = 0;
   } else if (!free || k.dashT > 0) {
-    // no pedals while stunned or in the air (a crash keeps its momentum); the dash holds its speed
+    // no pedals while stunned or in the air (a crash keeps its momentum); the dash holds its speed.
+    // A rammed rival spins to a crawl, so the rammer gets away; the player keeps rolling.
+    if (k.spinT > 0 && !k.player) v -= v * CFG.spinDrag * dt;
   } else if (inp.brake > 0) {
     if (v > 0.2) v = Math.max(0, v - TUNE.brake * (1 - TUNE.loadbrake * lf) * inp.brake * dt);
     else v = Math.max(-top0 * CFG.reverseTop, v - acc * 0.6 * inp.brake * dt);

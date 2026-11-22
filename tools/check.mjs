@@ -63,7 +63,7 @@ for (const n in TUNE) ok(n in tune, `src/config.js has "${n}" but tune.json does
 notes.push(`tune.json: ${names.length} entries (limit 40)`);
 
 // ---- levels: well-formed plans, a start, a checkout, every floor tile can reach the checkout
-const LEGEND = ' .SMLo123@rcCf><^v~R' + Object.keys(PIECES).join('');
+const LEGEND = ' .SMLo123@rcg><^v~R' + Object.keys(PIECES).join('');
 LEVELS.forEach((def, li) => {
   const tag = `level ${li} "${def.id}"`;
   const w = def.plan[0].length;
