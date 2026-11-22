@@ -153,7 +153,7 @@ export function buildScene(sim) {
       if (v < 1e8 && v > far) { far = v; ax = dx; az = dz; }
     }
     hang(banner(kitAtlas(kit), KIT.checkout, Math.min(3.2, Math.max(2.4, (ax ? hz : hx) * 0.6)), 0.75), cx + ax * (hx + 0.4), 4.2, cz + az * (hz + 0.4), Math.atan2(ax, az));
-    const lb = builder(); bind(lb, 0, [5, 0, 0.4, 0.5]); box(lb, 1, 1, 1, 0xFFFFFF, { bevel: 0.15, mid: true });
+    const lb = builder(); bind(lb, 0, [5, 0, 0.6, 0.55]); box(lb, 1, 1, 1, 0xFFFFFF, { bevel: 0.45, mid: true });
     view.lanes = add(new THREE.InstancedMesh(toGeometry(lb, { groups: false, hull: false }), M.toon, L.length * 3));
     view.lanes.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(L.length * 9).fill(1), 3);
   }
@@ -302,6 +302,9 @@ function syncCart(view, c, sim, alpha, dt) {
   // the character: the simulation's cart state drives the procedural animation (rig.js)
   const st = c.st;
   st.mode = sim.phase === 'count' ? 'count' : 'push';
+  // a rival that overtakes the player points and laughs for a moment
+  if (!k.player && sim.phase === 'run') { const ahead = k.prog > sim.player.prog; if (ahead && c.wasBehind && Math.hypot(k.x - sim.player.x, k.z - sim.player.z) < 9) c.tauntT = 1.1; c.wasBehind = !ahead; }
+  if ((c.tauntT = (c.tauntT || 0) - dt) > 0 && k.stunT <= 0) st.mode = 'taunt';
   if (view.heroPose) { if (k.player) st.mode = view.heroPose; else if (Math.hypot(k.x - sim.player.x, k.z - sim.player.z) < 14) st.mode = view.heroPose === 'victory' ? 'defeat' : 'victory'; }
   st.speed = k.spd; st.accel = acc; st.yaw = k.yaw; st.steer = k.steer; st.drift = k.drift;
   st.dash = k.dashT > 0 ? CFG.dashTime - k.dashT : -1; st.boost = k.boostT > 0; st.air = k.air > 0 ? 1 : 0; st.stun = k.stunT;
@@ -459,7 +462,7 @@ export function syncScene(view, sim, alpha, dt) {
   if (view.lanes) {
     world.lanes.forEach((l, i) => {
       const blink = Math.floor(view.time * 8) % 2, b = l.bar, deep = b.hz >= b.hx;
-      putBox(view.lanes, i * 3, l.x, 3.1, l.z, 0.9, 0.55, 0.9, l.open ? (l.warned ? (blink ? AMBER : RED) : GREEN) : RED, l.open ? 1.15 + 0.2 * Math.sin(view.time * 4 + i) : 1);
+      putBox(view.lanes, i * 3, l.x, 2.85, l.z, 0.62, 0.42, 0.62, l.open ? (l.warned ? (blink ? AMBER : RED) : GREEN) : RED, l.open ? 1.15 + 0.2 * Math.sin(view.time * 4 + i) : 1);
       for (const e of [-1, 1]) {
         putBox(view.lanes, i * 3 + (e < 0 ? 1 : 2), b.x + (deep ? 0 : e * b.hx), 0.9, b.z + (deep ? e * b.hz : 0),
           l.open ? 0 : deep ? b.hx * 2 : 0.24, l.open ? 0 : 0.24, l.open ? 0 : deep ? 0.24 : b.hz * 2, RED, 1);

@@ -14,7 +14,7 @@ import { R, MRT_OUT, AUX_NONE } from './render.js';
 const FX_CAP = 700, FX_STRIDE = 16;
 // per particle: x y z  vx vy vz  life ttl  size0 size1  rot spin  grav drag  shape colorIndex
 const fxData = new Float32Array(FX_CAP * FX_STRIDE);
-let fxCount = 0, fxMesh = null, fxPos = null, fxParam = null, fxColor = null, fxSeed = 12345;
+let fxClock = 0, fxCount = 0, fxMesh = null, fxPos = null, fxParam = null, fxColor = null, fxSeed = 12345;
 export const TIER_COLORS = PAL.tiers;
 const FX_COLORS = [PAL.white, PAL.sale, PAL.orange, PAL.player, PAL.danger, PAL.steel, PAL.list, PAL.hot, PAL.sky, PAL.mint, PAL.outline, PAL.red];
 const FX_RGB = FX_COLORS.map(rgb);
@@ -106,6 +106,14 @@ export function cartFx(k, x, z, h, dt) {
       fxOpt.ttl = 0.22 + fxRnd() * 0.2; fxOpt.grav = k.tier > 0 ? 7 : -1; fxOpt.drag = 2; fxOpt.spin = undefined; fxOpt.rot = undefined; fxOpt.aspect = 0;
       fxOpt.vx = -fx * speed * 0.35 + rx * side * (1 + fxRnd() * 2.5); fxOpt.vz = -fz * speed * 0.35 + rz * side * (1 + fxRnd() * 2.5); fxOpt.vy = 1 + fxRnd() * 2.2;
       spark(x - fx * 0.55 + rx * side * 0.45, 0.12, z - fz * 0.55 + rz * side * 0.45, fxOpt);
+    }
+  }
+  if (k.stunT > 0.05 || k.spinT > 0.05) {      // circling stars over a dazed head
+    const t = (fxClock += dt * 0.5), hx = x - fx * 1.3, hz = z - fz * 1.3;
+    for (let i = 0; i < 3; i++) {
+      const a = t * 9 + i * 2.094;
+      fxOpt.color = PAL.sale; fxOpt.shape = 2; fxOpt.size = 0.32; fxOpt.end = 0.32; fxOpt.ttl = 0.05; fxOpt.grav = 0; fxOpt.drag = 0; fxOpt.spin = 0; fxOpt.rot = a; fxOpt.aspect = 0; fxOpt.vx = fxOpt.vy = fxOpt.vz = 0;
+      spark(hx + Math.cos(a) * 0.38, 1.95 + Math.sin(a * 2) * 0.05, hz + Math.sin(a) * 0.38, fxOpt);
     }
   }
   if (k.madT > 0) {

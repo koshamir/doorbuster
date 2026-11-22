@@ -67,6 +67,9 @@ export function buildStore(view, sim, kit, shadow) {
   for (const rp of world.ramps) { rampPiece(B, rp, F); shadow(rp.x, rp.z, 1.1, 1.3, Math.atan2(rp.dx, rp.dz)); }
   // wet floor signs, one at the first corner of a patch
   for (let i = 0; i < world.wet.length; i++) if (world.wet[i] && !world.wet[i - 1] && !world.wet[i - cols]) wetSign(B, (i % cols) * T2 - 0.2, Math.floor(i / cols) * T2 - 0.2);
+  // a pole and a lamp housing over every checkout lane (the lamp itself is lit by the scene)
+  bind(B, 0, PL(0.6));
+  for (const l of world.lanes) { at(B, l.x, 0, l.z - (l.bar.hz >= l.bar.hx ? l.bar.hz - 0.1 : 0)); cyl(B, 0.05, 0.05, 2.62, 0xDDE3EA, { seg: 8 }); at(B, l.x, 3.04, l.z); cyl(B, 0.4, 0.34, 0.12, F.dark, { seg: 14 }); }
   // floor decals on open floor: stickers, rings, the store logo by the doors
   floorDecals(D, world, kit);
   lockGoods(view.gv);
