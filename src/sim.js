@@ -90,7 +90,7 @@ let gift = 0;                      // while goods are handed out for free: their
 function madGain(sim, k, amount) {
   if (k.madT > 0 || gift) return;
   const before = Math.floor(k.mad);
-  k.mad = Math.min(4, k.mad + amount * TUNE.madnessfill);
+  k.mad = Math.min(4, k.mad + amount * TUNE.madnessfill * (k.player ? 1 : sim.def.rivalEdge || 1));   // rivalEdge: a level's own knob for how fast rivals build their multiplier
   k.madIdle = 0;
   if (k.player && before < 1 && k.mad >= 1 && sim.stats.x2At < 0) sim.stats.x2At = sim.t;
   if (k.mad >= 4) {                                  // overfilled: MADNESS mode
@@ -324,7 +324,7 @@ function ram(sim, a, b, nx, nz) {
   b.stunT = b.player ? 0.6 : 1; b.spinT = b.stunT; b.turnTo = null;
   b.immuneT = TUNE.immunity + b.stunT;
   b.ramT = 1.3; b.rammedBy = a; b.grudge = a; b.grudgeT = 5;
-  if (b.madT <= 0) { spill(sim, b, TUNE.ramdrop, nx, nz); madLose(sim, b); }
+  if (b.madT <= 0) { spill(sim, b, TUNE.ramdrop * (a.player || b.player ? 1 : 0.5), nx, nz); madLose(sim, b); }   // rivals jostling each other spill half as much
   stunt(sim, a, 'ram', b.x, b.z);
   madGain(sim, a, 1);
   if (b.player) sim.stats.rammed++; else if (!a.player) sim.stats.rivalRams++;
@@ -333,16 +333,19 @@ function ram(sim, a, b, nx, nz) {
 
 // ---- Checkout and the final table -----------------------------------------------------------------
 // The fourth invisible helper: a cart driving at an open checkout from within 7 m is eased onto the
-// lane's centre line and straightened, so that nobody's run ends on the corner of a counter.
+// lane's centre line and straightened, and one that has ended up at the counters beside an open lane
+// (within 2.5 m of them) is drawn sideways into it at any speed, like a ball into a pocket: nobody's
+// run ends on the corner of a counter.
 function funnel(world, k, dt) {
   for (const l of world.lanes) {
     if (!l.open) continue;
     const b = l.bar, deep = b.hz >= b.hx;                // deep: the lane runs along z
     const along = deep ? l.z - k.z : l.x - k.x, side = deep ? k.x - l.x : k.z - l.z, out = Math.abs(along) - (deep ? b.hz : b.hx);
-    if (out > 7 || out < -0.5 || Math.abs(side) > 2.4 || (deep ? k.vz : k.vx) * Math.sign(along) < 3) continue;
-    const pull = side * Math.min(1, dt * 3.5 * (1 - out / 9));
+    const toward = (deep ? k.vz : k.vx) * Math.sign(along), near = out < 2.5 && toward > -1, turn = near ? 2 : 0.9;
+    if (out > 7 || out < -0.5 || Math.abs(side) > (near ? 4.4 : 2.4) || !(near || toward >= 3)) continue;
+    const pull = near ? clamp(side * 2.5, -3, 3) * dt : side * Math.min(1, dt * 3.5 * (1 - out / 9));
     if (deep) k.x -= pull; else k.z -= pull;
-    k.h += clamp(wrapAngle((deep ? (along > 0 ? 0 : Math.PI) : (along > 0 ? 1 : -1) * Math.PI / 2) - k.h) * 2.5, -0.9, 0.9) * dt;
+    k.h += clamp(wrapAngle((deep ? (along > 0 ? 0 : Math.PI) : (along > 0 ? 1 : -1) * Math.PI / 2) - k.h) * 2.5, -turn, turn) * dt;
     return;
   }
 }

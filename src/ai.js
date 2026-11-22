@@ -27,7 +27,7 @@ export const BOTS = {
 export function rivalProfile(id) {
   const c = CHARS[id], skill = clamp(c.skill * TUNE.rivalskill, 0.2, 1);
   return { rival: true, char: id, pace: c.pace, hz: 6 + Math.round(skill * 14), noise: (1 - skill) * 0.3, drift: skill > 0.75 ? 0.7 : 0,
-    dash: 0.4 + skill * 0.6, look: 5 + Math.round(skill * 3), greed: c.greed, fill: id === 'granny' ? 1.5 : id === 'dad' ? 1.1 : 1.5,
+    dash: 0.4 + skill * 0.6, look: 5 + Math.round(skill * 3), greed: c.greed, fill: 1.5,
     clock: true, brakes: skill, aggro: c.aggro * TUNE.rivalaggro };
 }
 
@@ -39,7 +39,7 @@ export function makeDriver(prof) {
 
 const aim = { x: 0, z: 0, fx: 0, fz: 0, left: 0 };
 const goal = { x: 0, z: 0, score: 0, list: false };
-const mark = { x: 0, z: 0, score: 0, cart: null, piece: null };
+const mark = { x: 0, z: 0, score: 0, cart: null, piece: null, lined: true };
 
 // Scores one candidate pickup at approach point (x, z); keeps the best in `goal`.
 function consider(k, fx, fz, range, wide, x, z, price) {
@@ -110,18 +110,23 @@ function findTarget(sim, k, ai) {
     if (!q.solid.on || !q.solid.dash) continue;
     const hot = q.type === 'podium';
     if (hot ? q.good < 0 : q.type === 'glass') continue;        // drivers do not take the glass shortcuts
-    if (q.sale && p.rival && sim.sale && sim.sale.t > 6) continue;   // the first four seconds of a flash sale are the player's
+    if (q.sale && p.rival && sim.sale && sim.sale.t > 7) continue;   // the first three seconds of a flash sale are the player's
     if (navDistAt(world, q.x, q.z) > here + 3) continue;
     // Whether to go for a piece is decided once, on first sight: a driver that passes on it steers round it.
     if (!ai.wants.has(q)) ai.wants.set(q, sim.rng() < (hot ? 0.5 + p.dash * 0.5 : p.dash));
     if (!ai.wants.get(q)) continue;
     if (see(q.x, q.z, hot ? (p.char === 'queen' ? 44 : 26) : 13, hot ? (p.char === 'queen' ? 30 : 8) : 1.5)) { mark.piece = q; mark.cart = null; }
   }
-  // A huddle of shoppers is a set of bowling pins: a dash through the middle is a STRIKE.
+  // A huddle of shoppers is a set of bowling pins: a dash through the middle is a STRIKE. The driver
+  // lines up first: until the cart is on the huddle's axis it aims at a point 5 m short of the head pin.
+  mark.lined = true;
   for (const g of world.huddles) {
-    if (navDistAt(world, g.x, g.z) > here + 3) continue;
+    if (!g.on || navDistAt(world, g.x, g.z) > here + 3) continue;
     if (!ai.wants.has(g)) ai.wants.set(g, sim.rng() < p.dash * 0.8);
-    if (ai.wants.get(g) && see(g.x, g.z, 13, 2.5)) { mark.piece = g; mark.cart = null; }
+    if (!ai.wants.get(g)) continue;
+    const off = Math.abs((k.x - g.x) * g.dz - (k.z - g.z) * g.dx), back = (g.x - k.x) * g.dx + (g.z - k.z) * g.dz, lined = off < 0.7 || back < 2.5;
+    const short = lined ? 0 : Math.min(5, back);
+    if (see(g.x - g.dx * short, g.z - g.dz * short, 16, 2.5)) { mark.piece = g; mark.cart = null; mark.lined = lined; }
   }
   // A victim: loot to knock off, not immune, and the mood for it (a grudge makes the mood).
   if (ai.mood > 0) for (const b of sim.carts) {
@@ -131,7 +136,7 @@ function findTarget(sim, k, ai) {
     // The player is left alone for the first seconds, is rammed a limited number of times per run and
     // never twice in a row.
     if (b.player && (sim.t < 8 || !ai.mean && !grudge || sim.stats.rammed >= (sim.def.maxRams || 3) || (sim.ramCool > 0 && ai.victim !== b))) continue;
-    if (see(b.x, b.z, 9, grudge ? 9 : 3)) { mark.cart = b; mark.piece = null; }
+    if (see(b.x, b.z, 9, grudge ? 9 : 3)) { mark.cart = b; mark.piece = null; mark.lined = true; }
   }
   if (mark.score <= 0.12) return false;
   // It must be reachable in a straight line (up to the piece's own edge).
@@ -176,7 +181,7 @@ export function drive(sim, k, dt) {
       if (ai.photoT < 1.4) { inp.gas = 0; inp.brake = k.spd > 0.5 ? 1 : 0; inp.steer = 0; inp.drift = false; return; }
     } else if ((ai.selfT -= dt) <= 0 && k.spd > 6 && sim.t > 8) {
       ai.selfT = 9 + sim.rng() * 6; ai.photoT = 2.4;
-      sim.emit('selfie', k);
+      sim.emit('selfie', k); sim.stunt(k, 'selfie', k.x, k.z);     // a sponsored post: the photo pays her
       for (const s of sim.shoppers) {
         if (s.state !== 0 || s.busy || Math.hypot(s.x - k.x, s.z - k.z) > 14 || !clearPath(world, s.x, s.z, k.x, k.z, 0.3)) continue;
         const a = sim.rng() * 6.283;
@@ -208,19 +213,19 @@ export function drive(sim, k, dt) {
   // Rivals are paced against the player, invisibly: far ahead they ease off and shop more, far behind
   // they stop shopping. Full strength for the first 12 s and over the last fifth of the route.
   let pace = p.pace;
-  ai.g = p.rival && sim.t < 4 ? 0 : ai.greed;       // rivals sprint off the line: the first shelf is the player's
+  ai.g = p.rival && sim.t < 3 ? 0 : ai.greed;       // rivals sprint off the line: the first shelf is the player's
   if (p.rival && sim.t > 12 && !sim.player.done && sim.player.prog < world.navStart * 0.8) {
     const gap = k.prog - sim.player.prog, mine = k.value + k.stunts, yours = sim.player.value + sim.player.stunts;
-    if (gap > 20) { pace *= 0.86; ai.g = Math.min(1, ai.g * 1.3); } else if (gap < -15 && p.char !== 'granny') ai.g *= 0.6;   // Granny never hurries
+    if (gap > 22) { pace *= 0.86; ai.g = Math.min(1, ai.g * 1.3); } else if (gap < -8 && p.char !== 'granny') { pace = Math.max(pace, 1); ai.g *= 0.8; }   // Granny never hurries
     // ...and the same with money: far richer than the player it shops less, far poorer it shops harder.
-    if (mine > yours * 1.15 + 200) ai.g *= 0.5; else if (mine < yours * 0.8 && gap > -15) ai.g = Math.min(1.2, ai.g * 1.5);
+    if (mine > yours * 1.4 + 500) ai.g *= 0.5; else if (mine < yours * 0.9 && gap > -15) ai.g = Math.min(1.3, ai.g * 1.5);
   }
   // Coupon Queen drops everything for a hot item: with one on the route within 70 m she stops shopping,
   // runs for it at full pace and shouts about it (a hint for the player, and a race).
   if (p.char === 'queen') {
     const here = navDistAt(world, k.x, k.z);
     for (const q of world.pieces) {
-      if (q.type !== 'podium' || q.good < 0 || !q.solid.on || (q.sale && sim.sale && sim.sale.t > 6)) continue;
+      if (q.type !== 'podium' || q.good < 0 || !q.solid.on || (q.sale && sim.sale && sim.sale.t > 7)) continue;
       const d = here - navDistAt(world, q.x, q.z);
       if (d < -2 || d > 70) continue;
       ai.g = 0; pace = p.pace;
@@ -276,14 +281,15 @@ export function drive(sim, k, dt) {
 
   // The lunge: lined up with a target and close enough. The player gets a warning first; the line
   // announced is the one to where the player's cart will be if it just carries on.
-  if (hunting && Math.abs(err) < 0.2 && far < (mark.piece && !mark.piece.solid ? 3.8 : 6) && k.dashCd <= 0) {   // (a huddle wants the dash late: all three rows in one lunge)
+  const pins = hunting && mark.piece && !mark.piece.solid;     // a huddle wants the dash late (all three rows in one lunge) and from its axis
+  if (hunting && Math.abs(err) < 0.2 && far < (pins ? 3.8 : 6) && mark.lined && k.dashCd <= 0) {
     if (mark.cart && mark.cart.player) {
       const b = mark.cart, lead = CFG.ramWarn + 0.15;
       ai.warnT = CFG.ramWarn; ai.victim = b; sim.ramCool = 7;
       ai.aimH = Math.atan2(b.x + b.vx * lead - k.x, b.z + b.vz * lead - k.z);
       sim.emit('warn', k, 0, b);
     } else inp.dash = true;
-  } else if (hunting && mark.piece && far < 4.5) ai.wants.set(mark.piece, false);   // too close and not lined up: let it go
+  } else if (hunting && mark.piece && mark.lined && far < (pins ? 2.2 : 4.5)) ai.wants.set(mark.piece, false);   // too close and not lined up: let it go
 
   // Drift through real bends and let go once the path points down the road.
   if (ai.drifting) {
@@ -321,6 +327,7 @@ export function spawnCrowd(sim) {
   if (TUNE.crowd > 0) for (const g of world.huddles) {
     navAim(world, g.x, g.z, 3, 0.3, aim, 99);
     const dl = Math.hypot(aim.fx - g.x, aim.fz - g.z) || 1, dx = (aim.fx - g.x) / dl, dz = (aim.fz - g.z) / dl;
+    g.on = true; g.dx = dx; g.dz = dz;
     for (let row = 0; row < 3; row++) for (let i = 0; i <= row; i++) {
       const along = (row - 1) * 0.68, side = (i - row / 2) * 0.74;
       shopper(g.x + dx * along + dz * side, g.z + dz * along - dx * side, 0, true);
@@ -360,7 +367,7 @@ export function stepCrowd(sim, dt) {
     s.t -= dt;
     if (s.angry > 0) s.angry -= dt;
     if (s.state === 0 && s.busy) {
-      if (s.t <= 0 && Math.hypot(s.hx - s.x, s.hz - s.z) > 0.4) { s.state = 1; s.tx = s.hx; s.tz = s.hz; }   // back to the huddle
+      if (s.t <= 0 && Math.hypot(s.hx - s.x, s.hz - s.z) > 0.4) { s.state = 4; s.rush = true; s.tx = s.hx; s.tz = s.hz; }   // back into formation, at a run
     } else if (s.state === 0) {
       if (sale && Math.hypot(sale.x - s.x, sale.z - s.z) < 30 && clearPath(world, s.x, s.z, sale.x, sale.z, 0.3)) {
         s.state = 4; const a = rng() * 6.283, r = 2 + rng() * 2.5;
@@ -393,6 +400,11 @@ export function stepCrowd(sim, dt) {
       if (s.state === 3) continue;
       if (gap < 0 && sp > 2) {                        // bowled over
         const force = k.dashT > 0 || k.madT > 0 || k.dashCd > TUNE.dashcooldown - CFG.dashTime - 0.25;   // a dash, or the quarter second after it
+        if (s.busy && !force) {                       // a pin only goes down to a dash: anything else shoves it aside, and it steps back
+          const dir = dx * k.vz - dz * k.vx >= 0 ? 1 : -1;
+          s.state = 2; s.t = 0.4; s.vx = k.vz / sp * dir * 4.5; s.vz = -k.vx / sp * dir * 4.5;
+          continue;
+        }
         s.state = 3; s.t = 1.3; s.hit = true; s.near = null;
         s.vx = k.vx * 0.5 + (dx > 0 ? 1 : -1); s.vz = k.vz * 0.5 + (dz > 0 ? 1 : -1);
         if (force) {

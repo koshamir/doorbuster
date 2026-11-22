@@ -2,26 +2,25 @@
 
 ## STATUS (updated after every meaningful step)
 
-- **Current milestone:** M4 Life — implemented, measured, self-gate written below; its fresh-eyes review is
-  running. M0-M3 are tagged (`m0` ... `m3`; `m2` and `m3` point at the commit that carries the fixes from
-  both of their reviews).
-- **Done:** everything in M0-M3, plus: rivals (Granny Tank, Sprint Dad, Coupon Queen) with pacing, rams,
-  grudges and a final table · the crowd (strolling, dodging, bowled over, huddles, the rush at the doors) ·
-  Madness meter and mode · every dash target of GDD 5.4 except the glass window's level (the piece exists and
-  is exercised by the validator; it enters play in Level 2) · the three events · Level 1 rebuilt · the art
-  and interface fixes from the M2 and M3 reviews.
-- **Next:** M4 review fixes -> tag `m4` -> M5 Content: mall kit pieces (travelator, wet floor, ramp, glass
-  shortcut, shutter, scrubber, cart train), Levels 2-3, icon teaching, medals, saves, leaderboards, mobile
-  controls, pause; then M6 `audio.js` (the 15th file) and juice; M7 handoff.
-- **Open problems:** average rival earns 52% of the expert bot (guideline 60-85%, see D42) · Level 1 run
-  without collecting is 52% of the timer (guideline 55-65%, D30) · beginner bot takes 10+ goods off the
-  first shelf in 84% of runs, not all · rival recovery after a hit: 97% within 2 s, worst 4 s · no video
-  capture yet · frame rate on integrated graphics cannot be measured here (RTX 4060).
-- **Budget:** 14 files, about 4,430 lines (limit 15 / 8,000; target about 6,000). Largest: scene.js 540,
-  sim.js 545.
-- **How to resume:** `node tools/check.mjs && node tools/script.mjs && node tools/sim.mjs --level 1 --runs 200`,
-  then `node tools/shots.mjs --set m4` and look at `shots/m4`. Gate evidence in text form is in `gates/`
-  (`metrics-latest.txt`, `m2/m3/m4/dist-capture.json`) and is regenerated from the tree before every tag.
+- **Current milestone:** M4 Life is closed (tag `m4`): its fresh-eyes review found five problems, a fairness list
+  and a readability list; every valid finding is fixed (D54-D62 and the review table below). M5 Content and
+  M6 Juice are built and self-gated below; one fresh-eyes reviewer for both is next, then M7.
+- **Done:** the whole game: the cart with four invisible helpers · sweeping, the loot heap, the cap with
+  swaps, list items, hot items · Madness meter and mode · five rivals with pacing, announced and dodgeable
+  rams, grudges, a final table · the crowd, bowling-pin huddles, the rush at the doors · DOORS OPEN, FLASH
+  SALE, CLOSING TIME with a finale in every run · three levels from one kit (travelator, wet floor, ramp,
+  glass window, cart train) · icon teaching, medals, records, loyalty card, pause, touch · synthesized sound
+  and music · the single-file build and the handoff packager.
+- **Next:** M5+M6 review -> fixes -> tags `m5`, `m6` -> M7: release checklist, handoff package checked on a
+  clean copy, a three-juror review, REPORT.md, tag `m7`.
+- **Open problems:** an average rival earns 55% / 49% / 48% of the expert bot on Levels 1-3
+  (guideline 60-85%, D62) · a run without collecting takes 52% / 52% / 57% of the timer (guideline
+  55-65%; D30, D44) · bots rarely line up a STRIKE on Levels 1 and 3 (D60) · frame rate on integrated graphics
+  cannot be measured here (RTX 4060) · feel, humour and music need a human.
+- **Budget:** 15 files, 5,348 lines (limit 15 / 8,000; target about 6,000); 312 KB without three.js.
+- **How to resume:** `node tools/evidence.mjs` regenerates everything in `gates/` (checks, maneuvers, 200 bot
+  runs per bot and level, the build, the capture sets into `shots/`); `node tools/package.mjs` builds and
+  checks the handoff folder.
 
 ## Decisions
 
@@ -80,6 +79,15 @@
 | D51 | **Sound** (`audio.js`, the 15th file): oscillators and filtered noise into an effects bus and a music bus, then a compressor as a limiter. Every simulation event has a sound; impacts are three layers (click, body, clang or a voice); the item pop climbs a pentatonic scale along a chain; gibberish voices at most once per 8 s per character. The music is a two-chord funk vamp on a 16-step grid played by a look-ahead scheduler: drums and bass at x1, chord stabs from x2, a lead from x3, cowbell and claps at x4, a resonant filter sweep in MADNESS mode, 114 -> 134 bpm at closing time, a soft version on the title and receipt. Nothing sounds before the first key or click. | ART 7, QUALITY 4 Sound. Heard by nobody yet: on the owner's list. |
 | D52 | The single-file build parses the combined script once, so a name declared twice anywhere fails the build (two modules each had a top-level `T`; the old check only looked at the first name of a declaration list). `tools/package.mjs` builds the handoff folder and checks it on a clean copy. | MINDBLOWN 6. |
 | D53 | Bots go for a list item before any dash target and see it from further away (it glows). | The expert bot missed the third list item in half its runs because it was busy chasing carts. |
+| D54 | **One hit never costs more than 40% (M4 review).** `spillmax` now caps the dollars of every way the player loses goods: a crash, a rival's ram (it was uncapped: the review measured a median 42-47% of the cart's dollars and a worst case of 87%) and an overloaded tower shedding. A ram on a *rival* still always knocks off its top item, so a hot item can be taken from it. An overloaded tower sheds only on a knock above 5 m/s (was 2.5) that is not the shelf being swept or a checkout counter, never a hot item, and in a drift only past the second spark tier (was the first). | QUALITY 4: "a single hit costs no more than 40%". The cart is over its rating for 60-64% of a run, so that state must not punish the core action: half of the beginner's sheds came from the shelf it was sweeping. Now: worst ram 40%, worst shed 28% of the cart's dollars; 0.03-0.12 sheds per run for the careful bots, 3.04 for the sloppy one. |
+| D55 | **An announced ram is a committed ram.** The warning lasts 0.8 s (GDD 5.6: half a second): "!" on the rival, or beside the player's cart on the side it comes from when the rival is out of the picture (the review: 96-99% come from behind), a red line on the floor along the lunge, and for the first two warnings the steering keys. The rival holds the heading it announced (to where the player's cart will be if it carries on) and lunges down it, hit or miss. A lunge that ends within 7 m without a hit is DODGED!: $40 and half a segment of Madness. The extra dash reach (+0.35 m) is the player's alone. | The review: steering away a quarter second after the "!" was still hit 37% of the time (doing nothing: 44%), because the rival kept re-aiming until the lunge. A bot that never dodges on purpose is now warned about 0.9 times a run, hit 0.23 and missed 0.63. |
+| D56 | **CLOSING TIME starts when the race leader comes within 90 m of the checkouts**, or with `closing` seconds on the clock, whichever is first (GDD 5.8: the last 15 s). From then the checkouts go dark one by one over `closing` seconds (15; Level 1: 22), each with 2 s of warning (the lamp blinks, the lane's floor flashes red, a beep, a "CLOSING" label), never while a cart is within 3.5 m of the lane's mouth (for up to 1.5 s); the last one stays open until the store shuts. A lane about to close costs 14 m in the route field, so drivers and the arrow prefer another. The clock itself is untouched. | The review counted the runs that reached closing time: confident 0 of 200, expert 0 of 200, beginner 10 of 200. The finale that the GDD describes and that the release checklist wants the jury to see did not exist for anyone who drove well, and a shorter timer would have taken the beginner's margin. Now every run has it: 17.42 s of it for the beginner bot, 11.06 s confident, 8.30 s expert (medians, Level 1). |
+| D57 | **A fourth invisible helper: the checkout funnel.** A cart driving at an open checkout from within 7 m (3 m/s or more, within 2.4 m of its centre line) is eased onto the centre line and straightened; one that has ended up at the counters beside an open lane (within 2.5 m of them and 4.4 m of the lane) is drawn sideways into it at any speed. The route field also makes the two tiles in front of the lanes dear ("apron"), so routes cross them straight. | With one checkout left, the beginner bot spent ten seconds bouncing between the counters beside it: a 2.6 m gap needs a straight approach. GDD 4: "drive into an open checkout at any speed". Closed-lane hits: 0-0.04 per run. |
+| D58 | **Flash sale placement.** Sale spots (plan `f`) stand every 25-45 m along the stretch of route where a player can be at 40% of the timer (5 on Level 1, 7 on Levels 2 and 3); the sale appears at the nearest one at least 24 m ahead; rivals leave it alone for its first 3 s. | The review: the podium was a median 101 m of route from the confident bot; nobody took it in 64% of runs, the player in 6%. Now the player's bot takes it in 42% / 33% / 61% / 33% / 81% / 19% of runs (beginner / confident / expert, Level 1; the second number in the table is a rival taking it). |
+| D59 | **The loot heap.** Goods in a cart are packed over six columns (small goods three abreast, medium and large two, hot items across both), each where the heap is shallowest: a full cart carries a heap about 1.1 m wide and 2-3 m tall instead of a single column (the review: median peak 5.8 m, hiding 8 m of lane ahead). Banners fade out as the player's cart comes within 14-9 m of them. A smashed piece takes its shadow with it. | M4 review, line of sight. The heap still sways and spills; reading the way ahead comes first (CLAUDE.md priorities 1-2 before 4). |
+| D60 | **A huddle is a set of bowling pins**: six shoppers in rows of one, two and three, the head pin toward the carts that come down the route. Only a dash knocks a pin down (anything else shoves it aside and it steps back into formation at a run), and a pin hit within a quarter second after the dash still counts. Bots that want the strike line up on the huddle's axis first. | The review: 0.01-0.03 strikes per run. A ring of six did not read as a target, rivals had flattened it before the player arrived, and the dash had to end exactly on it. A straight dash is now a strike every time (`shots/m4/strike_strip.png`); the bots still get few on Level 1 (0.08 per run; Level 2: 0.04), because the shelf-sweeping helper pulls them off the huddle's axis there. Left as a human skill shot. |
+| D61 | **Interface (M4 review).** The Madness meter has five pips: the lit ones are the multiplier (one is always lit), the fifth, pink, fills toward MADNESS mode. A headline word (MADNESS!, HOT ITEM!) keeps its full second; HEAVY and OVERLOADED are said once per run; while the announcer's line is up, pop-up words appear below it. CART FULL is announced the first time the cap matters (the first swap), not at the first refusal 7-15 s later. The arrow is a block arrow that stays below the announcer's line and points along the route while its target is out of sight, never through a wall. Labels are at least 9 px. Floating labels that start together stack downward and never run into each other. The place badge counts what the receipt will count (time and list bonuses): it agrees with the final table in 98%-100% of runs (the review: 77-90%). | M4 review, readability list (`shots/m4/small_*.png`, `phone_*.png`, `run_*.png`). |
+| D62 | **Balance after the review.** Hot items are 30% cheaper (350 / 250 / 450 / 560): at x4 one of them was worth six shelves and decided the table by itself. The first list item of Level 1 now lies in the first shelf's sweeping lane (it used to pull the beginner off the shelf: 10+ goods off the first shelf in 75% of beginner runs, was 30%). Rivals: jostling each other spills half as much as a ram that involves the player; every rival fills its cart to the cap; the pacing band is 8 m behind to 22 m ahead of the player, and behind it they drive flat out instead of shopping less; they ease off only when 40% + $500 richer than the player; Selfie Star's photos pay her $150 each (a reason to ram her while she poses); a level's `rivalEdge` scales how fast rivals build their multiplier (1.9 / 2.4 / 1.7 on Levels 1-3). Medals are reset between the bots' medians (D46). | With D54-D58 the player's bots keep more of what they take, and the rivals fell to 34-44% of the expert and 67-84% of the confident bot. Now the best rival is at 95% / 89% / 106% of the confident bot (guideline 85-105%), the confident bot wins 48% / 58% / 39% of its runs, the beginner 3% / 6% / 5%. **The other guideline, an average rival at 60-85% of the expert, is not met (55% / 49% / 48%) and cannot be together with the first**: the expert earns about 1.3 times the confident bot and the best of three to five rivals earns about 1.4 times their average, so an average at 60% of the expert would put the best rival above 105% of the confident bot. The jury plays at beginner to confident level; that end of the table is the one tuned. `rivalskill` in tune.json moves all of it. |
 
 ## Reviews
 
@@ -150,6 +158,34 @@
 | A | Start frame fails as a cover; outline timid beside the interface | valid | title view, outlines 2.0 / 3.2 px |
 | I | Pop-up word is the one interface element off-style; a spill gives no on-screen reason | valid | plates; red loss text |
 | K | Keep: pink plus the floor ring as the player's mark; the plates and the paper receipt | kept | pink share of vivid pixels is 25-27% in M4 frames (rivals and crowd are in them now); the ring is unchanged in colour |
+
+### M4 fresh-eyes review (22 Nov, on commit 7075059) — findings and what was done
+
+| # | Finding | Verdict | Action |
+| --- | --- | --- | --- |
+| 1 | Rams: unseen (96-99% from behind, the rival on screen half the time), undodgeable (steering away still hit 37%), uncapped (median 42-47% of the cart's dollars, worst 87%) | valid | D54, D55 |
+| 2 | Overloaded towers shed their dearest goods on a touch: every run is OVERLOADED for 62-70% of its length, half the beginner's sheds come from the shelf being swept, a hot item is lost in 27-49% of runs | valid | D54. Not changed: the cart is still over its rating for 60-64% of a run; with 0.03-0.12 sheds per run that state is a look and a weight, not a punishment |
+| 3 | FLASH SALE does nothing: a median 101 m away, taken by the player in 6% of runs | valid | D58 |
+| 4 | Line of sight: the player's own tower hides 8 m of lane; banners cover the cart | valid | D59 |
+| 5 | No end-game: CLOSING TIME reached in 0 of 200 confident and expert runs | valid | D56, D57 |
+| F1 | The +0.35 m dash reach also served the rival | valid | D55 |
+| F2 | A closing lane's only warning is a lamp | valid | D56 |
+| F3 | CART FULL is said at the first refusal, 7-15 s after swaps begin | valid | D61 |
+| R1 | Pop-up word and announcer line share one slot | valid | D61 |
+| R2 | The arrow is a near-equilateral triangle and points through walls | valid | D61 |
+| R3 | MADNESS, CLOSING IN, RECEIPT are 6-7 px at 800x450 and on a phone | valid | D61 |
+| R4 | Three pips read x4 | valid | D61 |
+| R5 | Price labels overlap | valid | D61 |
+| R6 | OVERLOADED replaces MADNESS! after half a second | valid | D61 |
+| R7 | The place badge differs from the final table in 10-23% of runs | valid | D61 |
+| R8 | Smashed pieces leave their shadow | valid | D59 |
+| G1 | "Worst crash loss 40%" covered crashes only and is capped by the code | valid | the simulation reports what a ram and a shed cost the player (median and worst share of the dollars) next to the crash number |
+| G2 | "Rammed at most 3" cannot fail | valid | listed as a rule (D33), not as a measurement; the measurements are warnings, hits and dodges per run |
+| G3 | "Something every 3-5 s" hid 8-13 s of quiet behind a median over every take | valid | reported per run: the longest quiet stretch of a median run and the share of runs with 5 s of nothing |
+| G4 | "All three events": the closing evidence shortened the timer, and five frames were stale | valid | D56; `closing_strip`, `finale_strip` and `finale2_strip` are ordinary runs; capture folders are emptied before a set is regenerated |
+| G5 | "Rivals on screen 72%" was a distance | valid | the simulation tests the camera's picture of the floor (2.5 m behind the cart to 26 m ahead): the row "a rival is in the picture" below |
+| G6 | "Every dash target": glass in no level, strikes 0.01-0.03 per run | valid | the glass window is in Level 2 since M5; D60 |
+| K | Keep: same-step feedback on the player's own hits | kept | untouched |
 
 ## Milestone gates
 
@@ -246,54 +282,118 @@ Gate: *looks like the references; 60 fps* (owner playtest replaced by the art re
 | Draw calls and triangles | pass | 38-67 draw calls and 91-126k triangles with rivals and crowd (guideline 150 / 300k) |
 | 60 fps | pass here | 165 fps (display-limited), p95 frame gap 6.1 ms, logic 0.09 ms, render 0.7 ms on an RTX 4060; integrated graphics cannot be measured on this machine |
 
-### M4 Life — self-gate measured, fresh-eyes review pending
+### M4 Life — gate passed, tag `m4` (numbers from the tree that carries the review fixes)
 
-Gate: *simulation metrics from QUALITY §4; the chaos is fun and fair* (200 runs per bot on Level 1,
-1,000 runs for the rival rows; `gates/metrics-latest.txt`).
+Gate: *simulation metrics from QUALITY §4; the chaos is fun and fair.* 200 runs per bot and level
+(`gates/metrics-latest.txt`); rival rows are over all bots' runs. Level 1 unless a row says otherwise.
 
 | Criterion | Result | Number |
 | --- | --- | --- |
-| Hit counts when objects visibly touch, margin in the player's favour | pass | dash reach +0.35 m on carts; two-circle carts; shoppers 0.3 m |
-| Response in the same frame | pass | hit-stop 0.04-0.1 s, particles and target reaction are emitted on the event's own step (`shots/m4/ram_strip.png`, `smash_strip.png`, `strike_strip.png`) |
-| A ram on the player is visible in advance, not repeated during immunity | pass | D33; `shots/m4/rammed_strip.png`; rammed 0.2-0.6 times per run, at most 3 |
-| Pile-up: nobody jitters, flies off or passes through | pass | start grid of four carts and nine runners: `shots/m4/start_strip.png`; longest standstill of any bot under 1.1 s |
-| Madness: beginner reaches x2 within 20 s | pass | 100% of runs, median 2.4 s |
-| Madness: confident bot triggers the mode 1-2 times per run | pass | 1.04 per run; 1-2 in 88% of runs |
-| 98%+ of rivals finish without a push-out | pass | 100% finish; 16 push-outs in 3,000 rival runs (99.5%) |
-| Fewer than one stuck event per 20 runs | pass | 0.004 per run |
-| A rival passes an obstacle with 80-97% probability; someone's crash is visible | above the range | rivals crash 0.54 times per run in total (about 99% per obstacle); a rival crash happens in 43% of runs and a rival-on-rival ram in 94% |
-| A rival is never faster than the player's maximum | pass | same cart model; 22.5 m/s against the player's 23.4 m/s under its own power |
-| Receipts: average rival 60-85% of the expert | not met | 52% (D42) |
-| Receipts: best rival 85-105% of the confident bot | pass | 92% |
-| The beginner bot places 2nd-4th of four | pass | 1st in 5% of runs, 2nd 28%, 3rd 36%, 4th 31% |
-| Rivals ram each other at least once per run | mostly | 3.4 per run; at least one in 94% of runs |
-| The player is rammed no more than three times | pass | maximum 3 in 1,000 runs |
-| After a hit a rival is back in the race within 2 s | mostly | median 1.15 s (1 s of that is the spin); 97% within 2 s, worst 4.0 s. "Back" = in control and over 3.5 m/s |
-| Crowd never blocks the way for more than a second; shoppers get up | pass | carts pass through them (5% speed); down for 1.3 s |
+| Hit counts when objects visibly touch, margin in the player's favour | pass | the player's dash reaches 0.35 m further on carts (a rival's does not, D55); two-circle carts; shoppers 0.3 m |
+| Response in the same frame | pass | hit-stop 0.04-0.1 s; particles and the target's reaction are emitted on the event's own step (`shots/m4/ram_strip.png`, `smash_strip.png`, `strike_strip.png`) |
+| A ram on the player is visible in advance, not repeated during immunity | pass | D55: 0.8 s of "!", the line on the floor (`shots/m4/rammed_strip.png`); per run a bot that never dodges on purpose is hit 0.17-0.23 times and missed 0.22-0.63 times; at least 7 s apart, at most `maxRams` |
+| A single hit costs no more than 40% | pass | worst share of the cart's dollars lost at once: crash 40%, ram 40% (median 37%), shed 28% (D54) |
+| Pile-up: nobody jitters, flies off or passes through | pass | start grid of four carts and nine runners (`shots/m4/start_strip.png`); longest standstill of any bot on any level 1.09 s |
+| Madness: beginner reaches x2 within 20 s | mostly | 94% of runs, median 2.48 s (the rest lose the first shelf to the crush at the doors) |
+| Madness: confident bot triggers the mode 1-2 times per run | pass | 1.18 per run; 1-2 in 94% of runs |
+| 98%+ of rivals finish without a push-out | pass | 100% finish; 18 push-outs in 1000 runs |
+| Fewer than one stuck event per 20 runs | pass | 0.001 per run |
+| A rival passes an obstacle with 80-97% probability; someone's crash is visible | above the range | rivals crash 0.74 times per run in total; a rival's crash happens in 53% of runs and a rival-on-rival ram in 92% |
+| A rival is never faster than the player's maximum | pass | same cart model, whose maximum is 25.2 m/s (third-tier boost plus dash); the fastest moment of any rival in 1000 runs was 24.2 m/s, of the player's bots 23.5 m/s |
+| Receipts: an average rival at 60-85% of the expert | not met | 55% (D62) |
+| Receipts: the best rival at 85-105% of the confident bot | pass | 95% |
+| The beginner bot places 2nd-4th of four | pass | 3% / 13% / 25% / 59% (1st to 4th) |
+| Rivals ram each other at least once per run | mostly | 3.34 per run; at least one in 92% of runs |
+| The player is rammed no more than three times | by rule | D33; the most in one run was 2 |
+| After a hit a rival is back in the race within 2 s | mostly | median 1.15 s (1 s of that is the spin); 98% within 2 s, worst 3.81 s |
+| Crowd never blocks the way for more than a second; shoppers get up | pass | carts pass through them (5% of speed); down for 1.3 s; pins step back into formation |
 | Crowd in one or two draw calls | pass | one instanced mesh, two passes (fill and outline) |
-| Something for the player every 3-5 s | pass in play, with gaps | median 0.14-0.30 s between events the player notices; the longest quiet stretch of a run is 8-13 s (a full cart in the last aisle) |
-| Beginner finishes Level 1 with 10 s to spare | pass | 10.8 s in the worst of 200 runs |
+| Something for the player every 3-5 s | on the map: pass; in a run: gaps | no stretch of route longer than 9 m without something to do (validator). Events the player notices: the longest quiet stretch of a median run is 4.99 s (beginner) / 4.02 s (confident); 49% / 28% of their runs have 5 s with none (a full cart passing shelves cheaper than its load) |
+| Beginner finishes Level 1 with 10 s to spare | pass | 14.52 s in the worst of 200 runs |
+| Beginner takes 10 or more goods off the first shelf | mostly | 75% of runs, 16.39 on average (the confident bot: 67%); D62 |
 | Expert without collecting takes 55-65% of the timer | below | 52% (D30) |
-| All three events | pass | DOORS OPEN with rocket start, FLASH SALE, CLOSING TIME: `shots/m4/start_strip.png`, `flash_strip.png`, `closing_strip.png` |
-| Every dash target of GDD 5.4 | pass | rival (ram, takedown), shoppers (strike), hot item, pyramid / gifts / stand, glass (logic and effect in place, first used in Level 2), wall (crash) |
-| Console clean, no external requests | pass | `gates/m4-capture.json`: 16 scenarios |
-| Budgets | pass | 14 files, about 4,430 lines; 247 KB without three.js |
+| All three events, in an ordinary run | pass | rocket start; FLASH SALE taken by the player's bot / by a rival in 42% / 33% (beginner), 61% / 33% (confident), 81% / 19% (expert); CLOSING TIME: at least 3 s of it in 100% of runs, a closed lane is hit 0-0.04 times per run (`shots/m4/start_strip.png`, `flash_strip.png`, `closing_strip.png`, `finale_strip.png`, `finale2_strip.png`) |
+| Every dash target of GDD 5.4 | pass | rival (1.95 rams and 0.63 takedowns per run for the confident bot), shoppers (strike: D60), hot item (1.94 per run), pyramid / gifts / stand (0.66), glass (Level 2), wall (crash) |
+| A rival is in the picture | recorded | 80% / 72% / 51% of the time for the beginner / confident / expert bot's camera; within 22 m: 74%; median gap along the route 15.6 m (GDD: 10-20 m) |
+| The place badge agrees with the final table | pass | 98%-100% of runs |
+| Console clean, no external requests | pass | `gates/m4-capture.json`: 18 scenarios, 0 problems |
+| Budgets | pass | 15 files, 5,348 lines; 312 KB without three.js |
 
-Level 1 by bot (200 runs each):
-
-| Bot | Time | Of 72 s | Receipt (median) | Items $ | Goods taken / lost | List | Modes | Place 1st |
+| Level 1 bot | Time (slowest) | Of 72 s | Receipt (median) | Goods taken / lost | List | Modes | 1st place | Medals bronze / silver / gold / black |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| beginner | 53.7 s | 75% | $3,317 | 2,705 | 58 / 3.3 | 100% | 0.47 | 5% |
-| confident | 45.2 s | 63% | $5,222 | 4,478 | 61 / 8.1 | 97% | 1.04 | 55% |
-| expert | 41.9 s | 58% | $6,576 | 5,584 | 54 / 6.7 | 97% | 1.15 | 79% |
-| sloppy | 44.4 s | 62% | $4,672 | 3,829 | 69 / 23 | 87% | 1.31 | 50% |
-| expert, no collecting | 37.2 s | 52% | $715 | 235 | 15 / 1.7 | 4% | 0 | 0% |
+| beginner | 52.35 s (57.48) | 73% | $3,283 | 56.88 / 1.96 | 99% | 0.53 | 3% | 170 / 28 / 2 / 0 |
+| confident | 45.20 s (53.40) | 63% | $5,890 | 61.01 / 4.82 | 93% | 1.18 | 48% | 46 / 88 / 46 / 20 |
+| expert | 42.08 s (49.87) | 58% | $7,450 | 54.63 / 3.63 | 90% | 1.25 | 78% | 20 / 42 / 112 / 26 |
+| sloppy | 44.12 s (57.06) | 61% | $5,402 | 66.12 / 16.38 | 93% | 1.34 | 46% | 59 / 93 / 44 / 4 |
+| expert, no collecting | 37.37 s (42.86) | 52% | $754 | 18.29 / 2.71 | 5% | 0 | 0% | 200 / 0 / 0 / 0 |
 
-Rivals (1,000 runs): Granny Tank $3,223 in 48.3 s, Sprint Dad $3,414 in 45.4 s, Coupon Queen $2,927 in 44.7 s.
+Rivals, Level 1: Granny Tank $3,726 in 48.32 s, Sprint Dad $4,110 in 44.81 s, Coupon Queen $4,096 in 44.40 s.
 
-Feel measurements re-checked after the cart changes of this milestone (reverse fix, pivot while braking,
-sweep-lane helper), without the rocket start: 0 -> 95% of top speed 1.04 s empty / 2.08 s full (a full cart
-is 40 units now); stop from top speed 3.6 m / 4.1 m; turn radius 8.0 m / 8.2 m; drift tiers against
-corners unchanged (tier 1 / 2-3 / 3 in a 90-degree bend by stick position); a beginner's random drift
-attempt succeeds 64% per try and 87% within two; the same key script ends in the same place at 30, 60, 144
-and 240 Hz (0.000 m apart); gauntlet: 100% clean passes for beginner and expert, 95-100% for confident.
+Feel measurements were re-run after this milestone's changes (`gates/metrics-latest.txt`, maneuver suite): the
+cart model itself is unchanged since M2 apart from D38 and D39; the same key script ends in the same place
+at 30, 60, 144 and 240 Hz (0.000 m apart).
+
+### M5 Content — self-gate measured, fresh-eyes review pending (one reviewer covers M5 and M6)
+
+Gate: *a new person finishes Level 1 with no explanation* (replaced by the beginner bot, the teaching
+frames and the review). 200 runs per bot and level; `gates/m5-capture.json`.
+
+| Criterion | Result | Number or evidence |
+| --- | --- | --- |
+| Mall kit | pass, two pieces cut | travelator, wet floor, ramp and jump, glass window, cart train, fountain, tree, displays, light props (D43); the floor scrubber and the roller shutter are cut |
+| Levels 1-3 built from the kit | pass | routes 416 / 420 / 356 m, timers 72 / 64 / 58 s, goods for 7.8 / 8.1 / 8.5 carts |
+| No dead ends; the checkout is reachable from any point | pass | the validator walks the route field from every floor tile; every bot finishes every run on all three levels |
+| Beginner bot finishes with 10 s to spare on Level 1 and 5 s on the others | pass | worst run: 14.52 s, 5.86 s, 6.30 s |
+| Expert without collecting takes 55-65% of the timer | Level 3 only | 52%, 52%, 57% (D30, D44: Levels 1 and 2 are kept looser for the beginner's margin) |
+| Something every 3-5 s; no empty stretch over 25 m | pass | longest empty stretch on the route 9 / 13 / 12 m (validator) |
+| Every hazard is visible 0.7 s ahead at full speed | pass | train: its track is drawn across the corridor and a shadow runs 4 m ahead of it; wet floor: sheen and sign; the wrong-way belt: arrows; a ram: 0.8 s of "!" and a line on the floor; a closing lane: 2 s |
+| Each level has one new element and one screenshot moment | pass | L1 sweeping and the dash / the crush at the doors; L2 the drift, belts, the window / a drift round a display; L3 the ramp, the train, wet floor / the jump over the fountain (`shots/m5/jump_strip.png`) |
+| Control taken away for at most a second | pass | longest stun 0.81 s over all bots and levels (a jump is 0.9 s of the player's own choice) |
+| One hit costs no more than 40% | pass | worst ram and shed on Levels 2 and 3: 40%, 39% |
+| Icon teaching | pass | `shots/m5/hints_*.png` (A D W, then SHIFT), `hint_drift_2p7.png` (SPACE); each is saved as seen after its first use; the steering keys return for the first two ram warnings |
+| Medals, records, unlocking, skip after three failures | pass | `shots/m5/flow_receipt.png`, `cards.png`; one saved object through the platform layer; medal thresholds between the bots' medians (tables below) |
+| Leaderboards | submit only | the best receipt per store and their sum are submitted; no screen (cut, "Should") |
+| Mobile controls under the thumbs | pass | `shots/m5/phone.png`; touch test: {touch: true, left: true, steer: 1, gas: 1, speed: 11.8, released: true} |
+| One click and no more than 3 s to playing; restart 1.5 s | pass | START to GO 2.4 s; restart countdown 1.2 s |
+| Reads at 800x450 and on a phone | pass | `shots/m4/small_*.png`, `phone_*.png`, `shots/m5/phone.png`; labels at least 9 px |
+| Losing focus pauses; resizing breaks nothing | pass | blur pauses a run (`shots/m5/pause_after.png`); the interface is laid out in one unit that follows the window |
+| Rivals on the new levels | pass, with D62 | every rival finishes every run; stuck events 0.006 and 0.006 per run; best rival at 89% and 106% of the confident bot, average at 49% and 48% of the expert |
+| The finale on the new levels | pass | closing time seen for 10.08 s and 11.67 s (confident, medians); flash sale taken by the player's bot / a rival: 67% / 27% and 25% / 71% (confident) |
+| Budgets | pass | 15 files, 5,348 lines; 312 KB without three.js |
+
+| Level 2 bot | Time (slowest) | Of 64 s | Receipt (median) | Goods taken / lost | List | Modes | 1st place | Medals bronze / silver / gold / black |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| beginner | 52.18 s (58.14) | 82% | $2,916 | 52.32 / 1.03 | 100% | 0.19 | 6% | 180 / 19 / 1 / 0 |
+| confident | 43.20 s (49.60) | 67% | $7,231 | 57.70 / 2.52 | 100% | 1.22 | 58% | 29 / 101 / 58 / 12 |
+| expert | 41.00 s (47.18) | 64% | $8,528 | 54.40 / 1.83 | 100% | 1.25 | 81% | 8 / 65 / 94 / 33 |
+| sloppy | 43.35 s (51.01) | 68% | $6,381 | 53.69 / 6.75 | 98% | 1.17 | 47% | 55 / 90 / 49 / 6 |
+| expert, no collecting | 33.15 s (39.38) | 52% | $632 | 8.47 / 0.04 | 0% | 0 | 0% | 200 / 0 / 0 / 0 |
+
+Rivals, Level 2: Sprint Dad $5,251 in 42.20 s, Granny Tank $3,712 in 47.01 s, Coupon Queen $4,388 in 42.03 s, Selfie Star $3,090 in 47.15 s.
+
+| Level 3 bot | Time (slowest) | Of 58 s | Receipt (median) | Goods taken / lost | List | Modes | 1st place | Medals bronze / silver / gold / black |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| beginner | 45.14 s (51.70) | 78% | $2,177 | 43.90 / 5.47 | 96% | 0.18 | 5% | 161 / 31 / 8 / 0 |
+| confident | 38.86 s (47.35) | 67% | $4,471 | 48.90 / 3.31 | 93% | 0.82 | 39% | 46 / 80 / 68 / 6 |
+| expert | 36.54 s (45.69) | 63% | $5,790 | 48.97 / 3.61 | 94% | 1.02 | 66% | 15 / 60 / 87 / 38 |
+| sloppy | 38.76 s (48.22) | 67% | $4,373 | 53.78 / 12.63 | 86% | 1.19 | 40% | 53 / 73 / 57 / 17 |
+| expert, no collecting | 32.92 s (37.12) | 57% | $551 | 6.26 / 0.87 | 3% | 0.01 | 0% | 199 / 1 / 0 / 0 |
+
+Rivals, Level 3: Sprint Dad $3,000 in 37.81 s, Coupon Queen $2,910 in 37.06 s, Granny Tank $3,623 in 41.16 s, Selfie Star $1,477 in 43.59 s, Bulk Bro $2,062 in 39.85 s.
+
+### M6 Juice — self-gate measured, fresh-eyes review pending
+
+Gate: *30 seconds of footage look alive even with the sound off.*
+
+| Criterion | Result | Number or evidence |
+| --- | --- | --- |
+| Every action has a sound | pass by inspection | `audio.js` has a case for each of the simulation's event types and five interface cues (D51); the dodge has its own |
+| No clicks, no clipping | pass | offline render of a scripted 24 s (music, noises, every kind of event) through the game's own graph: peak 0.835, 0 clipped samples, RMS 0.122, loudest second 0.161, 0 silent seconds; every envelope starts from zero and ends on an exponential tail |
+| The music loops without a seam and speeds up at closing time | pass by construction | a look-ahead scheduler steps a 64-step pattern for ever; 114 -> 134 bpm, now for the 8-19 s of every run's finale (D56) |
+| Sound starts after the player's first action | pass | `audio` scenario: no context before a real click, then "running" with 7 voices sounding |
+| Separate music and effects volume; the platform's sound switch | pass | pause screen; `platform.setSound` |
+| Response in the same frame: hit-stop, sound, effect, the target's reaction | pass | `shots/m4/ram_strip.png`, `smash_strip.png`, `strike_strip.png`; events are presented in the frame they happen |
+| Checkout: time slows, goods fly to the counter, the receipt prints with beeps, the medal is stamped | pass | `shots/m5/checkout_strip.png` |
+| Interface animation | pass | plates pop, the meter and the total bump, list icons tick, the receipt prints on game time |
+| Footage | pass | `shots/m5/video.webm` (28 s of a bot run), captured by the same tool |
+| 60 fps | pass here | 165 fps, 95th-percentile frame gap 6.1 ms on an RTX 4060 (`gates/m4-capture.json`, `realtime`); draw calls 15-75, triangles up to 139,900; integrated graphics unmeasured (D50 steps quality down if frames slow) |

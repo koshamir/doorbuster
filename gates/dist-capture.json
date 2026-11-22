@@ -3,16 +3,16 @@
   "summary": [
     {
       "name": "dist_bot",
-      "loadMs": 656,
-      "doneT": 42.183333333331575,
+      "loadMs": 636,
+      "doneT": 41.09166666666497,
       "receipt": {
-        "items": 5134,
+        "items": 7066,
         "list": 200,
-        "stunts": 545,
-        "time": 435,
-        "left": 29,
-        "count": 23,
-        "total": 6314
+        "stunts": 190,
+        "time": 450,
+        "left": 30,
+        "count": 28,
+        "total": 7906
       },
       "log": [
         [
@@ -20,24 +20,12 @@
           0.683
         ],
         [
-          "ram",
-          17.675
+          "madmode",
+          19.575
         ],
         [
           "madmode",
-          17.825
-        ],
-        [
-          "ram",
-          20.192
-        ],
-        [
-          "ram",
-          22.708
-        ],
-        [
-          "madmode",
-          23.808
+          25.575
         ],
         [
           "flash",
@@ -45,27 +33,27 @@
         ],
         [
           "finish",
-          42.192
+          41.092
         ]
       ],
-      "t": 42.41,
+      "t": 41.27,
       "phase": "done",
-      "items": 23,
-      "value": 5134,
-      "calls": 48,
-      "tris": 114696,
+      "items": 28,
+      "value": 7066,
+      "calls": 51,
+      "tris": 122520,
       "gpu": "NVIDIA GeForce RTX 4060",
       "cam": {
         "cartX": [
-          -0.02,
-          0.03
+          -0.01,
+          0.01
         ],
         "cartY": [
           -0.44,
           -0.13
         ],
         "floorAheadSec": 1.86,
-        "yawRev": 0.84,
+        "yawRev": 1.02,
         "lift": 0
       }
     }

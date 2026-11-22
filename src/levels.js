@@ -5,7 +5,8 @@
 // Depends on: nothing.
 //
 // Fields: id, name, medals (receipts for silver, gold and the hidden Black Card; bronze is any finish), timer (seconds),
-//         closing (seconds of CLOSING TIME at the end, 15 unless given), marks (test only: [name, col, row] after each obstacle), heading (start direction, radians; 0 = +z/south, PI/2 = +x/east,
+//         closing (seconds over which the checkouts shut once CLOSING TIME has begun, 15 unless given), closeAt (CLOSING TIME begins when the
+//         first cart is this many metres from the checkouts, 90 unless given), rivalEdge (how fast rivals build their multiplier, 1 unless given), marks (test only: [name, col, row] after each obstacle), heading (start direction, radians; 0 = +z/south, PI/2 = +x/east,
 //         PI = north, -PI/2 = west), rivals (character ids), crowd (shoppers), maxRams (how many times
 //         rivals may ram the player in one run), rush (shoppers who run in ahead of the carts at GO),
 //         list (three goods ids
@@ -51,7 +52,7 @@ export const LEVELS = [
     // a trail into the first shelf; left or right shelf; a pyramid on the racing line; an aisle split
     // into a wide lane and a narrow dear one behind a huddle; the hot item; dear goods late; the hall.
     // Every hairpin turns round an island stand.
-    id: 'doors', name: 'DOORS OPEN', medals: [4000, 5600, 8800], timer: 72, closing: 22, heading: Math.PI, rivals: ['granny', 'dad', 'queen'], crowd: 24, rush: 9, maxRams: 3,
+    id: 'doors', name: 'DOORS OPEN', medals: [4500, 6700, 8700], timer: 72, closing: 22, rivalEdge: 1.9, heading: Math.PI, rivals: ['granny', 'dad', 'queen'], crowd: 24, rush: 9, maxRams: 3,
     list: ['cereal', 'melon', 'microwave'],
     zones: [
       { pool: 'market', color: 0, name: 'PRICE PANIC' },
@@ -83,10 +84,10 @@ export const LEVELS = [
       ' M.... ..... ..M.L ..... ..... ....K.. ',
       ' ..... ..... ..M.L ..... ..... ....... ',
       ' ..... ..M.. ....L L.... ..P.. ....... ',
-      ' ..1.. ..... ..... L.... ..... ....... ',
-      ' ..... ..... ...g. ..... ..... cCcCcCc ',
-      ' ..... ..... ..... ..... ..f.. cCcCcCc ',
-      ' ..... .t.b. ..L.. ..... ..... ....... ',
+      ' ...1. ..... ...g. L.... ..... ....... ',
+      ' ..... ..... ..... ..... ..... cCcCcCc ',
+      ' ....S ..... ..... ..... ..f.. cCcCcCc ',
+      ' ....S .t.b. ..L.. ..... ..... ....... ',
       ' ....S ..... ..... ..f.. ..... ....... ',
       ' ...oS ..... ..... ..... ..3..         ',
       ' ....S ..... ...t. ..... .....         ',
@@ -109,7 +110,7 @@ export const LEVELS = [
     // 2. GADGET RUSH — an electronics store: a spiral of halls to the checkouts in the middle (route about 420 m).
     // New: the drift (every corner turns round a display), a travelator (fast lane or shelves), a belt
     // running the wrong way, and a glass window to dash through instead of the showroom detour.
-    id: 'gadget', name: 'GADGET RUSH', medals: [3800, 6400, 10000], timer: 62, heading: Math.PI / 2, rivals: ['dad', 'granny', 'queen', 'selfie'], crowd: 30, rush: 5, maxRams: 4,
+    id: 'gadget', name: 'GADGET RUSH', medals: [5000, 7900, 9900], timer: 64, rivalEdge: 2.4, heading: Math.PI / 2, rivals: ['dad', 'granny', 'queen', 'selfie'], crowd: 30, rush: 5, maxRams: 4,
     list: ['phone', 'headset', 'speaker'],
     zones: [
       { pool: 'gadget', color: 0, name: 'GADGET RUSH' },
@@ -167,7 +168,7 @@ export const LEVELS = [
     // 3. ATRIUM MAYHEM — two store aisles, the atrium with its fountain and tree, the food court, and a
     // last corridor crossed by the cart train (route about 370 m).
     // New: the ramp (a jump over the fountain), wet floor, the cart train; tables that fly.
-    id: 'atrium', name: 'ATRIUM MAYHEM', medals: [2900, 4400, 7000], timer: 58, heading: Math.PI / 2, rivals: ['dad', 'queen', 'granny', 'selfie', 'bro'], crowd: 40, rush: 5, maxRams: 4,
+    id: 'atrium', name: 'ATRIUM MAYHEM', medals: [3300, 5100, 7400], timer: 58, rivalEdge: 1.7, heading: Math.PI / 2, rivals: ['dad', 'queen', 'granny', 'selfie', 'bro'], crowd: 40, rush: 5, maxRams: 4,
     list: ['roll', 'shoes', 'suitcase'],
     zones: [
       { pool: 'market', color: 0, name: 'FRESH LANE' },

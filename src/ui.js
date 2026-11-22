@@ -83,7 +83,11 @@ export function updateHud(sim, dt) {
   const mode = p.madT > 0, mad = mode ? 5 * p.madT / TUNE.madnesstime : 1 + p.mad, q = Math.round(mad * 25);
   if (q !== lastMad) {
     lastMad = q;
-    for (let i = 0; i < 5; i++) ui.segs[i].style.width = Math.max(0, Math.min(1, mad - i)) * 100 + '%';
+    for (let i = 0; i < 5; i++) {
+      const fill = Math.max(0, Math.min(1, mad - i));
+      ui.segs[i].style.width = fill * 100 + '%';
+      ui.segs[i].parentNode.classList.toggle('part', fill < 1 && !mode);      // the pip being filled is paler than the ones that count
+    }
   }
   const mult = mode ? 'x4' : 'x' + (1 + Math.min(3, Math.floor(p.mad)));
   if (mult !== lastMult) {
@@ -196,14 +200,15 @@ export function chainText(text, x, y, kind) {
 }
 
 // A small floating label at screen position (x, y) in CSS pixels: "+$45". Labels that start close
-// together are stacked a line apart instead of on top of each other.
+// together (in place and in time) are stacked a line apart instead of on top of each other.
 export function floatText(text, x, y, kind) {
-  let f = ui.floats[0], stack = 0;
-  for (const c of ui.floats) {
-    if (c.t < f.t) f = c;
-    if (c.t > 0.5 && Math.abs(c.x - x) < ui.em * 6) stack++;
+  let f = ui.floats[0];
+  for (const c of ui.floats) if (c.t < f.t) f = c;
+  // below any label already rising at this spot, so they never run into each other (two passes settle a stack of three)
+  for (let pass = 0; pass < 2; pass++) for (const c of ui.floats) {
+    if (c !== f && c.t > 0.25 && Math.abs(c.x - x) < ui.em * 7 && Math.abs(c.y - y) < ui.em * 1.7) y = c.y + ui.em * 1.7;
   }
-  f.t = 0.9; f.x = x; f.y = y - stack * ui.em * 1.7;
+  f.t = 0.9; f.x = x; f.y = y;
   f.e.textContent = text;
   f.e.className = 'float in ' + (kind || '');
   f.e.style.transform = `translate(${f.x.toFixed(0)}px, ${f.y.toFixed(0)}px)`;

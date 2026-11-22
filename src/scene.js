@@ -21,7 +21,7 @@ const FLY_TIME = 0.2;        // seconds for a swept item to arc into the cart
 const BASKET_Y = 0.48;       // height of the basket floor
 const LOOSE = { pyramid: 1, gifts: 1, stand: 1, podium: 1, glass: 1, table: 1, boxes: 1, mannequin: 1 };   // pieces with their own mesh
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
-const towX = new Float32Array(200), towY = new Float32Array(200), towZ = new Float32Array(200), towYaw = new Float32Array(200);
+const towX = new Float32Array(200), towY = new Float32Array(200), towZ = new Float32Array(200), towYaw = new Float32Array(200), towCol = new Float32Array(6);
 
 // The floor's tile map: store colour, painted decals and where the floor ends (see FLOOR_FS in gfx.js).
 function floorMap(world) {
@@ -300,26 +300,32 @@ function putBox(mesh, n, x, y, z, sx, sy, sz, c, bright) {
   col[n * 3] = c[0] * bright; col[n * 3 + 1] = c[1] * bright; col[n * 3 + 2] = c[2] * bright;
 }
 
-// Packs a tower into the basket two lanes abreast: a heap a little wider than the cart, so that even
-// a full one stays low enough to see the way ahead over it. Only hot items lie across both lanes. A
-// new layer starts when a lane is used up. Fills towX/Y/Z/Yaw (cart space, y from the basket floor)
-// and returns the height of the pile.
+// Packs a tower into the basket as a heap a little wider than the cart, so that even a full one
+// stays low enough to see the way ahead over it: the width is six columns; small goods take two of
+// them (three abreast), medium and large ones three (two abreast), hot items all six. Each item goes
+// where the heap is shallowest; a new layer starts when that place is used up. Fills towX/Y/Z/Yaw
+// (cart space, y from the basket floor) and returns the height of the pile.
 function layoutTower(tower) {
   const LEN = 1.16;
-  let y = 0, layerH = 0, zl = 0, zr = 0;
+  let y = 0, layerH = 0;
+  towCol.fill(0);
   const n = Math.min(tower.length, 200);
   for (let i = 0; i < n; i++) {
-    const g = GOODS[tower[i].good], across = g.size === 'H';
+    const g = GOODS[tower[i].good], span = g.size === 'S' ? 2 : g.size === 'H' ? 6 : 3;
     let w = g.dims[0] * TOWER_SCALE, d = g.dims[2] * TOWER_SCALE, yaw = 0;
-    if (across ? w > 0.86 : w > 0.5 && d < w) { const t = w; w = d; d = t; yaw = Math.PI / 2; }   // big goods ride long side forward
-    let z0 = across ? Math.max(zl, zr) : Math.min(zl, zr);
-    if (z0 + d > LEN && z0 > 0) { y += layerH; layerH = 0; zl = zr = 0; z0 = 0; }
-    const left = !across && zl <= zr;
-    towX[i] = across ? 0 : (left ? 1 : -1) * (w / 2 + 0.01);
+    if (span === 6 ? w > 0.86 : w > 0.5 && d < w) { const t = w; w = d; d = t; yaw = Math.PI / 2; }   // big goods ride long side forward
+    let at = 0, z0 = 1e9;
+    for (let s = 0; s < 6; s += span) {
+      let m = 0;
+      for (let c = s; c < s + span; c++) m = Math.max(m, towCol[c]);
+      if (m < z0 - 1e-6) { z0 = m; at = s; }
+    }
+    if (z0 + d > LEN && z0 > 0) { y += layerH; layerH = 0; towCol.fill(0); z0 = 0; at = 0; }
+    towCol.fill(z0 + d * 0.96, at, at + span);
+    towX[i] = (at + span / 2 - 3) * 0.18;
     towY[i] = y;
     towZ[i] = -LEN / 2 + Math.min(z0 + d / 2, LEN - 0.1);
     towYaw[i] = yaw + ((i * 37) % 11 - 5) * 0.035;
-    if (across) zl = zr = z0 + d * 0.96; else if (left) zl = z0 + d * 0.96; else zr = z0 + d * 0.96;
     layerH = Math.max(layerH, g.dims[1] * TOWER_SCALE * 0.94);
   }
   return y + layerH;

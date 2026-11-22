@@ -34,7 +34,7 @@ const game = {
   paused: false, touch: false,
   sim: null, view: null, scale: 1, last: 0, logicMs: 0, logicSum: 0, logicN: 0, hitstop: 0, slowT: 0, custom: null,
   keys: {}, inq: [], now: 0,     // keys as the simulation has seen them; key events waiting for their step
-  probe: null, gain: 0, gainT: 0, gainList: false, v: null,
+  probe: null, gain: 0, gainT: 0, gainList: false, v: null, said: {},
   icons: {},                      // pictures of goods for the list, by id
   mark: null, markT: 0, markText: '',   // where the arrow points (a piece or a lane), for how long, its word
   warner: null, dodgeHint: false, rammed: false, frozen: false, clock: 0, steered: 0, tagAt: -9, aim: { x: 0, z: 0, fx: 0, fz: 0, left: 0 },
@@ -56,7 +56,7 @@ function startLevel(quick) {
   if (query.get('fill')) giveGoods(game.sim, game.sim.player, Number(query.get('fill')));   // test aid: start with goods
   game.view = buildScene(game.sim);
   setList((def.list || []).map((id) => game.icons[id] || (game.icons[id] = goodIcon(GOOD[id]))));
-  game.hitstop = 0; game.slowT = 0; game.gain = 0; game.keys = {}; game.inq.length = 0;
+  game.hitstop = 0; game.slowT = 0; game.gain = 0; game.keys = {}; game.inq.length = 0; game.said = {};
   game.mark = null; game.markT = 0; game.warner = null; game.frozen = false; game.paused = false;
   gfx.u.uTintAmt.value = 0;
   gfx.cam.ready = false;
@@ -158,6 +158,7 @@ function onEvent(e) {
       if (game.dodgeHint) { save.seen.dodge = (save.seen.dodge || 0) + 1; platform.save(); }
     }
     else if (e.type === 'ram' && e.ref === p) { game.hitstop = 0.06; gfx.cam.shake = Math.min(1, gfx.cam.shake + 0.6); popWord('RAMMED!', 'bad'); }
+    else if (e.type === 'selfie') { const s = toScreen(k.x, 3, k.z); if (s.z < 1) floatText('+' + money(CFG.stunts.selfie), s.x, s.y, 'big'); }
     else if (e.type === 'shout') { game.mark = e.ref; game.markT = 5; game.markText = 'HOT!'; const s = toScreen(k.x, 2.6, k.z); if (s.z < 1) floatText('MINE!', s.x, s.y, 'big'); }
     else if (e.type === 'finish') { const s = toScreen(k.x, 2.6, k.z); if (s.z < 1) floatText(money(e.value), s.x, s.y, ''); }
     return;
@@ -167,8 +168,9 @@ function onEvent(e) {
     case 'crash': game.hitstop = 0.07; break;
     case 'take': game.gain += e.value; game.gainT = 0.45; if (e.ref.entry.list) game.gainList = true; break;
     case 'spill': case 'shed': { const s = toScreen(p.x, 2.6, p.z); floatText(money(-e.ref.lost), s.x, s.y - 30, 'loss'); break; }
-    case 'heavy': popWord('HEAVY', 'bad'); break;
-    case 'overloaded': popWord('OVERLOADED', 'bad'); break;
+    case 'heavy': case 'overloaded':                    // said once per run: afterwards the tower itself shows it
+      if (!game.said[e.type]) { game.said[e.type] = true; popWord(e.type.toUpperCase(), 'bad'); }
+      break;
     case 'full': announce('CART FULL!', 'Only pricier goods fit now. They push the cheap ones out.'); break;
     case 'rocket': popWord('ROCKET START!', 'good'); break;
     case 'bonk': popWord('TOO LIGHT!', 'bad'); break;
@@ -187,7 +189,7 @@ function onEvent(e) {
       break;
     case 'flashend': if (game.mark === e.ref) game.markT = 0; break;
     case 'closing': announce('CLOSING TIME!', 'The checkouts are shutting one by one. So is your window.'); break;
-    case 'lanewarn': { const s = toScreen(e.ref.x, 3.4, e.ref.z); if (s.z < 1) floatText('CLOSING', s.x, s.y, 'loss'); break; }
+    case 'lanewarn': { const s = toScreen(e.ref.x, 3.4, e.ref.z); if (s.z < 1 && s.y > gfx.h * 0.24) floatText('CLOSING', s.x, s.y, 'loss'); break; }
     case 'stunt': {
       popWord(WORDS[e.ref.name] || e.ref.name.toUpperCase(), 'good');
       const s = toScreen(p.x, 2.2, p.z);
@@ -225,7 +227,7 @@ function pointers(dt) {
       const wd = sim.world;
       if (navDistAt(wd, m.x, m.z) < navDistAt(wd, p.x, p.z) + 2 && !clearPath(wd, p.x, p.z, m.x, m.z, 0.3) && navAim(wd, p.x, p.z, 5, 0.5, game.aim, 14)) { tx = game.aim.x; tz = game.aim.z; }
       const rel = Math.atan2(tx - p.x, tz - p.z) - gfx.cam.yaw, r = Math.min(gfx.w, gfx.h) * 0.36;
-      setArrow(true, gfx.w / 2 - Math.sin(rel) * r, gfx.h * 0.52 - Math.cos(rel) * r, -rel, text);
+      setArrow(true, gfx.w / 2 - Math.sin(rel) * r, Math.max(gfx.h * 0.27, gfx.h * 0.52 - Math.cos(rel) * r), -rel, text);   // (kept below the announcer's line)
     }
   } else setArrow(false);
   const w = game.warner;

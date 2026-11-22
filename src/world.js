@@ -67,7 +67,7 @@ export function buildWorld(def, rng) {
     nav: new Float32Array(n),       // metres to the nearest open checkout
     navStart: 0,
     solids: [], cells: [], walls: [], shelves: [], items: [], itemCells: [], groups: [],
-    pieces: [], lanes: [], drops: [], huddles: [], crowdTiles: [],
+    pieces: [], lanes: [], drops: [], huddles: [], crowdTiles: [], apron: null,
     start: { x: T, z: T, h: def.heading || 0 }, slots: [],
     edge: { type: 'wall', on: true, r: 0, hx: 0, hz: 0 },   // stands in for the border of the plan
   };
@@ -119,7 +119,7 @@ export function buildWorld(def, rng) {
     } else if (k === 'r') {
       world.slots.push({ x, z });
     } else if (k === 'g') {
-      world.huddles.push({ x, z });
+      world.huddles.push({ x, z, dx: 0, dz: 1, on: false });   // on and its axis (the way the route runs through it) are set when the crowd is placed
     } else if (k === 'R') {
       world.ramps.push({ x, z, c, r, dx: 0, dz: 0 });
     } else if (k === '=') {
@@ -155,6 +155,13 @@ export function buildWorld(def, rng) {
     if (k === '.' || k === 'o') world.crowdTiles.push(i);
   }
   world.laneOf = laneOf;
+  // The apron: tiles within two of a checkout lane or counter. The route field makes them dear, so
+  // routes cross them straight into a lane instead of running along the counters to it.
+  world.apron = new Uint8Array(cols * rows);
+  const apron = (c, r) => { for (let dr = -2; dr <= 2; dr++) for (let dc = -2; dc <= 2; dc++) if (c + dc >= 0 && r + dr >= 0 && c + dc < cols && r + dr < rows) world.apron[(r + dr) * cols + c + dc] = 1; };
+  for (const l of world.lanes) for (const i of l.tiles) apron(i % cols, Math.floor(i / cols));
+  for (const q of world.pieces) if (q.type === 'counter') apron(q.c, q.r);
+  for (const l of world.lanes) for (const i of l.tiles) world.apron[i] = 0;
   navBuild(world);
   world.navStart = navDistAt(world, world.start.x, world.start.z);
   // A ramp points down the route: toward the neighbouring tile nearest to the checkouts.
@@ -358,7 +365,7 @@ export function navBuild(world) {
       const cc = c + dc, rr = r + dr;
       if (cc < 0 || rr < 0 || cc >= cols || rr >= rows || block[rr * cols + cc]) near++;
     }
-    cost[r * cols + c] = near ? 1.3 : 1;
+    cost[r * cols + c] = (near ? 1.3 : 1) * (world.apron[r * cols + c] ? 2.5 : 1);
   }
   nav.fill(1e9);
   const queue = [];

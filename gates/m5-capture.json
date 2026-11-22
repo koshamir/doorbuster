@@ -3,63 +3,63 @@
   "summary": [
     {
       "name": "l2",
-      "loadMs": 662,
+      "loadMs": 644,
       "pink": {
-        "pinkPct": 1.27,
-        "ofVividPct": 10.5
+        "pinkPct": 0.83,
+        "ofVividPct": 13.8
       },
-      "t": 46.52,
+      "t": 50.16,
       "phase": "done",
-      "items": 34,
-      "value": 6576,
-      "calls": 45,
-      "tris": 111064,
+      "items": 30,
+      "value": 6542,
+      "calls": 44,
+      "tris": 113324,
       "gpu": "NVIDIA GeForce RTX 4060",
       "cam": {
         "cartX": [
-          -0.02,
+          -0.03,
           0.02
         ],
         "cartY": [
           -0.44,
           -0.15
         ],
-        "floorAheadSec": 2.1,
-        "yawRev": 0.7,
-        "lift": 0.96
+        "floorAheadSec": 2.02,
+        "yawRev": 0.9,
+        "lift": 0
       }
     },
     {
       "name": "l3",
-      "loadMs": 231,
+      "loadMs": 220,
       "pink": {
-        "pinkPct": 0.99,
-        "ofVividPct": 9.5
+        "pinkPct": 1.19,
+        "ofVividPct": 16.4
       },
-      "t": 41.21,
+      "t": 48.72,
       "phase": "done",
-      "items": 26,
-      "value": 4280,
-      "calls": 54,
-      "tris": 126956,
+      "items": 25,
+      "value": 3166,
+      "calls": 42,
+      "tris": 113928,
       "gpu": "NVIDIA GeForce RTX 4060",
       "cam": {
         "cartX": [
-          -0.01,
-          0.01
+          -0.03,
+          0.02
         ],
         "cartY": [
-          -0.44,
-          -0.15
+          -0.54,
+          -0.14
         ],
-        "floorAheadSec": 2,
-        "yawRev": 0.51,
+        "floorAheadSec": 2.07,
+        "yawRev": 0.85,
         "lift": 0
       }
     },
     {
       "name": "jump",
-      "loadMs": 215,
+      "loadMs": 212,
       "t": 2.8,
       "phase": "run",
       "items": 0,
@@ -83,7 +83,7 @@
     },
     {
       "name": "belt",
-      "loadMs": 220,
+      "loadMs": 205,
       "t": 3.4,
       "phase": "run",
       "items": 0,
@@ -107,13 +107,13 @@
     },
     {
       "name": "train",
-      "loadMs": 227,
+      "loadMs": 216,
       "t": 42,
       "phase": "run",
-      "items": 28,
-      "value": 2021,
-      "calls": 47,
-      "tris": 117796,
+      "items": 48,
+      "value": 2209,
+      "calls": 46,
+      "tris": 122468,
       "gpu": "NVIDIA GeForce RTX 4060",
       "cam": {
         "cartX": [
@@ -122,40 +122,40 @@
         ],
         "cartY": [
           -0.44,
-          -0.16
+          -0.15
         ],
-        "floorAheadSec": 2.43,
-        "yawRev": 1.24,
+        "floorAheadSec": 2.27,
+        "yawRev": 1.26,
         "lift": 0
       }
     },
     {
       "name": "flow",
-      "loadMs": 218,
-      "t": 51.03,
+      "loadMs": 203,
+      "t": 48.88,
       "phase": "done",
-      "items": 23,
-      "value": 5134,
-      "calls": 50,
-      "tris": 93784,
+      "items": 28,
+      "value": 7066,
+      "calls": 47,
+      "tris": 98640,
       "gpu": "NVIDIA GeForce RTX 4060",
       "cam": {
         "cartX": [
-          -0.02,
-          0.03
+          -0.01,
+          0.01
         ],
         "cartY": [
           -0.44,
           -0.13
         ],
         "floorAheadSec": 1.86,
-        "yawRev": 0.74,
+        "yawRev": 0.9,
         "lift": 0
       }
     },
     {
       "name": "hint_drift",
-      "loadMs": 227,
+      "loadMs": 213,
       "t": 2.7,
       "phase": "run",
       "items": 0,
@@ -179,38 +179,38 @@
     },
     {
       "name": "checkout",
-      "loadMs": 215,
-      "eventAt": 42.192,
-      "t": 51.03,
+      "loadMs": 202,
+      "eventAt": 41.092,
+      "t": 48.88,
       "phase": "done",
-      "items": 23,
-      "value": 5134,
-      "calls": 50,
-      "tris": 93784,
+      "items": 28,
+      "value": 7066,
+      "calls": 45,
+      "tris": 97584,
       "gpu": "NVIDIA GeForce RTX 4060",
       "cam": {
         "cartX": [
-          -0.02,
-          0.03
+          -0.01,
+          0.01
         ],
         "cartY": [
           -0.44,
           -0.13
         ],
         "floorAheadSec": 1.86,
-        "yawRev": 0.79,
+        "yawRev": 0.96,
         "lift": 0
       }
     },
     {
       "name": "hints",
-      "loadMs": 225,
+      "loadMs": 205,
       "t": 2.2,
       "phase": "run",
       "items": 3,
       "value": 27,
-      "calls": 65,
-      "tris": 126760,
+      "calls": 63,
+      "tris": 128200,
       "gpu": "NVIDIA GeForce RTX 4060",
       "cam": {
         "cartX": [
@@ -221,8 +221,8 @@
           -0.44,
           -0.2
         ],
-        "floorAheadSec": 2.34,
-        "yawRev": 0.87,
+        "floorAheadSec": 2.48,
+        "yawRev": 0.43,
         "lift": 0
       }
     },
@@ -233,33 +233,33 @@
     },
     {
       "name": "audio",
-      "loadMs": 228,
+      "loadMs": 226,
       "after": {
         "state": "running",
         "voices": 7,
         "steps": 90,
         "bpm": 114,
-        "level": 1
+        "level": 2
       }
     },
     {
       "name": "title",
-      "loadMs": 235
+      "loadMs": 211
     },
     {
       "name": "cards",
-      "loadMs": 271
+      "loadMs": 249
     },
     {
       "name": "pause",
-      "loadMs": 219,
+      "loadMs": 204,
       "after": "screen pause on",
       "t": 2.61,
       "phase": "run",
-      "items": 4,
-      "value": 580,
-      "calls": 53,
-      "tris": 121318,
+      "items": 3,
+      "value": 340,
+      "calls": 67,
+      "tris": 128614,
       "gpu": "NVIDIA GeForce RTX 4060",
       "cam": {
         "cartX": [
@@ -277,16 +277,16 @@
     },
     {
       "name": "phone",
-      "loadMs": 238
+      "loadMs": 227
     },
     {
       "name": "mix",
-      "loadMs": 253,
+      "loadMs": 216,
       "after": {
         "seconds": 24,
-        "peak": 0.792,
-        "rms": 0.121,
-        "loudestSecondRms": 0.162,
+        "peak": 0.835,
+        "rms": 0.122,
+        "loudestSecondRms": 0.161,
         "clippedSamples": 0,
         "silentSeconds": 0,
         "voicesLeft": 1
@@ -294,13 +294,13 @@
     },
     {
       "name": "touch",
-      "loadMs": 242,
+      "loadMs": 217,
       "after": {
         "touch": true,
         "left": true,
         "steer": 1,
         "gas": 1,
-        "speed": 11.7,
+        "speed": 11.8,
         "released": true
       }
     }

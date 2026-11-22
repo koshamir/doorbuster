@@ -93,7 +93,7 @@ export const CFG = {
   madDrift: 0.3,          // gain per spark tier when a drift is released into its boost
   // scoring
   listBonus: 200,         // dollars for bringing all three list items to the checkout
-  stunts: { cleansweep: 50, strike: 150, ram: 75, takedown: 200, shave: 10, smash: 25, jump: 250, dodge: 40 },
+  stunts: { cleansweep: 50, strike: 150, ram: 75, takedown: 200, shave: 10, smash: 25, jump: 250, dodge: 40, selfie: 150 },
 };
 
 // ---- Palette (ART.md section 3). Stored as sRGB hex; rgb() converts to 0..1 floats. ----------
@@ -136,10 +136,10 @@ export const GOODS = [
   { id: 'microwave', size: 'L', w: 4, price: 120, dims: [0.92, 0.60, 0.70] },
   { id: 'speaker',   size: 'L', w: 4, price: 180, dims: [0.66, 1.00, 0.62] },
   { id: 'suitcase',  size: 'L', w: 4, price: 140, dims: [0.90, 0.70, 0.50] },
-  { id: 'tv',        size: 'H', w: 6, price: 500, dims: [1.30, 0.86, 0.36] },
-  { id: 'bear',      size: 'H', w: 6, price: 350, dims: [0.96, 1.10, 0.90] },
-  { id: 'console',   size: 'H', w: 7, price: 650, dims: [1.00, 0.56, 0.84] },
-  { id: 'robovac',   size: 'H', w: 8, price: 800, dims: [1.04, 0.40, 1.04] },
+  { id: 'tv',        size: 'H', w: 6, price: 350, dims: [1.30, 0.86, 0.36] },
+  { id: 'bear',      size: 'H', w: 6, price: 250, dims: [0.96, 1.10, 0.90] },
+  { id: 'console',   size: 'H', w: 7, price: 450, dims: [1.00, 0.56, 0.84] },
+  { id: 'robovac',   size: 'H', w: 8, price: 560, dims: [1.04, 0.40, 1.04] },
 ];
 export const GOOD = {};            // id -> index into GOODS
 GOODS.forEach((g, i) => { GOOD[g.id] = i; g.slots = g.size === 'S' ? 1 : g.size === 'M' ? 2 : g.size === 'L' ? 4 : 8; });
@@ -157,10 +157,10 @@ export const POOLS = {
 export const CHARS = {
   player: { name: 'You',          color: PAL.player,    skill: 1,    pace: 1,    greed: 1,    aggro: 1 },
   granny: { name: 'Granny Tank',  color: PAL.rivals[0], skill: 0.6,  pace: 0.84, greed: 1,    aggro: 0.1 },
-  selfie: { name: 'Selfie Star',  color: PAL.rivals[1], skill: 0.7,  pace: 0.95, greed: 0.6,  aggro: 0.3 },
+  selfie: { name: 'Selfie Star',  color: PAL.rivals[1], skill: 0.7,  pace: 0.95, greed: 0.85, aggro: 0.3 },
   queen:  { name: 'Coupon Queen', color: PAL.rivals[2], skill: 0.8,  pace: 0.96, greed: 1,    aggro: 0.4 },
-  dad:    { name: 'Sprint Dad',   color: PAL.rivals[3], skill: 0.95, pace: 1,    greed: 0.75, aggro: 0.6 },
-  bro:    { name: 'Bulk Bro',     color: PAL.rivals[4], skill: 0.65, pace: 0.92, greed: 0.8,  aggro: 0.9 },
+  dad:    { name: 'Sprint Dad',   color: PAL.rivals[3], skill: 0.95, pace: 1,    greed: 0.9,  aggro: 0.6 },
+  bro:    { name: 'Bulk Bro',     color: PAL.rivals[4], skill: 0.65, pace: 0.92, greed: 0.9,  aggro: 0.9 },
 };
 
 // ---- Math helpers --------------------------------------------------------------------------------

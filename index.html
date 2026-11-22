@@ -50,7 +50,8 @@
   .meter .lbl { position: absolute; left: .7em; top: -1.5em; color: #fff; opacity: 1; font-size: max(.55em, 9px); text-shadow: 0 .12em 0 var(--night); -webkit-text-stroke: .25em var(--night); paint-order: stroke fill; }
   .seg { width: 1.25em; height: .95em; background: #4A3D66; border-radius: .2em; overflow: hidden; }
   .seg.last { width: 1.9em; border-radius: .2em .5em .5em .2em; } .seg.last i { background: var(--pink); }
-  .seg i { display: block; height: 100%; width: 0; background: var(--sale); }
+  @media (max-aspect-ratio: 1/1) { .seg { width: 1em; } .seg.last { width: 1.5em; } .meter { gap: .22em; } }
+  .seg i { display: block; height: 100%; width: 0; background: var(--sale); } .seg.part i { opacity: .5; }
   .meter b { font: 900 1.7em/1 var(--mono); color: var(--sale); min-width: 1.5em; text-align: right; display: inline-block; }
   .hud.mad .seg i { background: var(--pink); } .hud.mad .meter b { color: var(--pink); }
   .hud.mad::after { content: ""; position: absolute; inset: 0; border: 1em solid; border-image: repeating-linear-gradient(45deg, var(--pink) 0 1.2em, var(--sale) 1.2em 2.4em) 40;

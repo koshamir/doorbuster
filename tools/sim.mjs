@@ -95,7 +95,8 @@ for (const li of levels) {
     rows2.push([name, med(fin.map((r) => P(r).receipt.total)), max(fin.map((r) => P(r).receipt.total)), mean(fin.map((r) => P(r).receipt.items)),
       mean(fin.map((r) => P(r).receipt.time)), mean(fin.map((r) => P(r).receipt.stunts)), pct(fin.filter((r) => P(r).receipt.list > 0).length / Math.max(1, fin.length)),
       mean(res.map((r) => r.sim.stats.taken)), mean(res.map((r) => r.sim.stats.spilled)), mean(fin.map((r) => P(r).load)) / TUNE.loadfull,
-      mean(res.map((r) => r.sim.stats.firstShelf)), pct(res.filter((r) => r.sim.stats.firstShelf >= 10).length / runs), pct(max(res.map((r) => r.w.worstLoss)))]);
+      mean(res.map((r) => r.sim.stats.firstShelf)), pct(res.filter((r) => r.sim.stats.firstShelf >= 10).length / runs), pct(max(res.map((r) => r.w.worstLoss))),
+      [0, 1, 2, 3].map((m) => fin.filter((r) => (def.medals || []).filter((v) => P(r).receipt.total >= v).length === m).length).join('/')]);
     // Madness, crowd, rams and the rhythm of the run, as the player meets them
     const S = (key) => res.map((r) => r.sim.stats[key]), seen = (key) => mean(res.map((r) => r.w.seen[key] || 0));
     const x2 = res.map((r) => r.sim.stats.x2At).filter((t) => t >= 0);
@@ -118,7 +119,7 @@ for (const li of levels) {
   if (def.marks) table('  obstacles — clean passes (no crash, no stuck) and median seconds for the stretch', ['bot', ...def.marks.map((m) => m[0])], markRows);
   console.log(`  logic cost: ${mean(cost).toFixed(1)} microseconds per step, ${(mean(cost) * 2 / 1000).toFixed(3)} ms per 60 Hz frame (budget 6 ms)`);
   table('  receipts and loot',
-    ['bot', 'median $', 'best $', 'items $', 'time $', 'stunts $', 'list done', 'taken', 'spilled', 'load x full', 'first shelf avg', '10+ off first shelf', 'worst crash loss ($ share)'], rows2);
+    ['bot', 'median $', 'best $', 'items $', 'time $', 'stunts $', 'list done', 'taken', 'spilled', 'load x full', 'first shelf avg', '10+ off first shelf', 'worst crash loss ($ share)', 'medals bronze/silver/gold/black'], rows2);
   if (a.alone || !(def.rivals || []).length) continue;
   table('  the player\'s run (Madness, rams, crowd, rhythm) — per run',
     ['bot', 'x2 by 20 s', 'x2 at (median s)', 'modes', '1-2 modes', 'rammed', 'rammed max', 'rams', 'takedowns', 'strikes', 'shaves', 'sweeps', 'smashes', 'hot', 'bowled',

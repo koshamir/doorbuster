@@ -78,7 +78,7 @@ export const SETS = {
     { name: 'start', query: l1 + '&autoplay=confident', shots: [-1.5, 0.3, 1.2, 2.5, 4], strip: { from: -0.1, frames: 8, dt: 0.12 }, squint: true },
     { name: 'run', query: l1 + '&autoplay=confident', shots: [7, 11, 15, 19, 23, 27, 31, 35, 39, 43], squint: true, until: 'receipt' },
     { name: 'ram', query: l1 + '&autoplay=expert', strip: { around: 'ram', before: 0.25, frames: 8, dt: 0.0667, within: 50 } },
-    { name: 'rammed', query: l1 + '&autoplay=confident', strip: { around: 'ram<', before: 0.7, frames: 8, dt: 0.1, within: 50 } },
+    { name: 'rammed', query: l1 + '&autoplay=confident', strip: { around: 'ram<', before: 1.05, frames: 8, dt: 0.16, within: 60 } },   // the warning (0.8 s), the lunge, the hit
     { name: 'smash', room: yard, put: [['P', 12, 0]], script: [[0, 'gas', true], [1.72, 'dash', true]], strip: { from: 1.75, frames: 8, dt: 0.0667 } },
     { name: 'hot', query: l1 + '&autoplay=expert', strip: { around: 'hot', before: 0.3, frames: 8, dt: 0.0833, within: 60 } },
     { name: 'madness', query: l1 + '&autoplay=expert', strip: { around: 'madmode', before: 0.2, frames: 8, dt: 0.25, within: 70 } },

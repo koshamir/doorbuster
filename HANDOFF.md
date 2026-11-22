@@ -76,11 +76,13 @@ checkout lane; `C` counter; `O` round display; `P G K` can pyramid, gift pile, c
 targets that burst into goods); `H` podium with a hot item; `f` podium that appears for the flash sale;
 `W` glass window (a dash opens it); `F` fountain (cleared by a jump); `X` tree; `t b m` light props that
 fly when touched; `p n` plant, bench; `> < ^ v` travelator; `~` wet floor; `R` ramp; `g` huddle of six
-shoppers; `=` the cart train's track. `world.js` derives wall boxes (greedy merge of wall tiles),
+shoppers set up like bowling pins; `=` the cart train's track. `world.js` derives wall boxes (greedy merge of wall tiles),
 shelves with their goods and "clean sweep" groups, a spatial grid of colliders (circles and
 axis-aligned boxes), and a navigation field: the distance from every tile to the nearest open checkout
 (8-neighbour relaxation, no corner cutting, tiles next to walls cost 1.3, travelators 0.6 with and 3
-against). A driver walks that field downhill and aims at the farthest point in plain sight.
+against, the two tiles in front of the checkouts 2.5 so that routes cross them straight; a lane about to
+close starts at 14 m instead of 0). A driver walks that field downhill and aims at the farthest point in
+plain sight.
 
 **Cart (`cart.js`).** Two circles (nose 0.56 m, tail 0.5 m). Body heading and travel direction are
 separate; each step grip pulls the travel direction toward the body (`slip -= sin(slip) * (1 -
@@ -91,8 +93,9 @@ hold the button while steering above 40% speed; the body swings out, the arc dep
 Dash: +6 m/s along the heading for 0.33 s, 1.5 s cooldown, a 0.15 s press buffer; one that hits nothing
 leaves the cart at 82% top speed for 0.7 s. Walls: a glancing hit slides (keeps at least 60% speed); a
 hit within 32 degrees of head-on above 6.5 m/s is a crash: the cart glances off along the wall with 55%
-of its speed, loses control for 0.4 s and is immune for 1.5 s. Three invisible helpers: a lean away
-from head-on hits, an arc correction while drifting, and holding a lane 0.25 m off a stocked shelf.
+of its speed, loses control for 0.4 s and is immune for 1.5 s. Four invisible helpers: a lean away
+from head-on hits, an arc correction while drifting, holding a lane 0.25 m off a stocked shelf, and (in
+`sim.js`) a funnel that eases a cart heading into an open checkout onto the lane's centre line.
 A cart pinned for 0.3 s backs out by itself. Travelators add 5 m/s; a wet tile cuts grip for a second;
 a ramp taken at 7 m/s or more gives 0.9 s in the air over anything low.
 
@@ -100,13 +103,18 @@ a ramp taken at 7 m/s or more gives 0.9 s in the air over anything low.
 shelf's open side is taken. Floor items: within 1.2 m of the cart's centre (1.65 m at top speed). Each item's
 price is locked with the multiplier of the moment. The cart holds up to 1.5 x 40 weight units; at
 that cap a dearer item pushes out the cheapest ones it needs the room of. An overloaded tower (above
-40) sheds one item every 0.22 s of a long drift and 1-4 on a knock. A crash drops up to 40% of the
-goods (and of the dollars), fanned to both sides; a ram drops the top 30%; dropped goods lie for 4 s.
-List items never leave the cart. Madness: a meter of four segments (see D31 in DEVLOG.md for every
+40) sheds one item every 0.25 s of a drift held past its second spark tier and 1-3 on a knock above
+5 m/s (never on the shelf being swept or a counter, never a hot item). A crash drops up to 40% of the
+goods, fanned to both sides; a ram drops the top 30% (half that between two rivals). No single hit takes
+more than 40% of the cart's dollars from the player; a ram on a rival always knocks its top item off.
+Dropped goods lie for 4 s. List items never leave the cart. Madness: a meter of four segments (see D31 in DEVLOG.md for every
 gain); four full segments give 6 s of MADNESS mode (x4, double reach, no weight, every touch a dash),
 then the meter is at x2. Events: rocket start for pressing the accelerator within 0.15 s before to
-0.25 s after GO; a flash sale at 40% of the timer; closing time in the last 15 s (checkouts close one
-by one, the last stays open). Receipt: items + $200 for all three list items + stunts + $15 per second
+0.25 s after GO; a flash sale at 40% of the timer (a hot item for 10 s at the nearest sale spot at least
+24 m ahead of the player; rivals leave it alone for 3 s); closing time from the moment the first cart
+is within 90 m of the checkouts, or with `closing` seconds on the clock: the checkouts close one by one
+over `closing` seconds (15; Level 1: 22) with 2 s of warning each, never in the face of a cart at the
+lane's mouth, and the last one stays open. Receipt: items + $200 for all three list items + stunts + $15 per second
 left. When the player has checked out, the rest of the race is simulated to its end for the table.
 
 **Drivers and crowd (`ai.js`).** One driver fills the same input structure as the keyboard, for
@@ -114,12 +122,14 @@ rivals and for the test bots (beginner, confident, expert, sloppy). It follows t
 slows for bends and for what is ahead, goes for goods ahead on the route (list items first), dashes at
 targets it decided on at first sight, and rams carts with loot when in the mood. Rivals are paced to
 stay near the player in position and in money (off for the first 12 s and the last fifth of the
-route), announce a ram on the player half a second ahead ("!"), and never ram the player more than
-`maxRams` times. Characters: Granny Tank (slow, starts ahead with a tower at x2, only gives way to a
+route); a level's `rivalEdge` scales how fast they build their multiplier. A ram on the player is
+announced 0.8 s ahead ("!" and a red line on the floor); the rival holds that line and lunges down it,
+so steering off it dodges (DODGED!, $40). The player is never rammed more than `maxRams` times. Characters: Granny Tank (slow, starts ahead with a tower at x2, only gives way to a
 heavy or boosted cart), Sprint Dad (fast, vengeful), Coupon Queen (runs for hot items and shouts),
-Selfie Star (stops for a photo; shoppers gather), Bulk Bro (charges whoever rammed him). Shoppers
+Selfie Star (stops for a photo that pays her $150; shoppers gather), Bulk Bro (charges whoever rammed him). Shoppers
 stand, stroll, jump clear (6 in 10), get bowled over for 1.3 s (5% of a cart's speed) and run to the
-flash sale; five bowled over in one dash is a STRIKE, a pass within half a metre a CLOSE SHAVE. The
+flash sale; five bowled over in one dash is a STRIKE (a huddle's pins only go down to a dash and step
+back into formation otherwise), a pass within half a metre a CLOSE SHAVE. The
 cart train shuttles along its track at 7 m/s and shoves aside whoever is in the way.
 
 **Look (`gfx.js`, `models.js`, `scene.js`, `fx.js`).** One custom toon shader (two tones with a hard
@@ -128,13 +138,15 @@ inverted-hull outline of constant pixel width (2.0 / 3.2 px at 1080p) using a se
 per vertex. Everything is built from three primitives (chamfered box, cylinder or cone, ellipsoid)
 with vertex colours. The floor is one quad whose shader reads a tile map (store tint, chevrons along
 the route, checkout hatching, travelator arrows, wet sheen, wall shadow). Goods, shadows, the crowd
-and checkout lamps are instanced. The camera sits high behind the cart, lags its yaw, widens with
+and checkout lamps are instanced. The goods in a cart are packed six columns wide (small ones three
+abreast, medium and large two, hot items across): a heap low enough to see the way ahead over. The camera sits high behind the cart, lags its yaw, widens with
 speed and tips over walls. Palette: cream floor and walls, plum outlines and wall caps, four store
 accents; pink belongs to the player alone, teal to the shopping list, gold to hot items, the checkout
 and interface plates, red to danger and prices.
 
 **Interface (`ui.js`, `index.html`).** HTML over the canvas in the style of price tags and receipts:
-timer plate, receipt tag and place, Madness meter, three list icons (pictures of the real models),
+timer plate, receipt tag and place, Madness meter (five pips: the lit ones are the multiplier, the
+fifth fills toward MADNESS mode), three list icons (pictures of the real models),
 announcer line, one pop-up word at a time, floating prices, an arrow to the current event, key hints
 for the first runs, touch pads (steering left, dash / drift / brake right, automatic accelerator),
 title with a loyalty card, receipt with the final table, medal and record, pause with sound settings.

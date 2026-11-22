@@ -10,7 +10,8 @@
     "shots": "node tools/shots.mjs",
     "check": "node tools/check.mjs",
     "build": "node tools/build.mjs",
-    "package": "node tools/package.mjs"
+    "package": "node tools/package.mjs",
+    "evidence": "node tools/evidence.mjs"
   },
   "devDependencies": {
     "playwright-core": "1.61.1",
