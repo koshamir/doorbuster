@@ -4,7 +4,7 @@
 //          stack; chamfered boxes, cylinders and cones, super-ellipsoids, lathe profiles, tubes along
 //          curves, extrusions and hair clumps; baked occlusion; and the conversion to one BufferGeometry
 //          with welded hull normals for the ink.
-// Exports: builder, at, push, pop, mark, box, cyl, ellipsoid, lathe, tube, extrude, clump, quad, ring, toGeometry
+// Exports: builder, at, push, pop, bind, box, cyl, ellipsoid, lathe, tube, extrude, clump, quad, ring, toGeometry
 // Depends on: config.js (rgb) and the global THREE (only inside toGeometry and extrude).
 //
 // Vertex data: position, normal (smooth on organic shapes, flat on hard props), colour, uv, tex =
@@ -18,7 +18,7 @@ export function builder() {
     nm: [1, 0, 0, 0, 1, 0, 0, 0, 1], nstack: [], b: 0, t: [0, 0, 0, 0], ao: null, extra: null };
 }
 // The current transform is a 3x4 matrix (rows). at() replaces it: translate, then yaw (y), pitch (x),
-// roll (z), then scale s (a number or [sx, sy, sz]). push()/pop() save and restore it; mark() sets the
+// roll (z), then scale s (a number or [sx, sy, sz]). push()/pop() save and restore it; bind() sets the
 // bone, the atlas data and the occlusion function for what follows.
 export function at(B, x = 0, y = 0, z = 0, ry = 0, rx = 0, rz = 0, s = 1) {
   const cy = Math.cos(ry), sy = Math.sin(ry), cx = Math.cos(rx), sx = Math.sin(rx), cz = Math.cos(rz), sz = Math.sin(rz);
@@ -44,7 +44,7 @@ function m34mul(A, L) {
 export function push(B) { B.stack.push(B.m.slice()); B.nstack.push(B.nm.slice()); return B; }
 export function pop(B) { B.m = B.stack.pop() || [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0]; B.nm = B.nstack.pop() || [1, 0, 0, 0, 1, 0, 0, 0, 1]; return B; }
 // bone index, tex = [mode, cell, gloss, emissive], ao(x, y, z) -> factor in world (model) space.
-export function mark(B, bone, tex, ao) { if (bone !== undefined) B.b = bone; if (tex) B.t = tex; if (ao !== undefined) B.ao = ao; return B; }
+export function bind(B, bone, tex, ao) { if (bone !== undefined) B.b = bone; if (tex) B.t = tex; if (ao !== undefined) B.ao = ao; return B; }
 
 function vtx(B, p, n, c, uv, t) {
   const m = B.m;
@@ -126,7 +126,8 @@ function flatFace(B, pts, c, centre, tex, uvs) {
 export function cyl(B, r0, r1, h, color, o = {}) {
   const c = colOf(color), seg = o.seg || 12, slope = (r0 - r1) / h;
   const ct = o.top === false ? null : colOf(o.top !== undefined ? o.top : color), cb = o.bottom === false || o.bottom === undefined ? null : colOf(o.bottom === true ? color : o.bottom);
-  const ring = (i, y, r) => { const a = i / seg * Math.PI * 2; return [Math.sin(a) * r, y, Math.cos(a) * r]; };
+  const y0 = o.mid ? -h / 2 : 0;
+  const ring = (i, y, r) => { const a = i / seg * Math.PI * 2; return [Math.sin(a) * r, y + y0, Math.cos(a) * r]; };
   const sn = (i) => { const a = i / seg * Math.PI * 2; return vunit([Math.sin(a), slope, Math.cos(a)]); };
   for (let i = 0; i < seg; i++) {
     const j = i + 1, a0 = ring(i, 0, r0), a1 = ring(j, 0, r0), t0 = ring(i, h, r1), t1 = ring(j, h, r1);
@@ -134,8 +135,8 @@ export function cyl(B, r0, r1, h, color, o = {}) {
     const n0 = o.smooth === false ? vunit(vcross(vsub(t0, a0), vsub(a1, a0))).map((v) => -v) : sn(i), n1 = o.smooth === false ? n0 : sn(j);
     vtx(B, a0, n0, c, [u0, 1], tex); vtx(B, a1, n1, c, [u1, 1], tex); vtx(B, t1, n1, c, [u1, 0], tex);
     vtx(B, a0, n0, c, [u0, 1], tex); vtx(B, t1, n1, c, [u1, 0], tex); vtx(B, t0, n0, c, [u0, 0], tex);
-    if (ct && r1 > 0.001) { const tt = o.lid; vtx(B, [0, h, 0], [0, 1, 0], ct, [0.5, 0.5], tt); vtx(B, t0, [0, 1, 0], ct, [0.5 + t0[0] / r1 / 2, 0.5 + t0[2] / r1 / 2], tt); vtx(B, t1, [0, 1, 0], ct, [0.5 + t1[0] / r1 / 2, 0.5 + t1[2] / r1 / 2], tt); }
-    if (cb && r0 > 0.001) { vtx(B, [0, 0, 0], [0, -1, 0], cb); vtx(B, a1, [0, -1, 0], cb); vtx(B, a0, [0, -1, 0], cb); }
+    if (ct && r1 > 0.001) { const tt = o.lid; vtx(B, [0, h + y0, 0], [0, 1, 0], ct, [0.5, 0.5], tt); vtx(B, t0, [0, 1, 0], ct, [0.5 + t0[0] / r1 / 2, 0.5 + t0[2] / r1 / 2], tt); vtx(B, t1, [0, 1, 0], ct, [0.5 + t1[0] / r1 / 2, 0.5 + t1[2] / r1 / 2], tt); }
+    if (cb && r0 > 0.001) { vtx(B, [0, y0, 0], [0, -1, 0], cb); vtx(B, a1, [0, -1, 0], cb); vtx(B, a0, [0, -1, 0], cb); }
   }
   return B;
 }
@@ -156,8 +157,16 @@ export function ellipsoid(B, rx, ry, rz, color, o = {}) {
     return { p: [x, y, z], n: vunit([nx, ny, nz]) };
   };
   const last = Math.round(rings * (o.cut || 1));
+  const grid = [];
+  for (let i = 0; i <= rings; i++) { const row = []; for (let j = 0; j <= seg; j++) { const v = pt(i, j); if (o.warp) v.p = o.warp(v.p); row.push(v); } grid.push(row); }
+  if (o.warp) for (let i = 1; i < rings; i++) for (let j = 0; j <= seg; j++) {
+    const a = grid[i][(j + 1) % seg].p, b = grid[i][(j + seg - 1) % seg].p, c = grid[i + 1][j].p, d = grid[i - 1][j].p;
+    const n = vunit(vcross(vsub(a, b), vsub(c, d)));
+    if (vdot(n, grid[i][j].n) > 0) grid[i][j].n = n; else grid[i][j].n = [-n[0], -n[1], -n[2]];
+  }
   for (let i = 0; i < last; i++) for (let j = 0; j < seg; j++) {
-    const q = [pt(i, j), pt(i, j + 1), pt(i + 1, j + 1), pt(i + 1, j)];
+    const q = [grid[i][j], grid[i][j + 1], grid[i + 1][j + 1], grid[i + 1][j]];
+    if (o.keep) { const cx = (q[0].p[0] + q[2].p[0]) / 2, cy = (q[0].p[1] + q[2].p[1]) / 2, cz = (q[0].p[2] + q[2].p[2]) / 2; if (!o.keep(cx, cy, cz)) continue; }
     for (const tri of [[0, 1, 2], [0, 2, 3]]) {
       const vs = tri.map((k) => q[k]);
       const face = o.uv === 'face' && vs.every((v) => v.p[2] > (o.faceZ || 0) * rz);
@@ -194,7 +203,7 @@ export function lathe(B, prof, color, o = {}) {
       const q = [[k, j], [k, j + 1], [k + 1, j + 1], [k + 1, j]];
       for (const tri of [[0, 1, 2], [0, 2, 3]]) for (const t of tri) {
         const [kk, jj] = q[t];
-        vtx(B, P(kk, jj), N(kk, jj), band ? ca : kk === k ? ca : cb, [jj / seg, vs[kk] / (len || 1)], o.tex);
+        vtx(B, P(kk, jj), N(kk, jj), band ? ca : kk === k ? ca : cb, [jj / seg * (o.uRep || 1), (1 - vs[kk] / (len || 1)) * (o.vRep || 1)], o.tex);
       }
     }
   }
@@ -226,7 +235,7 @@ export function tube(B, pts, r, color, o = {}) {
     frames.push([Nv, vunit(vcross(T[k], Nv))]);
   }
   let total = 0; const ts = [0];
-  for (let k = 1; k < n; k++) { total += Math.hypot(...sub(pts[k], pts[k - 1])); ts.push(total); }
+  for (let k = 1; k < n; k++) { total += Math.hypot(...vsub(pts[k], pts[k - 1])); ts.push(total); }
   const ring = (k) => {
     const t = ts[k] / (total || 1), rr = rad(t), [N1, B1] = frames[k], out = [];
     for (let j = 0; j <= seg; j++) {
@@ -251,8 +260,9 @@ export function tube(B, pts, r, color, o = {}) {
     if (o.caps === 'round') {      // a half dome
       push(B);
       const [N1, B1] = frames[k], c0 = pts[k];
-      for (let i = 0; i < 4; i++) for (let j = 0; j < seg; j++) {
-        const pt = (ii, jj) => { const th = ii / 4 * Math.PI / 2, a = jj / seg * Math.PI * 2, rc = Math.cos(th) * rr, h = Math.sin(th) * rr;
+      const cr = o.capRings || 3;
+      for (let i = 0; i < cr; i++) for (let j = 0; j < seg; j++) {
+        const pt = (ii, jj) => { const th = ii / cr * Math.PI / 2, a = jj / seg * Math.PI * 2, rc = Math.cos(th) * rr, h = Math.sin(th) * rr;
           const d = [N1[0] * Math.cos(a) * rc * sq[0] + B1[0] * Math.sin(a) * rc * sq[1] + tdir[0] * h, N1[1] * Math.cos(a) * rc * sq[0] + B1[1] * Math.sin(a) * rc * sq[1] + tdir[1] * h, N1[2] * Math.cos(a) * rc * sq[0] + B1[2] * Math.sin(a) * rc * sq[1] + tdir[2] * h];
           return { p: [c0[0] + d[0], c0[1] + d[1], c0[2] + d[2]], n: vunit(d) }; };
         const q = [pt(i, j), pt(i, j + 1), pt(i + 1, j + 1), pt(i + 1, j)];
@@ -303,13 +313,13 @@ export function extrude(B, outline, d, color, o = {}) {
 // flattened across. width w at the root, tip radius share tip (0.15).
 export function clump(B, a, b, e, w, color, o = {}) {
   const pts = [];
-  for (let i = 0; i <= (o.steps || 6); i++) {
-    const t = i / (o.steps || 6), u = 1 - t;
+  for (let i = 0; i <= (o.steps || 5); i++) {
+    const t = i / (o.steps || 5), u = 1 - t;
     pts.push([u * u * a[0] + 2 * u * t * b[0] + t * t * e[0], u * u * a[1] + 2 * u * t * b[1] + t * t * e[1], u * u * a[2] + 2 * u * t * b[2] + t * t * e[2]]);
   }
   const tip = o.tip === undefined ? 0.15 : o.tip;
   return tube(B, pts, (t) => w * (tip + (1 - tip) * Math.pow(Math.sin(Math.min(1, (1 - t) * 1.15) * Math.PI / 2), 0.7)) * (t < 0.08 ? 0.75 + t * 3 : 1), color,
-    { seg: o.seg || 8, flat: o.flat || [1, 0.55], caps: 'round', up: o.up, tex: o.tex });
+    { seg: o.seg || 7, flat: o.flat || [1, 0.55], caps: 'round', capRings: 2, up: o.up, tex: o.tex });
 }
 
 // A flat ring (torus-like band) in the xy plane: radii rx, ry, thickness t, depth d (glasses frames, hoops).

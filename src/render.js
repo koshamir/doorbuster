@@ -226,7 +226,7 @@ void main() {
 export function initRender(canvas) {
   const T = THREE;
   T.ColorManagement.enabled = false;
-  const renderer = new T.WebGLRenderer({ canvas, alpha: false, antialias: true, powerPreference: 'high-performance', stencil: false });
+  const renderer = new T.WebGLRenderer({ canvas, alpha: false, premultipliedAlpha: false, antialias: true, powerPreference: 'high-performance', stencil: false });
   renderer.outputColorSpace = T.LinearSRGBColorSpace;
   renderer.info.autoReset = false;
   R.renderer = renderer;

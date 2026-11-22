@@ -2,7 +2,7 @@
 // Purpose: procedural geometry. Everything visible is built from three chubby primitives — a
 //          chamfered box, a cylinder (or cone) and an ellipsoid — written into a "builder" and
 //          turned into one BufferGeometry with vertex colours. No textures, no model files.
-// Exports: makeBuilder, place, addBox, addCyl, addBall, toGeometry, cartGeometry, bumperGeometry,
+// Exports: makeBuilder, place, addBox, addCyl, addBall, mGeometry, cartGeometry, bumperGeometry,
 //          beanGeometry, goodGeometry, addShelf, addPiece, pieceGeometry
 // Depends on: config.js and the global THREE (only inside toGeometry).
 //
@@ -27,7 +27,7 @@ export function place(b, x, y, z, ry = 0, rx = 0, rz = 0) {
   return b;
 }
 
-function push(b, p, n, o, c) {
+function mpush(b, p, n, o, c) {
   const m = b.m, t = b.t;
   b.pos.push(m[0] * p[0] + m[1] * p[1] + m[2] * p[2] + t[0], m[3] * p[0] + m[4] * p[1] + m[5] * p[2] + t[1], m[6] * p[0] + m[7] * p[1] + m[8] * p[2] + t[2]);
   b.nor.push(m[0] * n[0] + m[1] * n[1] + m[2] * n[2], m[3] * n[0] + m[4] * n[1] + m[5] * n[2], m[6] * n[0] + m[7] * n[1] + m[8] * n[2]);
@@ -47,7 +47,7 @@ function face(b, pts, c, centre, outOf) {
   if (flip) n = [-n[0], -n[1], -n[2]];
   for (let i = 1; i + 1 < pts.length; i++) {
     const tri = flip ? [pts[0], pts[i + 1], pts[i]] : [pts[0], pts[i], pts[i + 1]];
-    for (const p of tri) push(b, p, n, outOf(p), c);
+    for (const p of tri) mpush(b, p, n, outOf(p), c);
   }
 }
 
@@ -113,10 +113,10 @@ export function addCyl(b, r0, r1, h, color, opts = {}) {
     const j = i + 1;
     const a0 = ring(i, 0, r0), a1 = ring(j, 0, r0), t0 = ring(i, h, r1), t1 = ring(j, h, r1);
     // side: two triangles, smooth normals; wound outward (counter-clockwise seen from outside)
-    push(b, a0, sideN(i), outBot(i), c); push(b, t0, sideN(i), outTop(i), c); push(b, t1, sideN(j), outTop(j), c);
-    push(b, a0, sideN(i), outBot(i), c); push(b, t1, sideN(j), outTop(j), c); push(b, a1, sideN(j), outBot(j), c);
-    if (r1 > 0.001) { push(b, [0, h, 0], [0, 1, 0], [0, 1, 0], ct); push(b, t1, [0, 1, 0], outTop(j), ct); push(b, t0, [0, 1, 0], outTop(i), ct); }
-    if (opts.bottom) { push(b, [0, 0, 0], [0, -1, 0], [0, -1, 0], c); push(b, a0, [0, -1, 0], outBot(i), c); push(b, a1, [0, -1, 0], outBot(j), c); }
+    mpush(b, a0, sideN(i), outBot(i), c); mpush(b, t0, sideN(i), outTop(i), c); mpush(b, t1, sideN(j), outTop(j), c);
+    mpush(b, a0, sideN(i), outBot(i), c); mpush(b, t1, sideN(j), outTop(j), c); mpush(b, a1, sideN(j), outBot(j), c);
+    if (r1 > 0.001) { mpush(b, [0, h, 0], [0, 1, 0], [0, 1, 0], ct); mpush(b, t1, [0, 1, 0], outTop(j), ct); mpush(b, t0, [0, 1, 0], outTop(i), ct); }
+    if (opts.bottom) { mpush(b, [0, 0, 0], [0, -1, 0], [0, -1, 0], c); mpush(b, a0, [0, -1, 0], outBot(i), c); mpush(b, a1, [0, -1, 0], outBot(j), c); }
   }
   return b;
 }
@@ -131,15 +131,15 @@ export function addBall(b, rx, ry, rz, color, opts = {}) {
   const nr = (p) => unit([p[0] / (rx * rx), p[1] / (ry * ry), p[2] / (rz * rz)]);
   for (let i = 0; i < rings; i++) for (let j = 0; j < seg; j++) {
     const p00 = pt(i, j), p01 = pt(i, j + 1), p10 = pt(i + 1, j), p11 = pt(i + 1, j + 1);
-    if (i > 0) for (const p of [p00, p01, p11]) push(b, p, nr(p), nr(p), c);
-    if (i < rings - 1) for (const p of [p00, p11, p10]) push(b, p, nr(p), nr(p), c);
+    if (i > 0) for (const p of [p00, p01, p11]) mpush(b, p, nr(p), nr(p), c);
+    if (i < rings - 1) for (const p of [p00, p11, p10]) mpush(b, p, nr(p), nr(p), c);
   }
   return b;
 }
 
 // Builds the BufferGeometry. Two groups cover the whole range so a mesh with the material array
 // [toon, outline] draws the lit pass and the outline pass from one object.
-export function toGeometry(b) {
+export function mGeometry(b) {
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(b.pos, 3));
   g.setAttribute('normal', new THREE.Float32BufferAttribute(b.nor, 3));
@@ -174,7 +174,7 @@ export function cartGeometry(color) {
     place(b, x - 0.07, 0.2, z, 0, 0, -Math.PI / 2); addCyl(b, 0.2, 0.2, 0.14, PAL.night, { seg: 10, bottom: true, top: PAL.steel });
   }
   for (const x of [-0.42, 0.42]) { place(b, x, 0.9, -0.74, 0, -0.35, 0); addBox(b, 0.08, 0.5, 0.08, PAL.steel, { bevel: 0.3 }); }
-  return toGeometry(b);
+  return mGeometry(b);
 }
 // The front bumper and the handle bar are one mesh that glows when the dash is ready: the chase
 // camera sees the handle, everyone else sees the bumper.
@@ -182,7 +182,7 @@ export function bumperGeometry() {
   const b = makeBuilder();
   place(b, 0, 0.44, 0.76); addBox(b, 1.08, 0.2, 0.16, PAL.sale, { bevel: 0.35 });
   place(b, 0, 1.3, -0.92); addBox(b, 1.1, 0.14, 0.14, PAL.sale, { bevel: 0.35 });
-  return toGeometry(b);
+  return mGeometry(b);
 }
 
 // The shopper "bean": capsule body, ball head, dot eyes, ball hands, and one large accessory that
@@ -217,7 +217,7 @@ export function beanGeometry(charId, color, skin = PAL.skin) {
     place(b, 0, 1.52, 0); addCyl(b, 0.2, 0.16, 0.14, PAL.night, { seg: 8 });
     place(b, 0, 1.5, 0); addCyl(b, 0.32, 0.32, 0.04, PAL.night, { seg: 8 });
   }
-  return toGeometry(b);
+  return mGeometry(b);
 }
 
 // ---- Goods: 1-3 primitives each, a coloured label, the lid telling the kinds apart from above. ----
@@ -300,7 +300,7 @@ function bow(b, y) {
 export function goodGeometry(index) {
   const b = makeBuilder();
   GOOD_BUILD[GOODS[index].id](b);
-  return toGeometry(b);
+  return mGeometry(b);
 }
 
 // ---- Mall furniture written into a shared builder (static, merged per level by scene.js) -----------
@@ -410,5 +410,5 @@ export function pieceGeometry(type) {
     place(b, 0, 0.8, 0); addBall(b, 0.24, 0.5, 0.2, PAL.steel, { seg: 8, rings: 5 });
     place(b, 0, 1.5, 0); addBall(b, 0.16, 0.18, 0.16, PAL.steel, { seg: 8, rings: 5 });
   }
-  return toGeometry(b);
+  return mGeometry(b);
 }

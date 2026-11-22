@@ -10,9 +10,14 @@
 import { TUNE, CFG, PAL, GOODS, rgb, mix, clamp, lerp, wrapAngle } from './config.js';
 import { R, celMaterial, hullMaterial, blendMaterial, MRT_OUT, AUX_NONE, v3 } from './render.js';
 import { floorMaterial, floorMap, kitOf } from './kits.js';
-import { makeBuilder, place, addBox, addCyl, addBall, toGeometry, cartGeometry, bumperGeometry, beanGeometry, goodGeometry,
+import { makeCharacter, animate } from './rig.js';
+import { makeCrowd, syncCrowd, crowdPose, disposeCrowd } from './crowd.js';
+import { CROWD, CROWD_COLORS } from './cast.js';
+import { EXPR } from './atlas.js';
+import { makeBuilder, place, addBox, addCyl, addBall, mGeometry, cartGeometry, bumperGeometry, goodGeometry,
   addShelf, addPiece, pieceGeometry } from './models.js';
 
+const CAST_IDS = { penny: 'player', granny: 'granny', dad: 'dad', queen: 'queen', selfie: 'selfie', bubba: 'bro' };
 const GOOD_CAP = 220;        // instances per kind of goods
 const SHADOW_CAP = 380;      // contact shadows (static ones first, then the moving blobs)
 const GLOW_CAP = 64;         // coloured discs on the floor: list items, hot items, rivals with a grudge
@@ -123,16 +128,16 @@ export function buildScene(sim) {
       if ((c + r) % 2 === 0) bulbs.push((c + 0.5 + dc * 0.56) * T, (r + 0.5 + dr * 0.56) * T);
     }
   }
-  view.root.add(new THREE.Mesh(toGeometry(wb), M.toon));
+  view.root.add(new THREE.Mesh(mGeometry(wb), M.toon));
 
   // Contact shadows: one instanced octagon; the static ones are written once, moving blobs every frame.
   const sb = makeBuilder();
   addCyl(sb, 1, 1, 0.001, PAL.shadow, { seg: 8 });
-  view.shadows = add(new THREE.InstancedMesh(toGeometry(sb), view.own[view.own.push(flatMat(0.2)) - 1], SHADOW_CAP));
+  view.shadows = add(new THREE.InstancedMesh(mGeometry(sb), view.own[view.own.push(flatMat(0.2)) - 1], SHADOW_CAP));
   view.shadows.renderOrder = 1;
   const gb = makeBuilder();
   addCyl(gb, 1, 1, 0.001, PAL.white, { seg: 12 });
-  view.glows = add(new THREE.InstancedMesh(toGeometry(gb), view.own[view.own.push(flatMat(0.5)) - 1], GLOW_CAP));
+  view.glows = add(new THREE.InstancedMesh(mGeometry(gb), view.own[view.own.push(flatMat(0.5)) - 1], GLOW_CAP));
   view.glows.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(GLOW_CAP * 3), 3);
   view.glows.renderOrder = 1;
 
@@ -145,7 +150,7 @@ export function buildScene(sim) {
   // A hot item stands in a hard-edged gold column with a star turning above it.
   const beam = makeBuilder();
   addCyl(beam, 0.3, 0.3, 5, PAL.hot, { seg: 8 });
-  const beamGeo = toGeometry(beam), beamMat = flatMat(0.42), starGeo = pieceGeometry('star');
+  const beamGeo = mGeometry(beam), beamMat = flatMat(0.42), starGeo = pieceGeometry('star');
   view.own.push(beamMat);
   const geos = {};
   for (const p of world.pieces) {
@@ -172,7 +177,7 @@ export function buildScene(sim) {
     if (world.wet[i] && !world.wet[i - 1] && !world.wet[i - cols]) addPiece(fb, 'wetsign', (i % cols) * T - 0.2, Math.floor(i / cols) * T - 0.2);
   }
   view.fixed = view.shadowN;
-  view.root.add(new THREE.Mesh(toGeometry(fb), M.toon));
+  view.root.add(new THREE.Mesh(mGeometry(fb), M.toon));
   // The cart train: a string of steel carts.
   const carGeo = sim.trains.length ? cartGeometry(PAL.danger) : null;
   for (const tr of sim.trains) {
@@ -184,7 +189,7 @@ export function buildScene(sim) {
   // Holiday garlands: small warm-white bulbs along the top edge of the walls (decoration never uses a signal colour).
   const lb = makeBuilder();
   addBall(lb, 0.1, 0.1, 0.1, PAL.wall, { seg: 5, rings: 3 });
-  const lights = add(new THREE.InstancedMesh(toGeometry(lb), M.toon, Math.max(1, bulbs.length / 2)));
+  const lights = add(new THREE.InstancedMesh(mGeometry(lb), M.toon, Math.max(1, bulbs.length / 2)));
   const mat4 = new THREE.Matrix4();
   for (let i = 0; i < bulbs.length / 2; i++) lights.setMatrixAt(i, mat4.makeTranslation(bulbs[i * 2], CFG.WALL_H + 0.08, bulbs[i * 2 + 1]));
 
@@ -224,23 +229,24 @@ export function buildScene(sim) {
   }
 
   // The crowd: one instanced shopper in three muted colours.
-  view.crowd = add(new THREE.InstancedMesh(beanGeometry('crowd', PAL.white), M.toon, CROWD_CAP));
-  view.crowd.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(CROWD_CAP * 3), 3);
-  sim.shoppers.forEach((s, i) => { if (i < CROWD_CAP) view.crowd.instanceColor.array.set(rgb(PAL.crowd[s.col]), i * 3); });
+  view.crowdKinds = kit.crowd;
+  view.crowd = makeCrowd(kit.crowd);
+  view.root.add(view.crowd.root);
+  view.people = []; view.crowdList = [];
 
   // Carts with their shoppers. `tilt` carries the lean, pitch and squash of the cart body.
   for (const k of sim.carts) {
     const g = new THREE.Group(), tilt = new THREE.Group();
     const glow = celMaterial({ rim: 0.55 });
     view.own.push(glow);
-    const bean = new THREE.Mesh(beanGeometry(k.char, k.def.color), [M.toonRim, M.lineBold]);
-    bean.position.z = -1.3;
+    const ch = makeCharacter(Object.keys(CAST_IDS).find((id) => CAST_IDS[id] === k.char) || 'penny');
+    ch.mesh.position.z = -1.3;
     tilt.add(new THREE.Mesh(cartGeometry(k.def.color), [M.toonRim, M.lineBold]));
     tilt.add(new THREE.Mesh(bumperGeometry(), [glow, M.lineBold]));
-    g.add(tilt); g.add(bean);
+    g.add(tilt); g.add(ch.mesh);
     g.traverse((o) => o.layers.enable(1));
     view.root.add(g);
-    view.carts.push({ k, g, tilt, bean, glow, roll: 0, pitch: 0, squash: 0, stretch: 0, bob: 0, lastSpd: 0,
+    view.carts.push({ k, g, tilt, ch, glow, st: { mode: 'count', handle: [1.3, 0.38, 0.34], look: null }, expr: null, exprT: 0, roll: 0, pitch: 0, squash: 0, stretch: 0, bob: 0, lastSpd: 0,
       swayX: 0, swayXv: 0, swayZ: 0, swayZv: 0, pending: 0 });
   }
 
@@ -368,8 +374,15 @@ function syncCart(view, c, sim, alpha, dt) {
   c.tilt.rotation.set(c.pitch - (k.air > 0 ? 0.5 * (k.air / k.airT - 0.5) : 0), yawShow, c.roll);
   c.tilt.scale.set((1 + sq * 0.16) * (1 - c.stretch * 0.1), 1 - sq * 0.3, (1 + sq * 0.16) * (1 + c.stretch * 0.24));
   c.bob += speed * dt * 1.5;
-  c.bean.position.y = Math.abs(Math.sin(c.bob)) * 0.07;
-  c.bean.rotation.set(0.1 * clamp(k.spd / TUNE.maxspeed, -1, 1.6) + (k.dashT > 0 ? 0.25 : 0), k.steer * 0.25, -c.roll * 1.4);
+  // the character: the simulation's cart state drives the procedural animation (rig.js)
+  const st = c.st;
+  st.mode = sim.phase === 'count' ? 'count' : 'push';
+  st.speed = k.spd; st.accel = acc; st.yaw = k.yaw; st.steer = k.steer; st.drift = k.drift;
+  st.dash = k.dashT > 0 ? CFG.dashTime - k.dashT : -1; st.boost = k.boostT > 0; st.air = k.air > 0 ? 1 : 0; st.stun = k.stunT;
+  c.exprT -= dt;
+  st.expr = c.exprT > 0 ? c.expr : k.madT > 0 ? EXPR.happy : null;
+  st.squash = c.squash > 0.5 ? c.squash : 0;
+  animate(c.ch.rig, st, dt);
   const mad = k.madT > 0, ready = k.dashCd <= 0 || mad;
   const gl = ready ? 0.05 + (mad ? 0.3 : 0.16) * (0.5 + 0.5 * Math.sin(view.time * (mad ? 20 : 7))) : -0.45;
   c.glow.uniforms.uGlow.value.set(gl, gl, ready ? gl * 0.4 : gl);
@@ -427,27 +440,29 @@ function syncCart(view, c, sim, alpha, dt) {
   }
 }
 
-// The crowd: stand and sway, bob while walking, hop aside, tumble when bowled over, spring up and
-// shake (state codes in ai.js).
-function syncCrowd(view, sim) {
-  const m = view.crowd.instanceMatrix.array, list = sim.shoppers, n = Math.min(list.length, CROWD_CAP), t = view.time, p = sim.player;
-  for (let i = 0; i < n; i++) {
-    const s = list[i], o = i * 16;
-    if (s.state < 0) { m.fill(0, o, o + 16); continue; }
-    let y = 0, rx = 0, ry = s.h, rz = Math.sin(t * 2 + i) * 0.03;
-    if (s.state === 1 || s.state === 4) { y = Math.abs(Math.sin(t * (s.state === 4 ? 14 : 8) + i)) * (s.state === 4 ? 0.14 : 0.06); rx = s.state === 4 ? 0.25 : 0.06; }
-    else if (s.state === 2) { ry = Math.atan2(s.vx, s.vz); rx = 0.5; y = Math.sin(clamp(s.t / 0.35, 0, 1) * Math.PI) * 0.45; }
-    else if (s.state === 3) {                              // down: falls, lies there, springs back up
-      const u = 1 - s.t / 1.3, lie = clamp(u / 0.12, 0, 1) * clamp((1 - u) / 0.16, 0, 1);
-      rx = -1.45 * lie; ry = s.h + u * 5; y = 0.25 * lie + Math.sin(clamp(u / 0.25, 0, 1) * Math.PI) * 0.5;
-    } else if (s.angry > 0) { ry = Math.atan2(p.x - s.x, p.z - s.z); y = Math.abs(Math.sin(t * 20)) * 0.14; rz = Math.sin(t * 30) * 0.1; }
-    putAt(m, o, s.x, y, s.z, ry, 0.94 + (i % 4) * 0.04, rx, rz);
+// The crowd: every shopper gets an archetype from the store's mix, colours and a face style; the
+// simulation's state (stand, walk, dodge, down, run, angry: ai.js) drives the pose (crowd.js).
+function syncShoppers(view, sim, dt) {
+  const list = sim.shoppers, t = view.time, p = sim.player;
+  view.crowdList.length = 0;
+  for (let i = 0; i < list.length; i++) {
+    const s = list[i];
+    if (s.state < 0) continue;
+    let q = view.people[i];
+    if (!q) {
+      const kind = view.crowdKinds[(i * 7 + 3) % view.crowdKinds.length], f = CROWD[kind].face;
+      q = view.people[i] = { kind, style: f === 2 ? 2 : [0, 1, 3][i % 3], cloth: CROWD_COLORS.cloth[(i * 5) % 6], pants: CROWD_COLORS.pants[(i * 3) % 5], hair: CROWD_COLORS.hair[(i * 7 + 1) % 6], seed: i * 1.7, phase: i, scale: 0.96 + (i % 5) * 0.02, pose: {} };
+    }
+    const sp = Math.hypot(s.vx, s.vz);
+    q.phase += sp / 1.15 * Math.PI * 2 * dt;
+    q.x = s.x; q.z = s.z; q.state = s.state; q.t = s.t; q.speed = sp; q.angry = s.angry;
+    q.h = s.state === 2 ? Math.atan2(s.vx, s.vz) : s.state === 3 ? s.h + (1 - s.t / 1.3) * 5 : s.angry > 0 ? Math.atan2(p.x - s.x, p.z - s.z) : s.h;
+    crowdPose(q, t, q.pose);
+    view.crowdList.push(q);
     if (s.state !== 3) putShadow(view, s.x, s.z, 0.36, 0.36, 0);
   }
-  view.crowd.count = n;
-  view.crowd.instanceMatrix.needsUpdate = true;
+  syncCrowd(view.crowd, view.crowdList, R.camera.position);
 }
-
 const GREEN = rgb(PAL.green), RED = rgb(PAL.danger), AMBER = rgb(PAL.sale);
 export function syncScene(view, sim, alpha, dt) {
   const world = sim.world, p = sim.player;
@@ -499,7 +514,7 @@ export function syncScene(view, sim, alpha, dt) {
     }
   }
   for (const c of view.carts) syncCart(view, c, sim, alpha, dt);
-  syncCrowd(view, sim);
+  syncShoppers(view, sim, dt);
   // A banner between the camera and the player's cart would hide it: banners fade away as the cart comes near.
   for (const b of view.banners) { b.material.uniforms.uOpacity.value = b.material.opacity = clamp((Math.hypot(b.position.x - p.x, b.position.z - p.z) - 9) / 5, 0, 1); b.visible = b.material.opacity > 0.02; }
   // The cart train, and a long shadow running ahead of it across the floor (its warning).
@@ -563,8 +578,10 @@ export function sceneEvent(view, e) {
   }
   for (const c of view.carts) {
     if (c.k !== e.cart && c.k !== e.ref) continue;
-    if (e.type === 'crash') { c.squash = 1; c.swayXv += 3; c.swayZv -= 4; }
-    else if (e.type === 'ram' || e.type === 'bonk') { c.squash = 0.9; c.swayXv += (c.k === e.ref ? 4 : -2); }
+    if (e.type === 'crash') { c.squash = 1; c.swayXv += 3; c.swayZv -= 4; c.expr = EXPR.shocked; c.exprT = 0.8; }
+    else if (e.type === 'ram' || e.type === 'bonk') { c.squash = 0.9; c.swayXv += (c.k === e.ref ? 4 : -2); c.expr = c.k === e.ref ? EXPR.angry : EXPR.happy; c.exprT = 1.2; }
+    else if (e.type === 'hot' && c.k === e.cart) { c.expr = EXPR.happy; c.exprT = 1.4; }
+    else if ((e.type === 'spill' || e.type === 'shed') && c.k === e.cart) { c.expr = EXPR.crying; c.exprT = 1.0; }
     else if (e.type === 'bump' || e.type === 'cartbump') { c.squash = 0.55; c.swayXv += (c.k.id % 2 ? 2 : -2); }
     else if (e.type === 'take' && c.k === e.cart) {
       // Goods leave the shelf one after another: each waits a little longer than the one before.
@@ -603,6 +620,7 @@ export function goodIcon(kind, size = 96) {
 
 export function disposeScene(view) {
   R.scene.remove(view.root);
+  disposeCrowd(view.crowd);
   view.root.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
   for (const m of view.own) m.dispose();
 }

@@ -19,6 +19,7 @@ import { loadThree, platform } from './platform.js';
 import { R, initRender, resizeRender, updateCamera, renderFrame, watchFrameRate, benchTick, setGrade } from './render.js';
 import { buildScene, syncScene, sceneEvent, disposeScene, goodIcon } from './scene.js';
 import { initFx, clearFx, cartFx, eventFx, updateFx, spark } from './fx.js';
+import { initShowcase } from './showcase.js';
 import { audio, unlockAudio, setSound, setVolumes, audioEvent, audioCue, audioFrame } from './audio.js';
 import { ui, initUI, updateHud, popWord, announce, floatText, chainText, setList, setArrow, setWarn, setHint, showTouch, showTitle, showReceipt,
   showClosed, showPause, hideScreens, hurryUI, money, initDebug, updateDebug } from './ui.js';
@@ -262,6 +263,7 @@ function pointers(dt) {
 
 // One frame: read input, step the simulation by dt of real time, update the visuals, draw.
 function tick(dt, draw) {
+  if (game.show) { game.show.update(dt); game.clock += dt; if (draw) renderFrame({}, { x: 0, z: 0 }); return; }
   const sim = game.sim, t0 = performance.now(), p = sim.player;
   game.now = t0;
   if (game.paused) { audioFrame(sim, dt, 'pause'); if (draw) renderFrame({}, R.cam); return; }   // the music carries on under water
@@ -425,9 +427,10 @@ async function boot() {
             a.currentTime = (game.clock - born.get(a)) * 1000;
           }
         }
-        return game.sim.t;
+        return game.show ? game.clock : game.sim.t;
       },
       info() {
+        if (game.show) return { tier: R.tier, t: game.clock, state: 'show', calls: R.stats.calls, tris: R.stats.tris };
         const p = game.sim.player, pr = game.probe, st = game.sim.stats;
         return { tier: R.tier, t: game.sim.t, phase: game.sim.phase, state: game.state, calls: R.stats.calls, tris: R.stats.tris, renderMs: R.stats.ms,
           logicMs: game.logicSum / Math.max(1, game.logicN), x: p.x, z: p.z, h: p.h, spd: p.spd, load: p.load, items: p.tower.length, value: p.value, step: CFG.STEP,
@@ -437,8 +440,9 @@ async function boot() {
       },
     };
   }
-  // A bot or the capture tool goes straight into the run; a person gets the title and one click.
-  if (game.bot || game.manual || query.has('go')) play(false);
+  // A showcase scene, or: a bot or the capture tool goes straight into the run; a person gets the title and one click.
+  if (query.get('scene')) { game.show = initShowcase(query.get('scene'), query); ui.hud.classList.add('off'); }
+  else if (game.bot || game.manual || query.has('go')) play(false);
   else title();
   tick(1 / 60, true);
   game.last = performance.now();
