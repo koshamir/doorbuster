@@ -159,15 +159,8 @@ export function createSim(def, seed, opts = {}) {
       r.ai = makeDriver(rivalProfile(id));
       if (def.roam && def.roam[id]) { r.ai.prof = Object.assign({}, r.ai.prof, { roam: def.roam[id], pace: 0.55, greed: 0 }); r.ai.g = r.ai.greed = 0; }
       sim.carts.push(r);
-      if (id === 'granny') giveGoods(sim, r, 16, true, 2);
-      if (id === 'gramps') giveGoods(sim, r, 6, false);
-      if (id === 'gramps') giveGoods(sim, r, 6, false);
-      if (id === 'gramps') giveGoods(sim, r, 6, false);
-      if (id === 'gramps') giveGoods(sim, r, 6, false);
-      if (id === 'gramps') giveGoods(sim, r, 6, false);
-      if (id === 'gramps') giveGoods(sim, r, 6, false);
-      if (id === 'gramps') giveGoods(sim, r, 6, false);
-      if (id === 'gramps') giveGoods(sim, r, 6, false);   // Granny Tank arrives with her tower already built (at x2): a slow treasure chest
+      if (id === 'granny') giveGoods(sim, r, 16, true, 2);   // Granny Tank arrives with her tower already built (at x2): a slow treasure chest
+      if (id === 'gramps') giveGoods(sim, r, 24, false);      // Turbo Gramps brings a cart of prune juice and dentures: it slows him, and a ram makes it fly
     });
     spawnCrowd(sim);
   }
@@ -216,7 +209,7 @@ function madTick(sim, k, dt) {
 // Emits 'take' with ref = { good, x, y, z, entry } so the visuals can fly it from where it stood.
 function take(sim, k, good, x, y, z, list) {
   const g = GOODS[good], mult = gift || multOf(k);
-  const entry = { good, value: g.price * mult * (list ? 2 : 1), mult, list: list || 0 };
+  const entry = { good, value: Math.round(g.price * mult * (list ? 2 : 1) * (k.player ? 1 : sim.def.rivalValue || 1)), mult, list: list || 0 };   // rivalValue: a level's own handicap on what the rivals' goods ring up at
   let at = k.tower.length;
   if (g.size !== 'H') while (at > 0 && GOODS[k.tower[at - 1].good].size === 'H') at--;
   k.tower.splice(at, 0, entry);

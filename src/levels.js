@@ -7,7 +7,7 @@
 // Fields: id, name, authorReceipt (the best of the expert bot's seeds 1-5, tools/_medals.mjs), medals (silver at 70% of it, gold at 90%,
 //         the hidden Black Card for beating it; bronze is any finish), timer (seconds),
 //         closing (seconds over which the checkouts shut once CLOSING TIME has begun, 15 unless given), closeAt (CLOSING TIME begins when the
-//         first cart is this many metres from the checkouts, 90 unless given), rivalEdge (how fast rivals build their multiplier, 1 unless given), marks (test only: [name, col, row] after each obstacle), heading (start direction, radians; 0 = +z/south, PI/2 = +x/east,
+//         first cart is this many metres from the checkouts, 90 unless given), rivalEdge (how fast rivals build their multiplier, 1 unless given), rivalValue (what the rivals' goods ring up at, 1 unless given), marks (test only: [name, col, row] after each obstacle), heading (start direction, radians; 0 = +z/south, PI/2 = +x/east,
 //         PI = north, -PI/2 = west), rivals (character ids), crowd (shoppers), maxRams (how many times
 //         rivals may ram the player in one run), rush (shoppers who run in ahead of the carts at GO),
 //         list (three goods ids
@@ -54,7 +54,7 @@ export const LEVELS = [
     // shutter (the cheese wheel waits by it behind a ribbon), south down freezer alley between two signs out of
     // phase (Granny Tank is in there), into the one open checkout with a boost.
     id: 'price', name: 'PRICE PANIC', mode: 'rush', kit: 'supermarket', v3: true, timer: 60, author: 27, heading: Math.PI,
-    rivals: ['granny', 'dad'], crowd: 12, rush: 6, maxRams: 2, hotGood: 'console', authorReceipt: 4015, medals: [2800, 3600, 4016], firstFail: { granny: 'tiles' },
+    rivals: ['granny', 'dad'], rivalValue: 0.5, crowd: 12, rush: 6, maxRams: 2, hotGood: 'console', authorReceipt: 4422, medals: [3100, 4000, 4423], firstFail: { granny: 'tiles' },
     zones: [{ pool: 'market', color: 0, name: 'PRICE PANIC' }],
     objects: [
       ['sign', 6, 27, { across: 'x', period: 3.0, amp: 40 }],
@@ -276,7 +276,7 @@ export const LEVELS = [
     // pairs of giant scissors on it, or the walkways round the pits; the GOLDEN HANDBAG on its pedestal on the stage.
     // Taking it lets the giant yarn ball go: it rolls after you down the shoe department's serpentine to the checkouts.
     id: 'dress', name: 'DRESS TO DISTRESS', mode: 'rush', kit: 'boutique', v3: true, timer: 70, author: 29, heading: Math.PI,
-    rivals: ['granny'], crowd: 12, rush: 4, maxRams: 2, hotGood: 'goldbag', authorReceipt: 2386, medals: [1700, 2100, 2387],
+    rivals: ['granny'], rivalValue: 0.55, crowd: 12, rush: 4, maxRams: 2, hotGood: 'goldbag', authorReceipt: 2386, medals: [1700, 2100, 2387],
     zones: [{ pool: 'boutique', color: 0, name: 'DRESS TO DISTRESS' }],
     objects: [
       ['glove', 2.5, 29, { from: [1.5, 27.6], dir: 'e', reach: 3.6, pw: 2 }],
@@ -435,7 +435,7 @@ export const LEVELS = [
     // long safe line and never rubber-bands; Big Bubba eats his way up and down grill alley.
     id: 'food', name: 'FOOD FIGHT', mode: 'race', kit: 'food', v3: true, timer: 90, author: 27, heading: Math.PI,
     rivals: ['gramps', 'bro'], racer: 'gramps', roam: { bro: [12, 4, 56, 12] }, crowd: 10, rush: 4, maxRams: 1, hotGood: 'console',
-    authorReceipt: 3666, medals: [2600, 3300, 3667], rampDir: { '45,39': 'w' },
+    authorReceipt: 3682, medals: [2600, 3300, 3683], rampDir: { '45,39': 'w' },
     zones: [{ pool: 'food', color: 0, name: 'FOOD FIGHT' }, { pool: 'food', rect: [1, 14, 12, 44], surface: 'warm' }, { pool: 'food', rect: [11, 0, 57, 13], surface: 'steel' }, { pool: 'food', rect: [45, 13, 59, 44], surface: 'dessert' }],
     objects: [
       ['cp', 18, 8, { across: 'z', w: 9 }],
