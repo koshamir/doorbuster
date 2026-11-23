@@ -9,7 +9,7 @@
 // Plan legend (one character = one 2 m tile):
 //   ' ' void (walls are generated around floor)      '.' floor
 //   S M L  shelf stocked with small / medium / large goods (runs merge into rows, short runs are islands)
-//   o  floor item      1 2 3  shopping-list item     @  player start     r  rival start
+//   o  floor item      1 2 3 4  shopping-list item (a list rack in LIST mode: ram it)     @  player start     r  rival start
 //   c  checkout lane (finish)   k  closed checkout lane (red lamp, barred)   C  checkout counter
 //   O round display  P can pyramid  Q MEGA PYRAMID  G gift pile  K cardboard stand  H hot item behind a ribbon
 //   W glass window  F fountain  X Christmas tree  # low wall of crates (a ramp jumps it)  V hot item in a glass case
@@ -118,9 +118,13 @@ export function buildWorld(def, rng) {
       let ox = 0, oz = 0;
       for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if ('SML'.includes(ch(c + dc, r + dr))) { ox = dc * 0.7; oz = dr * 0.7; }
       world.drops.push({ x: x + ox, z: z + oz, good: GOOD[id], ttl: -1, live: true, list: 0, arm: 0, home: world.belt[i] ? beltStart(world, plan, c, r) : null });
-    } else if (k === '1' || k === '2' || k === '3') {
+    } else if (k === '1' || k === '2' || k === '3' || k === '4') {
       const id = (def.list || [])[Number(k) - 1];
-      if (id) world.drops.push({ x, z, good: GOOD[id], ttl: -1, live: true, list: Number(k), arm: 0 });   // list = which of the three
+      if (id && def.mode === 'list') {       // a list rack: the item waits on it until the player rams it
+        const piece = { type: 'listrack', x, z, c, r, alive: true, t: 0, solid: null, sale: false, cans: 0, full: 0, good: GOOD[id], hot: GOOD[id], list: Number(k) };
+        piece.solid = addSolid(world, { x, z, r: 0.85, hx: 0, hz: 0, type: 'listrack', on: true, low: false, soft: false, dash: false, piece });
+        world.pieces.push(piece); world.block[i] = 1;
+      } else if (id) world.drops.push({ x, z, good: GOOD[id], ttl: -1, live: true, list: Number(k), arm: 0 });   // list = which item
     } else if (k === '@') {
       world.start.x = x; world.start.z = z;
     } else if (k === 'r') {
@@ -320,7 +324,7 @@ export function collide(world, x, z, rad, air, skipSoft) {
     const cell = world.cells[r * world.cols + c];
     for (let k = 0; k < cell.length; k++) {
       const s = world.solids[cell[k]];
-      if (!s.on || (air && s.low) || (skipSoft && s.soft)) continue;
+      if (!s.on || (air && s.low) || (skipSoft && s.soft) || (s.playerOnly && !world.forPlayer)) continue;
       const dx = x - s.x, dz = z - s.z;
       let nx, nz, depth;
       if (s.r) {

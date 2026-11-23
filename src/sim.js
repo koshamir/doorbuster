@@ -12,7 +12,7 @@
 // Events are { type, cart, value, ref }; the types are listed where they are emitted.
 
 import { TUNE, CFG, GOODS, GOOD, POOLS, makeRng, clamp, wrapAngle, cartMods } from './config.js';
-import { buildWorld, navBuild, navDistAt, blockedAt } from './world.js';
+import { buildWorld, navBuild, navDistAt, blockedAt, addSolid } from './world.js';
 import { makeCart, stepCart, loadFactor } from './cart.js';
 import { buildObjects, stepObjects, flipBarriers, startChaser } from './objects.js';
 import { BOTS, makeDriver, rivalProfile, drive, inZone, spawnCrowd, stepCrowd, spawnTrains, stepTrains } from './ai.js';
@@ -56,6 +56,13 @@ export function createSim(def, seed, opts = {}) {
       if (k.madT <= 0) { spill(sim, k, clamp(into / 16, 0.15, TUNE.spillmax), k.vx / sp, k.vz / sp, true); madLose(sim, k); }
     },
     onSmash(k, solid) { smash(sim, k, solid); },
+    // LIST: a rammed rack drops its list item into the cart; with the whole list the checkouts turn green
+    onList(k, p) {
+      take(sim, k, p.good, p.x, 1.2, p.z, p.list); p.good = -1; madGain(sim, k, 0.5);
+      k.listHave = (k.listHave || 0) | (1 << p.list);
+      sim.emit('listitem', k, p.list, p);
+      if (listDone(sim, k)) { for (const l of sim.world.lanes) if (l.lock) l.lock.on = false; sim.emit('listdone', k, 0); }
+    },
     onTopple(k, solid, into) { topple(sim, k, solid, into); },
     onKnock(k, solid) { if (k.dashT <= 0 && k.madT <= 0) { k.vx *= 0.95; k.vz *= 0.95; } sim.emit('knock', k, 0, solid); },
     // Back on the floor after a ramp. Clearing something on the way is a named trick; a hard landing
@@ -118,13 +125,25 @@ export function createSim(def, seed, opts = {}) {
       sim.emit('boostpad', k, 0, ob);
     },
     watch(k, ob) { sim.timer += CFG.watchTime; sim.emit('watch', k, CFG.watchTime, ob); },
-    checkpoint(k, ob) { k.cp = ob.index; sim.emit('checkpoint', k, ob.index, ob); },
+    checkpoint(k, ob) {
+      k.cp = ob.index; sim.emit('checkpoint', k, ob.index, ob);
+      // RACE: the first of the player and the named rival through each checkpoint takes it; the lead is the gap in time
+      if (sim.mode === 'race' && (k.player || k.char === sim.def.racer)) {
+        const at = ob.at || (ob.at = {}), me = k.player ? 'p' : 'r', other = k.player ? 'r' : 'p';
+        at[me] = sim.t;
+        if (!ob.first) ob.first = me;
+        if (at[other] !== undefined) sim.emit('lead', sim.player, Math.round((at.r - at.p) * 10) / 10, ob);
+        else if (k.player) sim.emit('lead', sim.player, 99, ob);
+      }
+    },
     // a robot vacuum hit by a dash spins and spits out what it swept up
     spit(ob, x, z) { for (let i = 0; i < 3; i++) { const a = i * 2.1 + sim.t; scatter(sim, x, z, Math.sin(a), Math.cos(a), GOOD[['phone', 'game', 'soda'][i]], 0, 8, false); } sim.emit('vacuum', null, 0, ob); },
     // a good thrown out of a stroller onto the floor, toward (dx, dz): anyone may take it
     toss(x, z, dx, dz, good) { const l = Math.hypot(dx, dz) || 1; scatter(sim, x, z, dx / l, dz / l, good, 0, 8, false); },
   };
   const s = world.start;
+  // LIST: the checkouts hold a red bar for the player until the list is complete
+  if (sim.mode === 'list') for (const l of world.lanes) if (l.open) { const b = l.bar; l.lock = addSolid(world, { x: b.x, z: b.z, r: 0, hx: b.hx, hz: b.hz, type: 'barrier', on: true, playerOnly: true }); }
   sim.player = makeCart(0, 'player', s.x, s.z, s.h);
   sim.player.home = { x: s.x, z: s.z, h: s.h };
   if (opts.up) sim.player.mod = cartMods(opts.up);        // the player's cart upgrades (Cart Customs)
@@ -138,6 +157,7 @@ export function createSim(def, seed, opts = {}) {
       const r = makeCart(i + 1, id, world.slots[i].x, world.slots[i].z, s.h);
       r.home = { x: world.slots[i].x, z: world.slots[i].z, h: s.h };
       r.ai = makeDriver(rivalProfile(id));
+      if (def.roam && def.roam[id]) { r.ai.prof = Object.assign({}, r.ai.prof, { roam: def.roam[id], pace: 0.55, greed: 0 }); r.ai.g = r.ai.greed = 0; }
       sim.carts.push(r);
       if (id === 'granny') giveGoods(sim, r, 16, true, 2);   // Granny Tank arrives with her tower already built (at x2): a slow treasure chest
     });
@@ -470,12 +490,22 @@ function checkout(sim, k, lane) {
   let items = 0;
   for (const e of k.tower) items += e.value;
   const left = Math.max(0, Math.floor(sim.timer - sim.t)), smash = sim.mode === 'smash' ? Math.round(k.smash) : 0;
+  let list = 0, race = 0, stars = 0;
+  if (sim.mode === 'list' && k.player) { for (let i = 1; i <= 4; i++) if ((k.listHave || 0) >> i & 1) list += CFG.listItem; if (listDone(sim, k)) list += CFG.listAll; }
+  if (sim.mode === 'race' && k.player) {
+    for (const cp of sim.world.checkpoints) if (cp.first === 'p') { stars++; race += CFG.raceCp; }
+    const r = sim.carts.find((c) => c.char === sim.def.racer);
+    if (!r || !r.done) race += CFG.raceWin;
+  }
   const badge = sim.mode === 'smash' && k.player && sim.stats.cans === 0 ? 'CLEAN SWEEP' : '';      // through a SMASH store without touching a can
-  k.receipt = { mode: sim.mode, badge, items, smash, stunts: k.stunts, time: left * TUNE.timebonus, left, count: k.tower.length,
-    total: items + smash + k.stunts + left * TUNE.timebonus };
+  k.receipt = { mode: sim.mode, badge, items, smash, list, race, stars, won: race >= CFG.raceWin, stunts: k.stunts, time: left * TUNE.timebonus, left, count: k.tower.length,
+    total: items + smash + list + race + k.stunts + left * TUNE.timebonus };
   sim.emit('finish', k, k.receipt.total);
   if (k.player) sim.phase = 'done';
 }
+
+// Whether a cart has every item of the level's list.
+function listDone(sim, k) { const n = (sim.def.list || []).length; return n > 0 && ((k.listHave || 0) >> 1) === (1 << n) - 1; }
 
 // After the player has checked out (or time is up) the rest of the race is played to its end at
 // once, so the rivals' receipts in the table come from the real rules. Returns the table: carts

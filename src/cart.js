@@ -335,6 +335,7 @@ export function stepCart(k, inp, sim, dt) {
   k.slip = back ? 0 : slip;
 
   // ---- move and collide
+  world.forPlayer = k.player;
   k.x += (k.vx + k.convX) * dt; k.z += (k.vz + k.convZ) * dt;
   let crashed = false, touched = 0, sumX = 0, sumZ = 0;
   const v0x = k.vx, v0z = k.vz, speed0 = Math.hypot(v0x, v0z);
@@ -348,6 +349,7 @@ export function stepCart(k, inp, sim, dt) {
     if (c && c.depth > depth) { s = c.solid; nx = c.nx; nz = c.nz; depth = c.depth; nose = false; }
     if (!s) break;
     if (s.soft) { s.on = false; sim.onKnock(k, s); continue; }
+    if (s.type === 'listrack' && k.player && s.piece.good >= 0 && (k.dashT > 0 || -(k.vx * nx + k.vz * nz) > 2.5)) sim.onList(k, s.piece);
     const pyr = s.piece && (s.type === 'pyramid' || s.type === 'mega'), into0 = -(k.vx * nx + k.vz * nz);
     if (s.dash && (k.dashT > 0 || mad || (pyr && into0 > CFG.smashSpeed && s.type === 'pyramid'))) { s.on = false; sim.onSmash(k, s); continue; }
     if (pyr && into0 > 2 && sim.onTopple) sim.onTopple(k, s, into0);

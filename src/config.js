@@ -102,7 +102,9 @@ export const CFG = {
   madTake: { S: 0.04, M: 0.09, L: 0.2, H: 0.5 },   // gain per item taken, by size (a chain of takes adds up to half as much again)
   madDrift: 0.3,          // gain per spark tier when a drift is released into its boost
   // scoring
-  listBonus: 200,         // dollars for bringing all three list items to the checkout
+  listBonus: 200,         // dollars for bringing all three list items to the checkout (v2)
+  listItem: 250, listAll: 500,   // LIST mode: dollars per list item and for the whole list (DESIGN.md section 2)
+  raceCp: 500, raceWin: 1000,    // RACE mode: dollars per checkpoint reached first and for finishing first
   stunts: { cleansweep: 50, strike: 150, ram: 75, takedown: 200, shave: 10, smash: 25, jump: 250, dodge: 40, selfie: 150, glass: 100 },
 };
 
@@ -200,6 +202,7 @@ export const CHARS = {
   queen:  { name: 'Coupon Queen', color: PAL.rivals[2], skill: 0.8,  pace: 0.96, greed: 1,    aggro: 0.4 },
   dad:    { name: 'Sprint Dad',   color: PAL.rivals[3], skill: 0.95, pace: 1,    greed: 0.9,  aggro: 0.6 },
   bro:    { name: 'Big Bubba',    color: PAL.rivals[4], skill: 0.65, pace: 0.92, greed: 0.9,  aggro: 0.9, mass: 3 },
+  gramps: { name: 'Turbo Gramps', color: 0xE63946,      skill: 0.96, pace: 1,    greed: 0.15, aggro: 0.05, mass: 2 },
 };
 
 // ---- Math helpers --------------------------------------------------------------------------------

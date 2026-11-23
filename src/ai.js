@@ -8,7 +8,7 @@
 // Depends on: config.js, world.js. No DOM, no THREE.
 
 import { TUNE, CFG, GOODS, GOOD, CHARS, CROWD_MIX, clamp, wrapAngle } from './config.js';
-import { navAim, navDistAt, clearPath, collide, blockedAt } from './world.js';
+import { navAim, navDistAt, clearPath, collide, blockedAt, fieldFrom } from './world.js';
 import { switchField, hazardsOn, passDelay, freeField, objExtent, patrolAt } from './objects.js';
 import { loadFactor } from './cart.js';
 
@@ -239,7 +239,7 @@ export function drive(sim, k, dt) {
   // they stop shopping. Full strength for the first 12 s and over the last fifth of the route.
   let pace = p.pace;
   ai.g = p.rival && sim.t < 3 ? 0 : ai.greed;       // rivals sprint off the line: the first shelf is the player's
-  if (p.rival && sim.t > 12 && !sim.player.done && sim.player.prog < world.navStart * 0.8) {
+  if (p.rival && p.char !== 'gramps' && !p.roam && sim.t > 12 && !sim.player.done && sim.player.prog < world.navStart * 0.8) {
     const gap = k.prog - sim.player.prog, mine = k.value + k.stunts, yours = sim.player.value + sim.player.stunts;
     if (gap > 22) { pace *= 0.86; ai.g = Math.min(1, ai.g * 1.3); } else if (gap < -8 && p.char !== 'granny') { pace = Math.max(pace, 1); ai.g *= 0.8; }   // Granny never hurries
     // ...and the same with money: far richer than the player it shops less, far poorer it shops harder.
@@ -268,6 +268,9 @@ export function drive(sim, k, dt) {
     if (navDistAt(world, k.x, k.z) - navDistAt(world, k.x, k.z, free) > 5) { field = free; flipper = true; }
   }
   const calm = !k.player || !world.barriers.some((b) => Math.hypot(b.x - k.x, b.z - k.z) < 14);
+  let rack = null;
+  if (!field && k.player && sim.mode === 'list') { rack = nextRack(sim, k); if (rack) field = rackField(world, rack); }
+  if (!field && p.roam) field = roamField(sim, k, ai, p.roam);
   // the way to the checkouts is shut (a gate): first to the nearest switch nobody has pressed yet
   if (!field && navDistAt(world, k.x, k.z) > 1e8) {
     let best = 1e8;
@@ -280,6 +283,7 @@ export function drive(sim, k, dt) {
   if (!navAim(world, k.x, k.z, p.look, CFG.CART_R + 0.3, aim, reach, field)) { inp.gas = 0; inp.brake = 1; return; }
   const bend = Math.abs(wrapAngle(Math.atan2(aim.fx - k.x, aim.fz - k.z) - k.h));
   let tx = aim.x, tz = aim.z;
+  if (rack && Math.hypot(rack.x - k.x, rack.z - k.z) < 6 && clearPath(world, k.x, k.z, rack.x - (rack.x - k.x) * 0.3, rack.z - (rack.z - k.z) * 0.3, CFG.CART_R - 0.1)) { tx = rack.x; tz = rack.z; }   // ram it
   // a robot vacuum just ahead: steer past it (they are small and slow; nobody waits for one)
   for (const ob of world.objs) {
     if (ob.kind !== 'patrol' || !ob.loop || Math.abs(ob.x - k.x) > 40 || Math.abs(ob.z - k.z) > 40) continue;
@@ -410,6 +414,38 @@ function upOnWay(world, k, free) {
     if (low < here - 0.5) { best = d; flipTo.x = b.x; flipTo.z = b.z; }
   }
   return best;
+}
+// LIST: the nearest rack (by the route) still holding a list item, and a distance field to it (cached).
+function nextRack(sim, k) {
+  let best = null, bd = 1e9;
+  for (const q of sim.world.pieces) {
+    if (q.type !== 'listrack' || q.good < 0) continue;
+    const d = Math.hypot(q.x - k.x, q.z - k.z) + (sim.world.nav[q.r * sim.world.cols + q.c] < 1e8 ? 0 : 0);
+    if (d < bd) { bd = d; best = q; }
+  }
+  return best;
+}
+function rackField(world, q) {
+  if (q.fieldVer !== world.navVer) {
+    const seeds = [];
+    for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const c = q.c + dc, r = q.r + dr; if (c >= 0 && r >= 0 && c < world.cols && r < world.rows && !world.block[r * world.cols + c]) seeds.push(r * world.cols + c, 0); }
+    q.field = fieldFrom(world, seeds, q.field || new Float32Array(world.cols * world.rows)); q.fieldVer = world.navVer;
+  }
+  return q.field;
+}
+// A roamer (Big Bubba in the food court) wanders between random spots of its patch [c0, r0, c1, r1] and never
+// checks out.
+function roamField(sim, k, ai, rect) {
+  const world = sim.world;
+  if (!ai.roamAt || sim.t > ai.roamT || Math.hypot(ai.roamAt[0] - k.x, ai.roamAt[1] - k.z) < 3) {
+    for (let n = 0; n < 20; n++) {
+      const c = rect[0] + Math.floor(sim.rng() * (rect[2] - rect[0] + 1)), r = rect[1] + Math.floor(sim.rng() * (rect[3] - rect[1] + 1));
+      if (!world.block[r * world.cols + c]) { ai.roamAt = [(c + 0.5) * CFG.TILE, (r + 0.5) * CFG.TILE]; ai.roamTile = r * world.cols + c; break; }
+    }
+    ai.roamT = sim.t + 4 + sim.rng() * 3; ai.roamVer = -1;
+  }
+  if (ai.roamVer !== world.navVer) { ai.roamField = fieldFrom(world, [ai.roamTile, 0], ai.roamField || new Float32Array(world.cols * world.rows)); ai.roamVer = world.navVer; }
+  return ai.roamField;
 }
 // A barrier that is down now would rise where the cart is (or is about to be) if it flipped them.
 function risesHere(world, k) {
