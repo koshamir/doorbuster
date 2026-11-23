@@ -9,7 +9,7 @@
 // Depends on: config.js, objects.js, render.js, shapes.js, atlas.js, kits.js, fixtures.js and the global THREE.
 
 import { CFG } from './config.js';
-import { SIGN, signAngle, tilePop, patrolAt, armAngle, laserAngle } from './objects.js';
+import { SIGN, signAngle, tilePop, patrolAt, armAngle, laserAngle, gloveReach, scissorState, chaserAt } from './objects.js';
 import { screenMaterial } from './kits.js';
 import { screen } from './fixtures.js';
 import { R, celMaterial, hullMaterial, blendMaterial, MRT_OUT, AUX_NONE } from './render.js';
@@ -47,7 +47,7 @@ const PROP_FLASH_VS = 'varying vec2 vUv; varying vec3 vColor; void main() { vUv 
 
 // ---- building -------------------------------------------------------------------------------------------
 export function buildProps(view, sim, kit) {
-  const world = sim.world, atlas = kitAtlas(kit), P = view.props = { signs: [], fields: [], patrols: [], buttons: [], gates: [], pads: [], watches: [], arches: [], bars: [], spins: [], lasers: [], t: 0 };
+  const world = sim.world, atlas = kitAtlas(kit), P = view.props = { signs: [], fields: [], patrols: [], buttons: [], gates: [], pads: [], watches: [], arches: [], bars: [], spins: [], lasers: [], gloves: [], scissors: [], yarn: null, t: 0 };
   const cel = celMaterial({ mapB: atlas, rim: 0.35 }), hull = hullMaterial(2.5);
   view.own.push(cel, hull);
   const mesh = (B, mats) => { const m = new THREE.Mesh(toGeometry(B, {}), mats || [cel, hull]); m.frustumCulled = false; m.layers.enable(1); return m; };
@@ -99,6 +99,12 @@ export function buildProps(view, sim, kit) {
       P.spins.push(turnstileModel(view, ob, mesh, atlas));
     } else if (ob.kind === 'laser') {
       P.lasers.push(laserModel(view, ob, mesh, flat));
+    } else if (ob.kind === 'glove') {
+      P.gloves.push(gloveModel(view, ob, mesh));
+    } else if (ob.kind === 'scissors') {
+      P.scissors.push(scissorsModel(view, ob, mesh, atlas, hull));
+    } else if (ob.kind === 'chaser') {
+      P.yarn = yarnModel(view, ob, mesh, atlas);
     } else if (ob.kind === 'patrol') {
       const g = new THREE.Group(), lamp = celMaterial({ mapB: atlas, rim: 0.35 });
       view.own.push(lamp);
@@ -327,6 +333,68 @@ function vacModel(mesh, lamp, hull) {
   const g = new THREE.Group(); g.add(body, light); return g;
 }
 
+// ---- level 4 objects -----------------------------------------------------------------------------------------
+// A boxing glove on a pressure plate: the red plate on the floor (it sinks when pressed), a gold mount in the wall,
+// an accordion arm that shoots the big red glove out across the lane (it pulls back and shivers first).
+function gloveModel(view, ob, mesh) {
+  const Bp = builder(), w = ob.pw * 2 - 0.1;
+  bind(Bp, 0, PPL(0.4)); box(Bp, w + 0.16, 0.03, 1.9, 0x8E96A8, { bevel: 0.1 });
+  bind(Bp, 0, PK(KIT.plate, 0.4)); at(Bp, 0, 0.02, 0); box(Bp, w, 0.04, 1.75, 0xFFFFFF, { bevel: 0.1, lid: PK(KIT.plate, 0.4), uvs: [1, 1] });
+  const plate = mesh(Bp); plate.position.set(ob.x, 0, ob.z); view.root.add(plate);
+  const g = new THREE.Group(); g.position.set(ob.gx, 0, ob.gz); g.rotation.y = Math.atan2(ob.dx, ob.dz);
+  const Bm = builder();
+  bind(Bm, 0, PPL(0.8)); at(Bm, 0, 0.45, -0.1); box(Bm, 1.2, 1.0, 0.3, 0xE9B949, { bevel: 0.15 });
+  bind(Bm, 0, PPL(0.3)); at(Bm, 0, 0.6, 0.05); box(Bm, 0.8, 0.7, 0.1, 0x5A2340, { bevel: 0.2 });
+  g.add(mesh(Bm));
+  const arm = new THREE.Group(), Ba = builder();
+  bind(Ba, 0, PPL(0.8)); for (let i = 0; i < 4; i++) for (const s of [1, -1]) { at(Ba, 0, 0.95, (i + 0.5) / 4, s * 0.7); box(Ba, 0.06, 0.06, 0.36, 0xDDE3EA, { bevel: 0, mid: true }); }
+  const armMesh = mesh(Ba); arm.add(armMesh);
+  const Bg = builder();
+  bind(Bg, 0, PPL(0.6)); at(Bg, 0, 0.95, 0.35); ellipsoid(Bg, 0.42, 0.38, 0.46, 0xE63946, { seg: 14, rings: 10 });
+  at(Bg, 0.3, 0.98, 0.25); ellipsoid(Bg, 0.14, 0.16, 0.22, 0xE63946, { seg: 10, rings: 8 });
+  bind(Bg, 0, PPL(0.2)); at(Bg, 0, 0.95, -0.05, 0, Math.PI / 2); cyl(Bg, 0.3, 0.3, 0.22, 0xFFFFFF, { seg: 12, mid: true });
+  const glove = mesh(Bg); g.add(arm, glove); view.root.add(g);
+  return { ob, plate, arm, glove };
+}
+// The blades' angle away from shut (0 = shut across the lane): they open after the snap, wait, slam shut.
+function bladeOpen(ob, t) {
+  const u = ((t / ob.period + ob.phase) % 1 + 1) % 1 * ob.period, shut = ob.period - ob.closed;
+  return u < 0.3 ? u / 0.3 : u < shut - 0.1 ? 1 : u < shut ? (shut - u) / 0.1 : 0;
+}
+// Giant scissors: two long blades pivoting on gold posts at both edges of the lane, big pink finger rings; they
+// swing back open, glint just before they snap shut across it.
+function scissorsModel(view, ob, mesh, atlas, hull) {
+  const g = new THREE.Group(), half = ob.span / 2;
+  g.position.set(ob.x, 0, ob.z); g.rotation.y = ob.ax ? -Math.PI / 2 : 0;
+  const blades = [], glint = celMaterial({ mapB: atlas, rim: 0.3 }); view.own.push(glint);
+  for (const s of [1, -1]) {
+    const Bp = builder();
+    bind(Bp, 0, PPL(0.9)); at(Bp, 0, 0, s * (half + 0.2)); cyl(Bp, 0.16, 0.2, 1.3, 0xE9B949, { seg: 10, top: 0xFFE9A6 });
+    bind(Bp, 0, PPL(0.5)); at(Bp, 0, 1.0, s * (half + 0.75), 0, Math.PI / 2); ring(Bp, 0.36, 0.3, 0.11, 0.1, 0xFF4FA3, { seg: 16 });
+    g.add(mesh(Bp));
+    const pivot = new THREE.Group(); pivot.position.set(0, 1.0, s * (half + 0.2));
+    const Bb = builder();
+    bind(Bb, 0, PPL(1)); at(Bb, 0, -0.06, -s * (half / 2 + 0.25)); box(Bb, 0.07, 0.34, half + 0.5, 0xDDE3EA, { bevel: 0.05, mid: true });
+    bind(Bb, 0, [0, 0, 0.6, -1]); at(Bb, 0.04, -0.2, -s * (half / 2 + 0.25)); box(Bb, 0.02, 0.06, half + 0.4, 0xFFFFFF, { bevel: 0, mid: true });
+    const blade = mesh(Bb, [glint, hull]); pivot.add(blade); g.add(pivot);
+    blades.push({ pivot, s });
+  }
+  view.root.add(g);
+  return { ob, blades, glint, last: 1 };
+}
+// The giant yarn ball: pink, wound in strands, a loose thread trailing; it waits on a gold stand above the stage,
+// drops when the handbag is taken and rolls after the player.
+function yarnModel(view, ob, mesh, atlas) {
+  const B = builder();
+  bind(B, 0, PKW(KIT.yarn, 0.2)); ellipsoid(B, ob.R, ob.R, ob.R, 0xFFFFFF, { seg: 22, rings: 16 });
+  bind(B, 0, PPL(0.2)); for (let i = 0; i < 6; i++) { const a = i * 1.05; at(B, Math.sin(a) * ob.R * 0.98, Math.cos(a * 1.7) * ob.R * 0.5, Math.cos(a) * ob.R * 0.98, a, 0.6); box(B, 0.1, 0.06, 0.8, 0xFF5FA2, { bevel: 0.4, mid: true }); }
+  const ball = mesh(B); ball.position.set(ob.sx, ob.R, ob.sz); view.root.add(ball);
+  const S = builder(); bind(S, 0, PPL(0.9)); cyl(S, 0.9, 1.1, 0.25, 0xE9B949, { seg: 18, top: 0xFFE9A6 }); at(S, 0, 0.25, 0); cyl(S, 0.12, 0.12, 2.6, 0xE9B949, { seg: 8 }); at(S, 0, 2.85, 0); cyl(S, 1.2, 0.9, 0.25, 0xE9B949, { seg: 18 });
+  const stand = mesh(S); stand.position.set(ob.sx, 0, ob.sz); view.root.add(stand);
+  void atlas;
+  return { ob, ball, stand, roll: new THREE.Quaternion(), last: { x: ob.sx, z: ob.sz }, q: new THREE.Quaternion(), axis: new THREE.Vector3() };
+}
+const YP = { x: 0, z: 0, h: 0, d: 0, drop: 0 };
 // A pallet jack: a low yellow frame with forks under a pallet of shrink-wrapped cans, a handle, a flashing light.
 function jackModel(mesh, lamp, hull) {
   const B = builder();
@@ -409,6 +477,34 @@ export function syncProps(view, sim, dt, draw) {
     l.side = side;
     l.head.rotation.y = a; l.beam.rotation.y = a;
     l.trail.rotation.y = a;
+  }
+  // boxing gloves: the plate sinks while it is pressed; the glove pulls back and shivers, then shoots out
+  for (const gl of P.gloves) {
+    const ob = gl.ob, e = gloveReach(ob, t), pre = t < ob.fireAt && t > ob.fireAt - 0.3 ? (t - ob.fireAt + 0.3) / 0.3 : 0;
+    const ext = Math.max(0.05, e * ob.reach - pre * 0.22 + Math.sin(P.t * 70) * 0.03 * pre);
+    gl.glove.position.z = ext - 0.3; gl.arm.scale.z = ext;
+    gl.plate.position.y = ob.armed ? 0 : -0.025;
+    if (e > 0.95 && !gl.hit) { gl.hit = true; gl.punch = true; } else if (e < 0.5) gl.hit = false;
+  }
+  // giant scissors: open, a glint, snap
+  for (const sc of P.scissors) {
+    const o = bladeOpen(sc.ob, t), st = scissorState(sc.ob, t);
+    for (const b of sc.blades) b.pivot.rotation.y = o * 1.2;
+    const gv = st === 1 ? 0.9 + 0.7 * Math.sin(P.t * 45) : 0; sc.glint.uniforms.uGlow.value.set(gv, gv, gv);
+    if (st === 2 && sc.last !== 2) sc.snip = true;
+    sc.last = st;
+  }
+  // the yarn ball: on its stand, dropping, rolling after the player
+  if (P.yarn) {
+    const y = P.yarn, ob = y.ob, p = ob.active ? chaserAt(ob, t, YP) : null;
+    let x = ob.sx, z = ob.sz, h = 3.1;
+    if (p) { x = p.x; z = p.z; h = p.drop > 0 ? 3.1 * Math.pow(p.drop / 0.8, 2) : 0; }
+    y.ball.visible = !ob.done;
+    y.ball.position.set(x, ob.R + h, z);
+    const dx = x - y.last.x, dz = z - y.last.z, d = Math.hypot(dx, dz);
+    if (d > 1e-4 && d < 5) { y.axis.set(dz / d, 0, -dx / d); y.q.setFromAxisAngle(y.axis, d / ob.R); y.ball.quaternion.premultiply(y.q); }
+    y.last.x = x; y.last.z = z;
+    if (!ob.done) draw.shadow(x, z, ob.R * (0.95 - h * 0.08), ob.R * (0.95 - h * 0.08), 0);
   }
   for (const b of P.buttons) {
     const ob = b.ob, since = ob.pressed ? t - ob.pressT : -1;

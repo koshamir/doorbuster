@@ -329,6 +329,38 @@ export const KIT = { sign0: 0, checkout: 8, banner: 9, sale: 10, pct: 11, wet: 1
   ch0: 48, s0: 52 };      // 48-51: the four TV channels; 52-63: a store's own signs and surfaces (STORE_ART)
 // A store's own cells (from KIT.ch0 up): the TV channels, its signs, posters and surfaces.
 const STORE_ART = {
+  boutique(cell, g, text, burst) {
+    const B = '#FFD6E0', G = '#E9B949', P = '#C2185B', D = '#5A2340';
+    // the store's sign, a velvet curtain, a fashion poster, the end of a shoe-box wall, four fabrics, a paparazzi standee
+    cell(KIT.s0, () => { g.fillStyle = D; g.fillRect(0, 0, 256, 128); g.lineWidth = 6; g.strokeStyle = G; g.strokeRect(8, 8, 240, 112); g.font = 'italic 900 34px Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#FFF3E8'; g.fillText('MAISON', 128, 44); g.fillStyle = G; g.fillText('MAYHEM', 128, 86); });
+    cell(KIT.s0 + 1, () => {
+      for (let x = 0; x < 256; x += 32) { const gr = g.createLinearGradient(x, 0, x + 32, 0); gr.addColorStop(0, '#5E0F2E'); gr.addColorStop(0.5, '#B3204F'); gr.addColorStop(1, '#5E0F2E'); g.fillStyle = gr; g.fillRect(x, 0, 32, 256); }
+      g.fillStyle = G; g.fillRect(0, 0, 256, 18); g.fillStyle = 'rgba(255,214,224,0.25)'; for (let x = 12; x < 256; x += 32) g.fillRect(x, 18, 4, 238);
+      g.fillStyle = G; g.beginPath(); g.arc(128, 150, 10, 0, 7); g.fill(); g.strokeStyle = G; g.lineWidth = 5; g.beginPath(); g.moveTo(40, 150); g.quadraticCurveTo(128, 175, 216, 150); g.stroke();
+    });
+    cell(KIT.s0 + 2, () => {
+      g.fillStyle = B; g.fillRect(0, 0, 256, 256); g.fillStyle = '#FFFFFF'; g.beginPath(); g.arc(128, 104, 80, 0, 7); g.fill();
+      g.fillStyle = D; g.beginPath(); g.arc(128, 62, 22, 0, 7); g.fill(); g.beginPath(); g.moveTo(108, 84); g.lineTo(148, 84); g.lineTo(176, 196); g.lineTo(80, 196); g.closePath(); g.fill();
+      g.fillStyle = P; g.beginPath(); g.moveTo(98, 120); g.lineTo(158, 120); g.lineTo(176, 196); g.lineTo(80, 196); g.closePath(); g.fill();
+      text('NEW SEASON', 128, 226, 32, D, null); g.lineWidth = 8; g.strokeStyle = G; g.strokeRect(4, 4, 248, 248);
+    });
+    cell(KIT.s0 + 3, () => {
+      const cols = ['#FF8FC7', '#FFFFFF', '#E9B949', '#2A2440', '#7CC6FE', '#E63946', '#FFF3E8', '#9B5DE5'];
+      for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) { const k = (r * 3 + c * 5) % cols.length; g.fillStyle = cols[k]; g.fillRect(c * 64 + 3, r * 64 + 3, 58, 58); g.fillStyle = 'rgba(42,26,58,0.25)'; g.fillRect(c * 64 + 3, r * 64 + 44, 58, 17); g.fillStyle = k === 3 ? '#FFFFFF' : D; g.fillRect(c * 64 + 20, r * 64 + 18, 24, 8); }
+    });
+    cell(KIT.s0 + 4, () => { for (let x = 0; x < 256; x += 32) { g.fillStyle = (x / 32) % 2 ? '#FFFFFF' : '#2A2440'; g.fillRect(x, 0, 32, 256); } });
+    cell(KIT.s0 + 5, () => { g.fillStyle = '#FF8FC7'; g.fillRect(0, 0, 256, 256); g.fillStyle = '#FFFFFF'; for (let y = 16; y < 256; y += 32) for (let x = 16 + ((y / 32) % 2) * 16; x < 256; x += 32) { g.beginPath(); g.arc(x, y, 7, 0, 7); g.fill(); } });
+    cell(KIT.s0 + 6, () => { g.fillStyle = '#7CC6FE'; g.fillRect(0, 0, 256, 256); for (let k = 0; k < 14; k++) { const x = (k * 71) % 256, y = (k * 113) % 256; g.fillStyle = ['#FFFFFF', '#FFD23F', '#FF8FC7'][k % 3]; for (let p = 0; p < 5; p++) { const a = p / 5 * 6.283; g.beginPath(); g.ellipse(x + Math.cos(a) * 10, y + Math.sin(a) * 10, 8, 5, a, 0, 7); g.fill(); } g.fillStyle = '#E9B949'; g.beginPath(); g.arc(x, y, 5, 0, 7); g.fill(); } });
+    cell(KIT.s0 + 7, () => { g.fillStyle = '#E9B949'; g.fillRect(0, 0, 256, 256); for (let k = 0; k < 30; k++) { const x = (k * 53) % 256, y = (k * 97) % 256; g.fillStyle = '#5A3A1A'; g.beginPath(); g.ellipse(x, y, 13, 9, k, 0, 7); g.fill(); g.fillStyle = '#C98A3B'; g.beginPath(); g.ellipse(x, y, 6, 4, k, 0, 7); g.fill(); } });
+    cell(KIT.s0 + 8, () => {
+      g.clearRect(0, 0, 256, 256); g.fillStyle = '#2A2440'; g.beginPath(); g.arc(128, 54, 30, 0, 7); g.fill();
+      g.fillRect(84, 86, 88, 120); g.fillRect(92, 200, 28, 56); g.fillRect(136, 200, 28, 56);
+      g.fillStyle = '#DDE3EA'; g.fillRect(70, 70, 64, 44); g.fillStyle = '#2A2440'; g.beginPath(); g.arc(102, 92, 15, 0, 7); g.fill(); g.fillStyle = '#7CC6FE'; g.beginPath(); g.arc(102, 92, 9, 0, 7); g.fill();
+      g.fillStyle = '#FFFFFF'; g.fillRect(118, 60, 22, 12); burst(150, 52, 34, 16, 8, '#FFF6B0');
+      g.lineWidth = 6; g.strokeStyle = '#FFFFFF'; g.strokeRect(84, 86, 88, 120);
+    });
+    cell(KIT.s0 + 9, () => { g.fillStyle = D; g.fillRect(0, 0, 256, 128); for (let x = 16; x < 256; x += 28) { g.fillStyle = '#FFF1C4'; g.beginPath(); g.arc(x, 14, 7, 0, 7); g.fill(); g.beginPath(); g.arc(x, 114, 7, 0, 7); g.fill(); } text('RUNWAY', 128, 64, 52, '#FFF3E8', G); });
+  },
   electronics(cell, g, text, burst) {
     const C = '#00E5FF', M = '#FF4FD8', N = '#1B1F3B';
     // the four channels (the screen shader animates them): a platformer, a cartoon cat, the match, a music show

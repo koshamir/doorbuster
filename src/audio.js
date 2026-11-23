@@ -254,6 +254,8 @@ export function objectSound(kind, vol) {
   if (kind === 'zip') { tone(A.sfx, 'sawtooth', 2400, 600, t, 0.22, 0.05 * vol); tone(A.sfx, 'sine', 160, 150, t, 0.3, 0.12 * vol); }      // the laser sweeps past
   else if (kind === 'clank') { clang(t, 3, 0.1 * vol); tone(A.sfx, 'square', 120, 60, t, 0.12, 0.1 * vol); }                        // trapdoors drop open
   else if (kind === 'snip') { hiss(A.sfx, 'highpass', 6000, 0, 3, t, 0.08, 0.2 * vol); tone(A.sfx, 'triangle', 2600, 1800, t + 0.05, 0.07, 0.12 * vol); }   // scissors shut
+  else if (kind === 'punch') { boom(t, 0.5 * vol, 200); click(t, 0.4 * vol); }
+  else if (kind === 'rumble') { tone(A.sfx, 'sawtooth', 46, 38, t, 0.3, 0.12 * vol); hiss(A.sfx, 'lowpass', 300, 120, 0.7, t, 0.3, 0.1 * vol); }
   else if (kind === 'boing') { }
   else if (kind === 'creak') { tone(A.sfx, 'sawtooth', 110 + Math.random() * 30, 70, t, 0.32, 0.07 * vol); hiss(A.sfx, 'bandpass', 600, 300, 4, t, 0.3, 0.06 * vol); }
   else if (kind === 'beep' && soon('beep', 0.4)) tone(A.sfx, 'square', 1250, 0, t, 0.14, 0.07 * vol);

@@ -153,6 +153,7 @@ const DEMO = {
 const DEMO_OBJECTS = {
   electronics: [['turnstile', 21, 3, {}], ['barrier', 12, 10, { c1: 13, color: 'red' }], ['barrier', 15, 10, { c1: 16, color: 'blue' }], ['laser', 22, 10, { len: 5 }],
     ['patrol', 24, 14, { type: 'vacuum', to: [[25, 14], [25, 15], [24, 15]] }], ['panels', 12, 15, { cols: 3, rows: 2, pattern: 'wave' }]],
+  boutique: [['glove', 13.5, 10, { from: [12.5, 9], dir: 'e', reach: 3, pw: 2 }], ['scissors', 22, 10, { across: 'z', span: 4 }], ['chaser', 24, 14, {}]],
 };
 function kitShow(kit, view, q) {
   const def = Object.assign({}, DEMO, { kit: kit.id, objects: DEMO_OBJECTS[kit.id] || [] });

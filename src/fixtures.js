@@ -47,7 +47,8 @@ export function buildStore(view, sim, kit, shadow) {
       at(W, x - dc * 0.025, kit.walls.neon ? 1.35 : 1.15, z - dr * 0.025, ry); box(W, T2, kit.walls.neon ? 0.1 : 0.5, 0.06, kit.walls.band, { bevel: 0 });
       bind(W, 0, PL(0));
       at(W, x - dc * 0.025, 1.78, z - dr * 0.025, ry); box(W, T2, 0.1, 0.06, kit.walls.stripe, { bevel: 0 });
-      if ((c * 7 + r * 3) % 9 === 0) { face++; const pc = (kit.posters || [KIT.sale, KIT.poster2, KIT.poster3])[face % 3]; bind(W, 0, K(pc, 0.1)); at(W, x - dc * 0.05, 0.55, z - dr * 0.05, ry); box(W, 1.1, 1.1, 0.03, 0xFFFFFF, { bevel: 0, front: K(pc, 0.1) }); }
+      if (kit.walls.booths && (c + r) % 2 === 0) { bind(W, 0, K(KIT.s0 + 1, 0.2)); at(W, x - dc * 0.06, 0.06, z - dr * 0.06, ry); box(W, T2 - 0.25, 2.3, 0.05, 0xFFFFFF, { bevel: 0, front: K(KIT.s0 + 1, 0.2) }); bind(W, 0, PL(0.9)); at(W, x - dc * 0.1, 2.4, z - dr * 0.1, ry); box(W, T2 - 0.1, 0.07, 0.07, 0xE9B949, { bevel: 0.3 }); bind(W, 0, PL(0)); }
+      else if ((c * 7 + r * 3) % 9 === 0) { face++; const pc = (kit.posters || [KIT.sale, KIT.poster2, KIT.poster3])[face % 3]; bind(W, 0, K(pc, 0.1)); at(W, x - dc * 0.05, 0.55, z - dr * 0.05, ry); box(W, 1.1, 1.1, 0.03, 0xFFFFFF, { bevel: 0, front: K(pc, 0.1) }); }
       if ((c + r) % 2 === 0) bulbs.push([x - dc * 0.1, z - dr * 0.1]);
       overstock(W, x, z, dc, dr, ry, c * 31 + r * 17 + dc * 5 + dr * 3, kit);
     }
@@ -64,6 +65,7 @@ export function buildStore(view, sim, kit, shadow) {
   world.shelves.forEach((s, i) => {
     const style = (kit.shelves || {})[s.kind] || 'gondola';
     if (style === 'produce') produceRun(B, s, F, view, stock); else if (style === 'freezer') freezerRun(B, s, F, view, stock); else if (style === 'rack') rackRun(B, s, F, view, stock);
+    else if (style === 'clothes') clothesRun(B, s, F, view, stock); else if (style === 'foldtable') foldTable(B, s, F, view, stock); else if (style === 'shoewall') shoeWall(B, s, F, view, stock);
     else if (style === 'tech') techRun(B, S, s, F, view, stock); else if (style === 'techtable') techTable(B, S, s, F, view, stock); else if (style === 'tvwall') tvWall(B, S, s, F, view, stock); else gondolaRun(B, s, F, view, stock, i, kit);
     shadow(s.x, s.z, s.hx + 0.25, s.hz + 0.25, 0);
   });
@@ -278,6 +280,50 @@ function tvWall(B, S, s, F, view, stock) {
   void stock; void view;
 }
 
+// ---- the boutique (DRESS TO DISTRESS) ---------------------------------------------------------------------------
+const FABRIC = [0, 1, 2, 3].map((k) => KIT.s0 + 4 + k), CLOTH = [0xFFFFFF, 0xFF8FC7, 0x7CC6FE, 0xE9B949, 0xC9A0DC, 0xE63946, 0x2A2440, 0xFFF3E8];
+// A clothes rack: a blush plinth (the goods along its sides), two gold uprights and a rail, a row of garments in
+// patterned fabrics on hangers, a little gold sign at the end.
+function clothesRun(B, s, F, view, stock) {
+  const along = s.horiz ? s.hx * 2 : s.hz * 2, depth = s.horiz ? s.hz * 2 : s.hx * 2;
+  const P = runFrame(s), ry = s.horiz ? 0 : Math.PI / 2, put = (u, y, w) => at(B, ...P(u, y, w), ry);
+  bind(B, 0, PL(0.3)); put(0, 0, 0); box(B, along, 0.46, depth - 0.2, 0xFFD6E0, { bevel: 0.12, top: 0xFFF3E8 });
+  bind(B, 0, PL(0.9)); put(0, 0.46, 0); box(B, along + 0.02, 0.04, depth - 0.16, F.accent, { bevel: 0 });
+  for (const e of [-1, 1]) { put(e * (along / 2 - 0.12), 0.46, 0); cyl(B, 0.04, 0.04, 1.4, F.accent, { seg: 8 }); }
+  put(0, 1.84, 0); box(B, along - 0.2, 0.06, 0.06, F.accent, { bevel: 0.3, mid: true });
+  const n = Math.max(2, Math.round((along - 0.4) / 0.34));
+  for (let j = 0; j < n; j++) {
+    const u = -along / 2 + 0.3 + (j + 0.5) * (along - 0.6) / n, k = fhash(s.x * 5 + j, s.z * 3) % 8, f = FABRIC[(j + Math.floor(s.x)) % 4], [x, , z] = P(u, 0, 0);
+    bind(B, 0, PL(0.6)); at(B, x, 1.72, z, ry); box(B, 0.04, 0.1, 0.4, 0xDDE3EA, { bevel: 0 });
+    bind(B, 0, KW(f, 0.15)); at(B, x, 0.86, z, ry + (k % 2 ? 0.12 : -0.08)); box(B, 0.12, 0.86, 0.52, CLOTH[k], { bevel: 0.35, sides: KW(f, 0.15), front: KW(f, 0.15), back: KW(f, 0.15), uvs: [0.6, 1] });
+  }
+  void view; void stock;
+}
+// A table of folded sweaters: a cream top on gold legs, stacks of soft folded knits in colours, a price card.
+function foldTable(B, s, F, view, stock) {
+  const along = s.horiz ? s.hx * 2 : s.hz * 2, depth = s.horiz ? s.hz * 2 : s.hx * 2;
+  const P = runFrame(s), ry = s.horiz ? 0 : Math.PI / 2, put = (u, y, w) => at(B, ...P(u, y, w), ry);
+  bind(B, 0, PL(0.8)); for (const e of [-1, 1]) for (const w of [-1, 1]) { put(e * (along / 2 - 0.15), 0, w * (depth / 2 - 0.25)); cyl(B, 0.04, 0.03, 0.42, F.accent, { seg: 6 }); }
+  bind(B, 0, PL(0.5)); put(0, 0.42, 0); box(B, along, 0.08, depth - 0.2, 0xFFF3E8, { bevel: 0.25, top: 0xFFFAF4 });
+  const n = Math.max(1, Math.round(along / 0.7));
+  for (let j = 0; j < n; j++) {
+    const u = -along / 2 + (j + 0.5) * along / n, [x, , z] = P(u, 0, 0), h = 2 + fhash(s.x + j, s.z) % 3;
+    for (let q = 0; q < h; q++) { bind(B, 0, PL(0.1)); at(B, x, 0.5 + q * 0.13, z, ry + (q % 2) * 0.06); box(B, 0.46, 0.12, 0.4, CLOTH[(j * 3 + q + Math.floor(s.z)) % 8], { bevel: 0.4 }); }
+  }
+  void view; void stock;
+}
+// A wall of shoe boxes: stacks of coloured box ends in a gold frame (both faces when it stands free), a plinth with
+// the goods, the store's sign on top.
+function shoeWall(B, s, F, view, stock) {
+  const along = s.horiz ? s.hx * 2 : s.hz * 2, depth = s.horiz ? s.hz * 2 : s.hx * 2;
+  const P = runFrame(s), ry = s.horiz ? 0 : Math.PI / 2, put = (u, y, w) => at(B, ...P(u, y, w), ry);
+  bind(B, 0, PL(0.3)); put(0, 0, 0); box(B, along, 0.46, depth, 0xFFD6E0, { bevel: 0.08, top: 0xFFF3E8 });
+  bind(B, 0, KW(KIT.s0 + 3, 0.1)); put(0, 0.46, 0); box(B, along - 0.1, 2.0, 0.9, 0xFFFFFF, { bevel: 0.03, front: KW(KIT.s0 + 3, 0.1), back: KW(KIT.s0 + 3, 0.1), uvs: [along / 2, 2], top: 0xD9B98A });
+  bind(B, 0, PL(0.9)); put(0, 2.46, 0); box(B, along + 0.04, 0.08, 0.96, F.accent, { bevel: 0.2 }); for (const e of [-1, 1]) { put(e * (along / 2 - 0.02), 0.46, 0); box(B, 0.08, 2.04, 0.96, F.accent, { bevel: 0.2 }); }
+  if (along >= 5) { bind(B, 0, K(KIT.s0, 0.2)); for (const side of [-1, 1]) { const [x, , z] = P(0, 0, side * 0.5); at(B, x, 2.95, z, s.horiz ? (side > 0 ? 0 : Math.PI) : (side > 0 ? Math.PI / 2 : -Math.PI / 2)); box(B, 2.4, 0.62, 0.04, 0xFFFFFF, { bevel: 0, mid: true, front: K(KIT.s0, 0.2) }); } }
+  void view; void stock;
+}
+
 // The pits: for each pit tile (a '_' in the plan, or a tile under sliding panels) walls go down 2.2 m on the sides
 // that border floor, a dark bottom with the store's spill-over on it (cartons; clothes in the boutique), and a
 // hazard-striped rim on the floor round the edge.
@@ -294,10 +340,14 @@ function pits(B, world, kit) {
       if (isPit(c + dc, r + dr)) continue;
       const ry = dc ? Math.PI / 2 : 0;
       bind(B, 0, PL(0)); at(B, x0 + 1 + dc * 0.98, -D, z0 + 1 + dr * 0.98, ry); box(B, T2, D, 0.04, cloth ? 0x8A4A6E : 0x2E3150, { bevel: 0, top: 0x8E96A8 });
-      bind(B, 0, KW(KIT.stripe, 0.1)); at(B, x0 + 1 + dc * 1.12, -0.035, z0 + 1 + dr * 1.12, ry); box(B, T2 + 0.24, 0.05, 0.24, 0xFFFFFF, { bevel: 0, lid: KW(KIT.stripe, 0.1), uvs: [T2 / 0.6, 0.4] });
+      if (cloth) {
+        bind(B, 0, PL(0.9)); at(B, x0 + 1 + dc * 1.1, 0, z0 + 1 + dr * 1.1, ry); box(B, T2 + 0.2, 0.1, 0.2, 0xE9B949, { bevel: 0.2 });
+        bind(B, 0, PL(0.4, 0.95)); for (let k = 0; k < 4; k++) { const o = -0.75 + k * 0.5, bx = x0 + 1 + dc * 1.1 + (dc ? 0 : o), bz = z0 + 1 + dr * 1.1 + (dc ? o : 0); at(B, bx, 0.1, bz); ellipsoid(B, 0.07, 0.07, 0.07, 0xFFF1C4, { seg: 6, rings: 4 }); }
+      } else { bind(B, 0, KW(KIT.stripe, 0.1)); at(B, x0 + 1 + dc * 1.12, -0.035, z0 + 1 + dr * 1.12, ry); box(B, T2 + 0.24, 0.05, 0.24, 0xFFFFFF, { bevel: 0, lid: KW(KIT.stripe, 0.1), uvs: [T2 / 0.6, 0.4] }); }
     }
     // what lies at the bottom
     const h = (k) => frac(Math.sin((c * 31 + r * 17 + k) * 12.9898) * 43758.5453);
+    if (cloth && (c * 3 + r * 7) % 11 === 0) { bind(B, 0, PL(0.6)); at(B, x0 + 1, -D, z0 + 1); cyl(B, 0.05, 0.05, D + 1.3, 0xE9B949, { seg: 6 }); bind(B, 0, K(KIT.bin, 0.2)); at(B, x0 + 1, 1.3, z0 + 1, 0.4); box(B, 1.6, 0.8, 0.05, 0xFFFFFF, { bevel: 0, mid: true, front: K(KIT.bin, 0.2), back: K(KIT.bin, 0.2) }); }
     if (cloth) { for (let k = 0; k < 6; k++) { bind(B, 0, PL(0.1)); at(B, x0 + 0.3 + h(k) * 1.4, -D, z0 + 0.3 + h(k + 9) * 1.4, h(k + 3) * 6); ellipsoid(B, 0.45 + h(k + 5) * 0.3, 0.22 + h(k + 7) * 0.2, 0.35, [0xFF8FC7, 0xE9B949, 0x7CC6FE, 0xFFFFFF, 0x9B5DE5, 0xE63946][k], { seg: 8, rings: 5 }); } }
     else for (let k = 0; k < 3; k++) { bind(B, 0, PL(0.1)); const sz = 0.5 + h(k) * 0.4; at(B, x0 + 0.4 + h(k + 2) * 1.2, -D, z0 + 0.4 + h(k + 4) * 1.2, h(k + 6) * 3); box(B, sz, sz * 0.8, sz, [0xB89A6E, 0xA88A60, 0xC4A574][k], { bevel: 0.04, top: 0x9C8158 }); }
   }
@@ -442,7 +492,7 @@ export function pieceMesh(type, kit) {
   let g = pieceCache.get(type + kit.id);
   if (!g) {
     const B = builder();
-    PIECE[type](B, kit.fixture);
+    PIECE[type](B, kit.fixture, kit);
     g = { geo: toGeometry(B, {}), labels: type === 'pyramid' || type === 'mega' };
     pieceCache.set(type + kit.id, g);
   }
@@ -475,13 +525,15 @@ const PIECE = {
       for (const k of [-1, 1]) { at(B, x + k * 0.07, y + s * 0.85, z, x * 2, 0, k * 0.6); ellipsoid(B, 0.09, 0.06, 0.05, 0xFFD23F, { seg: 8, rings: 5 }); }
     }
   },
-  stand(B, F) {                         // a cardboard sale standee
+  stand(B, F, kit) {                    // a cardboard sale standee (a paparazzo with a flash in the boutique)
+    if (kit && kit.id === 'boutique') { bind(B, 0, PL(0.1)); box(B, 0.9, 0.1, 0.6, 0xC98A5B, { bevel: 0.2 }); at(B, 0, 0.08, -0.1, 0, -0.2); box(B, 0.1, 1.4, 0.06, 0xA86E43, { bevel: 0 }); bind(B, 0, K(KIT.s0 + 8, 0.1)); at(B, 0, 0.1, 0.05); box(B, 1.0, 1.7, 0.04, 0xFFFFFF, { bevel: 0, front: K(KIT.s0 + 8, 0.1), mid: false }); return; }
     bind(B, 0, PL(0.1)); box(B, 0.9, 0.1, 0.6, 0xC98A5B, { bevel: 0.2 });
     at(B, 0, 0.08, -0.1, 0, -0.2); box(B, 0.1, 1.2, 0.06, 0xA86E43, { bevel: 0 });
     bind(B, 0, K(KIT.pct, 0.1)); at(B, 0, 0.55, 0.05); box(B, 1.2, 1.2, 0.04, 0xFFFFFF, { bevel: 0, front: K(KIT.pct, 0.1), sides: K(KIT.sale), mid: false });
     void F;
   },
-  podium(B, F) {                        // a round pedestal with gold trim, two posts and a red ribbon in front
+  podium(B, F, kit) {                   // a round pedestal with gold trim, two posts and a red ribbon in front (on a runway stage of bulbs in the boutique)
+    if (kit && kit.id === 'boutique') { bind(B, 0, PL(0.6)); at(B, 0, 0, 0); cyl(B, 2.4, 2.5, 0.08, 0xFFF3E8, { seg: 32, top: 0xFFFAF4 }); bind(B, 0, PL(0.9)); at(B, 0, 0.06, 0, 0, Math.PI / 2); ring(B, 2.42, 2.42, 0.06, 0.06, 0xE9B949, { seg: 32 }); bind(B, 0, PL(0.4, 0.95)); for (let i = 0; i < 18; i++) { const a = i / 18 * 6.283; at(B, Math.sin(a) * 2.42, 0.1, Math.cos(a) * 2.42); ellipsoid(B, 0.08, 0.08, 0.08, 0xFFF1C4, { seg: 6, rings: 4 }); } }
     bind(B, 0, PL(0.4)); cyl(B, 0.85, 0.9, 0.3, F.dark, { seg: 20, top: 0xFFD23F });
     at(B, 0, 0.3, 0); lathe(B, [[0.84, 0], [0.88, 0.03], [0.84, 0.06]], 0xFFD23F, { seg: 20 });
     bind(B, 0, PL(1)); for (const x of [-0.8, 0.8]) { at(B, x, 0, 0.75); cyl(B, 0.06, 0.07, 0.95, 0xFFD23F, { seg: 8 }); at(B, x, 0.98, 0.75); ellipsoid(B, 0.1, 0.1, 0.1, 0xFFD23F, { seg: 8, rings: 6 }); }
@@ -502,11 +554,13 @@ const PIECE = {
     bind(B, 0, K(KIT.pct)); at(B, 0.45, 1.7, 0.76); box(B, 0.5, 0.5, 0.006, 0xFFFFFF, { bevel: 0, front: K(KIT.pct) });
   },
   table(B, F) { bind(B, 0, PL(0.3)); at(B, 0, 0.5, 0); cyl(B, 0.6, 0.6, 0.08, F.body, { seg: 14, top: F.accent }); at(B, 0, 0, 0); cyl(B, 0.12, 0.2, 0.5, 0xDDE3EA, { seg: 8 }); },
-  boxes(B) {
+  boxes(B, F, kit) {
+    if (kit && kit.id === 'boutique') { for (let i = 0; i < 5; i++) { const c = [0xFF8FC7, 0xFFFFFF, 0x2A2440, 0xE9B949, 0xFFD6E0][i]; bind(B, 0, PL(0.2)); at(B, (i % 2) * 0.12 - 0.06, i * 0.3, 0, i * 0.15); box(B, 0.7, 0.24, 0.46, c, { bevel: 0.05 }); at(B, (i % 2) * 0.12 - 0.06, i * 0.3 + 0.22, 0, i * 0.15); box(B, 0.74, 0.08, 0.5, i === 2 ? 0xE9B949 : 0xFFFFFF, { bevel: 0.1 }); } return; }
     bind(B, 0, PL(0.1)); box(B, 0.7, 0.5, 0.6, 0xC98A5B, { bevel: 0.08, top: 0xE0A878 }); at(B, 0, 0.5, 0); box(B, 0.16, 0.012, 0.62, 0xE8D7A8, { bevel: 0 });
     at(B, 0.08, 0.5, 0, 0.5); box(B, 0.5, 0.4, 0.44, 0xD9A36E, { bevel: 0.08, top: 0xE8BC8A });
   },
-  mannequin(B) {                        // glossy and faceless
+  mannequin(B, F, kit) {                // glossy and faceless (dressed to the nines in the boutique)
+    if (kit && kit.id === 'boutique') { const f = KIT.s0 + 4; bind(B, 0, KW(f + 1, 0.2)); at(B, 0, 0.5, 0); cyl(B, 0.42, 0.17, 0.82, 0xFFFFFF, { seg: 12, side: KW(f + 1, 0.2), uRep: 2, top: 0xFF8FC7 }); bind(B, 0, PL(0.9)); at(B, 0, 1.7, 0); cyl(B, 0.3, 0.28, 0.03, 0xE9B949, { seg: 14 }); at(B, 0, 1.72, 0); cyl(B, 0.15, 0.13, 0.12, 0xE9B949, { seg: 10 }); }
     bind(B, 0, PL(1)); cyl(B, 0.3, 0.3, 0.06, F_INK, { seg: 12 }); at(B, 0, 0.06, 0); cyl(B, 0.03, 0.03, 0.5, 0xDDE3EA, { seg: 6 });
     at(B, 0, 0.95, 0); ellipsoid(B, 0.24, 0.42, 0.18, 0xF4F1FA, { seg: 14, rings: 10 }); at(B, 0, 1.55, 0); ellipsoid(B, 0.15, 0.18, 0.15, 0xF4F1FA, { seg: 12, rings: 8 });
   },
@@ -515,6 +569,29 @@ const PIECE = {
 // A demonstration set of every supermarket fixture for the kit showcase: deli with awning and shutter, fish counter on ice.
 export function fixtureDemo(B, kit, x, z) {
   const F = kit.fixture;
+  if (kit.id === 'electronics') {
+    // the VR zone: two pods (rings of neon on a disc, a headset on a stand), a neon arch over them
+    for (let i = 0; i < 2; i++) {
+      const px = x + i * 3.2;
+      bind(B, 0, PL(0.4)); at(B, px, 0, z); cyl(B, 1.1, 1.2, 0.12, F.dark, { seg: 24, top: 0x2A2F5A });
+      bind(B, 0, PL(0.4, 0.9)); at(B, px, 0.13, z, 0, Math.PI / 2); ring(B, 1.0, 1.0, 0.05, 0.05, i ? F.trim : F.accent, { seg: 24 });
+      bind(B, 0, PL(0.6)); at(B, px, 0.12, z); cyl(B, 0.05, 0.05, 1.3, 0xDDE3EA, { seg: 6 }); at(B, px, 1.42, z); box(B, 0.4, 0.2, 0.25, 0x1B1F3B, { bevel: 0.3, mid: true });
+      bind(B, 0, PL(0.3, 1)); at(B, px, 1.42, z + 0.13); box(B, 0.32, 0.08, 0.02, F.accent, { bevel: 0, mid: true });
+    }
+    bind(B, 0, PL(0.3, 0.95)); at(B, x + 1.6, 0, z - 1.6); tube(B, [[-3.2, 0, 0], [-3.2, 3.2, 0], [-2.4, 3.9, 0], [2.4, 3.9, 0], [3.2, 3.2, 0], [3.2, 0, 0]], 0.08, F.trim, { seg: 6 });
+    bind(B, 0, K(KIT.s0 + 1, 0.2, 0.3)); at(B, x + 1.6, 4.0, z - 1.6); box(B, 2.4, 1.2, 0.05, 0xFFFFFF, { bevel: 0, mid: true, front: K(KIT.s0 + 1, 0.2, 0.3) });
+    return;
+  }
+  if (kit.id === 'boutique') {
+    // a fitting room (velvet curtain, gold rail, a mirror), a mannequin in a dress, a chandelier
+    bind(B, 0, PL(0.3)); at(B, x, 0, z - 0.8); box(B, 2.4, 2.6, 0.2, 0xFFD6E0, { bevel: 0.05, top: 0x8A4A6E }); for (const s of [-1, 1]) { at(B, x + s * 1.2, 0, z - 0.1); box(B, 0.12, 2.6, 1.4, 0xFFD6E0, { bevel: 0.1 }); }
+    bind(B, 0, K(KIT.s0 + 1, 0.2)); at(B, x, 0.05, z + 0.55); box(B, 2.2, 2.3, 0.05, 0xFFFFFF, { bevel: 0, front: K(KIT.s0 + 1, 0.2) });
+    bind(B, 0, PL(0.9)); at(B, x, 2.4, z + 0.6); box(B, 2.4, 0.07, 0.07, F.accent, { bevel: 0.3 });
+    bind(B, 0, PL(1, 0.2)); at(B, x + 3.4, 0.2, z - 0.5); box(B, 0.9, 1.9, 0.06, 0xEAF6FF, { bevel: 0.1 }); bind(B, 0, PL(0.9)); at(B, x + 3.4, 0.1, z - 0.5); box(B, 1.0, 2.1, 0.04, F.accent, { bevel: 0.1 });
+    bind(B, 0, PL(0.9, 0.3)); at(B, x + 6, 3.4, z); ring(B, 0.9, 0.9, 0.06, 0.06, F.accent, { seg: 20 }); for (let i = 0; i < 10; i++) { const a = i / 10 * 6.283; bind(B, 0, PL(1, 0.6)); at(B, x + 6 + Math.sin(a) * 0.9, 3.1, z + Math.cos(a) * 0.9); ellipsoid(B, 0.07, 0.14, 0.07, 0xFFF6E8, { seg: 6, rings: 5 }); }
+    bind(B, 0, PL(0.9)); at(B, x + 6, 3.4, z); cyl(B, 0.03, 0.03, 2.0, F.accent, { seg: 6 });
+    return;
+  }
   if (kit.id === 'warehouse') {
     // the loading bay: shrink-wrapped pallets of cans, a stack of stencilled cartons, oil drums, a caged lamp
     for (let i = 0; i < 3; i++) {

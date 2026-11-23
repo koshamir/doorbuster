@@ -185,6 +185,7 @@ function onEvent(e) {
   if (!mine) {
     const close = (x, z) => Math.hypot(x - p.x, z - p.z) < 22;
     if (e.type === 'pancake' && close(e.ref.x, e.ref.z)) sticker('SPLAT!', 'splat', e.ref.x, 1.4, e.ref.z);
+    if (e.type === 'chaser' && e.value) { popWord('RUN!', 'bad'); R.cam.shake = Math.min(1, R.cam.shake + 0.6); }
     if (e.type === 'flip') {           // the store swaps its barriers: the screen flashes the colour that is now solid
       if (e.value) R.u.uTint.value.set(1.0, 0.3, 0.25); else R.u.uTint.value.set(0.35, 0.55, 1.0);
       R.u.uTintAmt.value = 0.42; game.flipT = 0.3;
@@ -290,7 +291,15 @@ function pointers(dt) {
       const rel = Math.atan2(w.x - p.x, w.z - p.z) - R.cam.yaw, c = toScreen(p.x, 0.6, p.z), r = R.h * 0.16;
       setWarn(true, Math.max(pad, Math.min(R.w - pad, c.x - Math.sin(rel) * r)), Math.max(pad * 2, Math.min(R.h - pad * 0.4, c.y - Math.cos(rel) * r + R.h * 0.05)));
     }
-  } else { setWarn(false); game.warner = null; }
+  } else {
+    setWarn(false); game.warner = null;
+    // the yarn ball rolling up behind: the same '!' on the side it comes from, once it is within 15 m
+    const ch = sim.world.chaser;
+    if (ch && ch.active && playing && Math.hypot(ch.x - p.x, ch.z - p.z) < 15) {
+      const rel = Math.atan2(ch.x - p.x, ch.z - p.z) - R.cam.yaw, c = toScreen(p.x, 0.6, p.z), r = R.h * 0.16, pad = R.h * 0.08;
+      setWarn(true, Math.max(pad, Math.min(R.w - pad, c.x - Math.sin(rel) * r)), Math.max(pad * 2, Math.min(R.h - pad * 0.4, c.y - Math.cos(rel) * r + R.h * 0.05)));
+    }
+  }
   // Teaching without text: steering and throttle at the start, the dash before the first thing to
   // dash through, the drift before the first round display. Each goes away after its first use.
   let keys = null;
@@ -354,6 +363,9 @@ function tick(dt, draw) {
     for (const sg of props.signs) if (sg.creak) { sg.creak = false; objectSound('creak', near(sg.ob.x, sg.ob.z)); }
     for (const pt of props.patrols) if (pt.pos && !pt.ob.loop && Math.sin(game.clock * 6.3) > 0.97) objectSound('beep', near(pt.pos.x, pt.pos.z));
     for (const l of props.lasers) if (l.zip) { l.zip = false; objectSound('zip', near(l.ob.x, l.ob.z)); }
+    for (const sc of props.scissors) if (sc.snip) { sc.snip = false; objectSound('snip', near(sc.ob.x, sc.ob.z)); }
+    for (const gl of props.gloves) if (gl.punch) { gl.punch = false; objectSound('punch', near(gl.ob.gx, gl.ob.gz)); }
+    if (props.yarn && props.yarn.ob.active) { const y = props.yarn.ball.position, c = near(y.x, y.z); R.cam.shake = Math.max(R.cam.shake, c * c * 0.35); if (Math.sin(game.clock * 9) > 0.9) objectSound('rumble', c); }
     for (const f of props.fields) if (f.clank) { f.clank = false; objectSound(f.trap ? 'clank' : 'boing', near(f.ob.x, f.ob.z)); }
   }
   // Money being swept right now is one running label above the cart; when the run of goods ends it
