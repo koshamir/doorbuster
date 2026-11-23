@@ -3,10 +3,10 @@
 //          close-up or orbit camera: ?scene=lineup (the cast; &view=crowd the crowd row; &flat=1 flat ink
 //          silhouettes), ?scene=faces (the expression sheet; &small=1 at gameplay size), ?scene=cart
 //          (upgrade tiers and cosmetics) and ?scene=kit&store=<store> (a store kit; &view=wide|start|shelf|hazard).
-// Exports: initShowcase, makeTitle
+// Exports: initShowcase, makeTitle, makeTurntable, portraitShot
 // Depends on: render.js, rig.js, crowd.js, cast.js, kits.js, atlas.js and the global THREE.
 
-import { R, setGrade, updateCamera, celMaterial, blendMaterial, MRT_OUT } from './render.js';
+import { R, setGrade, updateCamera, celMaterial, hullMaterial, blendMaterial, MRT_OUT } from './render.js';
 import { makeCharacter, makeRacer, poseCart, animate, setFace, poseRig } from './rig.js';
 import { PAINTS, HATS, cartSpecFor } from './cartart.js';
 import { makeCrowd, syncCrowd, crowdPose, disposeCrowd } from './crowd.js';
@@ -15,7 +15,7 @@ import { KITS, floorMaterial, kitOf } from './kits.js';
 import { createSim } from './sim.js';
 import { buildScene, syncScene } from './scene.js';
 import { fixtureDemo } from './fixtures.js';
-import { builder, toGeometry, at, bind, box, cyl, ellipsoid, tube } from './shapes.js';
+import { builder, toGeometry, at, bind, box, cyl, ellipsoid, tube, ring } from './shapes.js';
 import { EXPR, KIT, kitAtlas } from './atlas.js';
 
 // A plain stage: the store floor under a big lamp.
@@ -176,6 +176,53 @@ function kitShow(kit, view, q) {
     else updateCamera(sim.player, 1, dt, 0, sim.world);
   };
   return show;
+}
+
+// ---- portraits for the level intro: a character's head rendered on its own into a small picture (cached) ------
+const PORTRAITS = {};
+export function portraitShot(id) {
+  const key = { player: 'penny', bro: 'bubba' }[id] || id;
+  if (PORTRAITS[key]) return PORTRAITS[key];
+  if (!CAST[key]) return null;
+  const T = THREE, N = 128, rt = new T.WebGLRenderTarget(N, N), scene = new T.Scene(), cam = new T.PerspectiveCamera(26, 1, 0.1, 20);
+  const c = makeCharacter(key, null, { headOnly: true }), hy = CAST[key].head.y;
+  setFace(c.rig, 1); poseRig(c.rig); scene.add(c.mesh);
+  cam.position.set(0.32, hy + 0.06, 1.25); cam.lookAt(0, hy - 0.02, 0);
+  const rd = R.renderer, prev = rd.getRenderTarget(), cc = new T.Color(), ca = rd.getClearAlpha();
+  rd.getClearColor(cc); rd.setClearColor(0x000000, 0); rd.setRenderTarget(rt); rd.clear(); rd.render(scene, cam);
+  const px = new Uint8Array(N * N * 4); rd.readRenderTargetPixels(rt, 0, 0, N, N, px);
+  rd.setRenderTarget(prev); rd.setClearColor(cc, ca);
+  const cv = document.createElement('canvas'); cv.width = cv.height = N;
+  const img = cv.getContext('2d').createImageData(N, N);
+  for (let y = 0; y < N; y++) for (let x = 0; x < N * 4; x++) img.data[y * N * 4 + x] = px[(N - 1 - y) * N * 4 + x];
+  for (let i = 3; i < img.data.length; i += 4) img.data[i] = img.data[i] > 0 || img.data[i - 1] + img.data[i - 2] + img.data[i - 3] > 0 ? 255 : 0;
+  cv.getContext('2d').putImageData(img, 0, 0);
+  c.mesh.geometry.dispose(); c.rig.cel.dispose(); rt.dispose();
+  return (PORTRAITS[key] = cv);
+}
+
+// ---- Cart Customs' turntable: the cart and Penny turning on a round pink stage with a gold rim -------------------
+export function makeTurntable(look, hat) {
+  const root = new THREE.Group(), B = builder(), t = { root, spin: 0.6, racer: null };
+  R.scene.add(root);
+  bind(B, 0, [0, 0, 0.3, 0]); cyl(B, 2.3, 2.45, 0.2, 0xFFD6E0, { seg: 40, top: 0xFFF3E8 });
+  bind(B, 0, [0, 0, 0.9, 0]); at(B, 0, 0.2, 0, 0, Math.PI / 2); ring(B, 2.32, 2.32, 0.07, 0.07, 0xE9B949, { seg: 40 });
+  bind(B, 0, [0, 0, 0.4, 0.9]); for (let i = 0; i < 20; i++) { const a = i / 20 * 6.283; at(B, Math.sin(a) * 2.32, 0.27, Math.cos(a) * 2.32); ellipsoid(B, 0.07, 0.07, 0.07, 0xFFF1C4, { seg: 6, rings: 4 }); }
+  const mats = [celMaterial({ rim: 0.3 }), hullMaterial(2.5)], disc = new THREE.Mesh(toGeometry(B, {}), mats);
+  root.add(disc);
+  t.set = (lk, h) => {
+    if (t.racer) { root.remove(t.racer.mesh); t.racer.mesh.geometry.dispose(); t.racer.rig.cel.dispose(); }
+    t.racer = makeRacer('penny', lk, { hat: h }); t.racer.mesh.position.y = 0.2; t.racer.mesh.layers.enable(1); root.add(t.racer.mesh);
+  };
+  t.set(look, hat);
+  t.update = (dt) => {
+    t.spin += dt * 0.55; root.rotation.y = t.spin;
+    animate(t.racer.rig, { mode: 'count', speed: 0 }, dt);
+    const cam = R.camera; cam.position.set(0, 2.5, 6.6); cam.lookAt(0, 0.95, 0);
+    if (cam.fov !== 36) { cam.fov = 36; cam.updateProjectionMatrix(); }
+  };
+  t.dispose = () => { R.scene.remove(root); root.traverse((o) => { if (o.geometry) o.geometry.dispose(); }); mats[0].dispose(); };
+  return t;
 }
 
 // ---- the title: the cast lined up behind the mall doors (DESIGN.md section 8) ----------------------------

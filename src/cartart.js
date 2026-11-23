@@ -30,10 +30,10 @@ export const HATS = [
 ];
 // Four upgrades with three tiers each (DESIGN.md section 8); the effect numbers live with the shop (P3).
 export const UPGRADES = {
-  wheels: { name: 'WHEELS', tiers: ['BIG WHEELS', 'CHROME RIMS', 'FLAME RACERS'], price: [600, 1400, 2800] },
-  basket: { name: 'BASKET', tiers: ['SIDE RAILS', 'EXTENDED', 'DOUBLE-DECKER'], price: [600, 1400, 2800] },
-  bumper: { name: 'BUMPER', tiers: ['RUBBER', 'STEEL BAR', 'SNOWPLOUGH'], price: [600, 1400, 2800] },
-  magnet: { name: 'MAGNET', tiers: ['MINI MAGNET', 'HORSESHOE POLE', 'ELECTROMAGNET'], price: [600, 1400, 2800] },
+  wheels: { name: 'WHEELS', tiers: ['BIG WHEELS', 'CHROME RIMS', 'FLAME RACERS'], price: [800, 2000, 4000] },
+  basket: { name: 'BASKET', tiers: ['SIDE RAILS', 'EXTENDED', 'DOUBLE-DECKER'], price: [800, 2000, 4000] },
+  bumper: { name: 'BUMPER', tiers: ['RUBBER', 'STEEL BAR', 'SNOWPLOUGH'], price: [800, 2000, 4000] },
+  magnet: { name: 'MAGNET', tiers: ['MINI MAGNET', 'HORSESHOE POLE', 'ELECTROMAGNET'], price: [800, 2000, 4000] },
 };
 // The cart each character pushes: its paint and what makes it theirs.
 export function cartSpecFor(look) {

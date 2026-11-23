@@ -23,3 +23,14 @@ Try: (1) `?title=1`: press START and watch the doors open; (2) ram Granny Tank i
 - `npm run check` passes with the v3 rules: author times, beginner runs, rival pass rates, the loot rule and pace.
 
 Try: (1) level 1: let the sign swing past, then thread the pop-up tiles column by column; (2) level 1: press the bell button on the conveyor and dash through the ribbon for the cheese wheel; (3) level 2: find the plate that turns green near the checkouts and open the MEGA PYRAMID room.
+
+## P3 STORES — 23 Nov 2026 (tag )
+
+- Level 3 GADGET GOBLIN (electronics, about 29 s): every dash flips the store's red and blue barriers (walls of light with floor strips, a colour flash and a ZAP); a lesson corridor, TV turnstiles, trapdoor panels over the stockroom pit, robot vacuums, a corridor you must flip while crossing, a barrier chicane, a laser turret with the GIGA TV in its glass case, two checkouts behind red and blue.
+- Level 4 DRESS TO DISTRESS (boutique, about 29 s): glove plates in the fitting-room aisle, a mannequin gauntlet, a catwalk over clearance bins with giant scissors, and the GOLDEN HANDBAG that lets the giant yarn ball chase you down the shoe department.
+- Two new kits: glossy navy grid floor with TV walls playing four animated channels and neon; cream marble with gold inlays, velvet fitting rooms, clothes racks, shoe-box walls, dressed mannequins.
+- Meta: the wallet, Cart Customs (upgrades that change the cart and how it drives, paints, hats, on a turntable), the Mall Directory (every store open, the next one pulses), intro cards with live 3D portraits.
+- On a fresh profile the first minute plays as DESIGN.md section 9: level 1, the receipt with CART CUSTOMS pulsing, a first upgrade on the turntable, the directory, level 2's first BAM.
+-  passes for levels 1-4 (rivals pass 89-95% of hazards).
+
+Try: (1) level 3: dash at the first red wall, then flip again mid-way down the panel corridor; (2) level 4: grab the golden handbag and outrun the yarn ball; (3) after a run, buy BIG WHEELS in Cart Customs and watch the cart change.

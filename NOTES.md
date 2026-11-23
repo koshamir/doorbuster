@@ -1,8 +1,8 @@
 ## STATUS (at most 10 lines)
-Phase: P3 STORES (prompts/P3_STORES.md) — starting; P2 PLAY done and tagged p2 (23 Nov)
-Done: P1 look; P2 objects, wipeouts and checkpoints, RUSH and SMASH, hazard-aware rivals, crowd moments, voices and bubbles, levels 1-2
-Next: P3 item 1 (read prompts/P3_STORES.md)
-Open problems: the expert bot still gets popped by the tiles now and then; the MEGA room is a secret the bots skip
+Phase: P4 CAMPAIGN (prompts/P4_CAMPAIGN.md) — starting; P3 STORES done and tagged p3 (23 Nov)
+Done: P1 look; P2 objects, modes, levels 1-2; P3 levels 3-4 with the electronics and boutique kits, the Mall Directory, Cart Customs, wallet, intro cards
+Next: P4 item 1 (read prompts/P4_CAMPAIGN.md)
+Open problems: the expert bot is now and then caught by the yarn ball late in the serpentine; L3/L4 author runs are shorter than the doc's 38/35 s
 
 ## Owner feedback (verbatim, latest first, last 3 rounds)
 
@@ -34,5 +34,16 @@ D24 2026-11-23 Granny's first try at level 1's tiles is scripted to fail (she pi
 D25 2026-11-23 CLOSING TIME is the last 15 s on the clock (no lanes close); the flash sale is gone. RAM warning stays 0.8 s (D6): fairer than 0.5.
 D26 2026-11-23 Voice files: assets/voice/voices.json lists the owner's mp3s (empty), so the game never asks for a file that is not there.
 D27 2026-11-23 The pace rule counts objects, loot, pieces, shoppers and rivals in reach, conveyor rides and turns; a respawn is a jump, not a drive.
+D28 2026-11-23 L3 GADGET GOBLIN and L4 DRESS TO DISTRESS author runs are 29 s (doc: about 38 and 35): denser beats rather than longer walks.
+D29 2026-11-23 Smart barriers are walls of coloured light, solid 0.6 m thick across their tiles; the player's bots route as if all were down and dash to flip one in their way, holding the dash while a wipe hazard behind it is not clear.
+D30 2026-11-23 A turnstile's sweep is shut to the drivers' routes (they go round; the phones on its arms are the greedy player's); a hit sweeps the cart out of the circle.
+D31 2026-11-23 Robot vacuums stop when they bump into a cart; only a cart that drives into one fast is knocked back.
+D32 2026-11-23 Glove plates are two tiles wide on alternating sides of the fitting-room aisle; the middle lane is safe unless someone presses a plate.
+D33 2026-11-23 The yarn ball drops for 0.8 s, rolls at 11.4 m/s, slows to 62% and 82% at sharp and soft turns, and stops 14 m short of the checkouts; catching the player puts the handbag back.
+D34 2026-11-23 Upgrade tiers cost 800, 2000 and 4000 (a first run on level 1 pays for one); they act on the player's cart only and never in bot runs.
+D35 2026-11-23 Every store is open; the directory recommends the first store not yet played (else the first without gold) and Enter after a receipt plays it.
+D36 2026-11-23 The intro card's portraits are the 3D heads rendered once into small pictures.
+D37 2026-11-23 L4's serpentine dividers are plain walls: as shoe walls they put 27% of the goods on the safe line.
+D38 2026-11-23 The timed barrier fallback (flipEvery) stays off: the bots and the flip flash read well; switch it on if the owner is confused.
 
 ## Known issues (at most 10)

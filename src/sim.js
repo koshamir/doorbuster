@@ -11,7 +11,7 @@
 // Determinism: fixed step CFG.STEP, one seeded generator (sim.rng) for every random choice.
 // Events are { type, cart, value, ref }; the types are listed where they are emitted.
 
-import { TUNE, CFG, GOODS, GOOD, POOLS, makeRng, clamp, wrapAngle } from './config.js';
+import { TUNE, CFG, GOODS, GOOD, POOLS, makeRng, clamp, wrapAngle, cartMods } from './config.js';
 import { buildWorld, navBuild, navDistAt, blockedAt } from './world.js';
 import { makeCart, stepCart, loadFactor } from './cart.js';
 import { buildObjects, stepObjects, flipBarriers, startChaser } from './objects.js';
@@ -41,7 +41,7 @@ export function createSim(def, seed, opts = {}) {
       if (type === 'boost') madGain(sim, cart, CFG.madDrift * value);        // a drift held to a boost feeds Madness
       // An overloaded tower sheds its top on a hard knock (no crash needed). Rubbing along the shelf
       // being swept or a checkout counter never counts.
-      else if (type === 'bump' && value > CFG.shedKnock && !(ref && (ref.type === 'shelf' || ref.type === 'counter')) && cart.load > TUNE.loadfull && cart.madT <= 0) {
+      else if (type === 'bump' && value > CFG.shedKnock && !(ref && (ref.type === 'shelf' || ref.type === 'counter')) && cart.load > TUNE.loadfull * cart.mod.cap && cart.madT <= 0) {
         shed(sim, cart, 1 + Math.min(2, Math.floor((value - CFG.shedKnock) / 3)));
       }
     },
@@ -65,7 +65,7 @@ export function createSim(def, seed, opts = {}) {
       k.immuneT = Math.max(k.immuneT, 0.6);              // falling short costs the shortcut, not the goods
       if (over && !k.popped) { stunt(sim, k, 'jump', k.x, k.z); madGain(sim, k, 1); }
       k.popped = false;
-      if (k.load > TUNE.loadfull && k.madT <= 0) shed(sim, k, 2);
+      if (k.load > TUNE.loadfull * k.mod.cap && k.madT <= 0) shed(sim, k, 2);
     },
     stunt(k, name, x, z) { stunt(sim, k, name, x, z); },
     madGain(k, amount) { madGain(sim, k, amount); },
@@ -127,6 +127,7 @@ export function createSim(def, seed, opts = {}) {
   const s = world.start;
   sim.player = makeCart(0, 'player', s.x, s.z, s.h);
   sim.player.home = { x: s.x, z: s.z, h: s.h };
+  if (opts.up) sim.player.mod = cartMods(opts.up);        // the player's cart upgrades (Cart Customs)
   if (opts.bot) {
     sim.player.ai = makeDriver(BOTS[opts.bot]);
     if (opts.greed !== undefined) sim.player.ai.greed = opts.greed;
@@ -219,7 +220,7 @@ export function giveGoods(sim, k, n, big, mult = 1) {
 function pickups(sim, k) {
   const world = sim.world, mad = k.madT > 0;
   const mult = multOf(k);
-  const reach = CFG.CART_R + TUNE.sweepgap * (mad ? 2 : 1) + 0.35, reach2 = reach * reach;
+  const reach = CFG.CART_R + (TUNE.sweepgap + k.mod.sweep) * (mad ? 2 : 1) + 0.35, reach2 = reach * reach;
   const T = CFG.TILE;
   const c0 = Math.max(0, Math.floor((k.x - reach) / T)), c1 = Math.min(world.cols - 1, Math.floor((k.x + reach) / T));
   const r0 = Math.max(0, Math.floor((k.z - reach) / T)), r1 = Math.min(world.rows - 1, Math.floor((k.z + reach) / T));
@@ -245,7 +246,7 @@ function pickups(sim, k) {
     }
   }
   // Floor goods: the radius grows with speed.
-  const mag = TUNE.magnet * (1 + 0.5 * Math.min(1, Math.abs(k.spd) / TUNE.maxspeed)) * (mad ? 2 : 1) + 0.3;
+  const mag = TUNE.magnet * k.mod.mag * (1 + 0.5 * Math.min(1, Math.abs(k.spd) / TUNE.maxspeed)) * (mad ? 2 : 1) + 0.3;
   for (const d of world.drops) {
     if (!d.live || d.arm > 0 || (d.list && !k.player)) continue;      // list items are the player's (and always fit)
     const dx = k.x - d.x, dz = k.z - d.z;
@@ -351,7 +352,7 @@ function scatter(sim, x, z, dx, dz, good, list, ttl, fan) {
 // they are worth less than it is; they fall behind the cart. Returns false if the item is refused.
 const OUT = [];
 function makeRoom(sim, k, w, value) {
-  let need = k.load + w - TUNE.loadfull * TUNE.overstack;
+  let need = k.load + w - TUNE.loadfull * k.mod.cap * TUNE.overstack;
   if (need <= 0) return true;
   if (!k.fullSaid) { k.fullSaid = true; sim.emit('full', k); }       // the cap is announced the moment it first matters
   OUT.length = 0;

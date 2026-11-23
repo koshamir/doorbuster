@@ -206,7 +206,7 @@ export function startChaser(sim) {
   for (let n = 0; n < 400; n++) {
     let best = world.nav[r * world.cols + c], bc = c, br = r;
     for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const v = world.nav[(r + dr) * world.cols + c + dc]; if (v < best - 1e-3) { best = v; bc = c + dc; br = r + dr; } }
-    if (bc === c && br === r) break;
+    if (bc === c && br === r || best < 14) break;              // it stops short of the checkouts (they would burst it)
     c = bc; r = br; path.push([(c + 0.5) * OT, (r + 0.5) * OT]);
   }
   // a time table along the path: the ball drops for a second, then rolls; it slows where the way turns sharply

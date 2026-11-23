@@ -14,7 +14,7 @@
 // stepCart(cart, input, sim, dt) expects sim = { world, emit(type, cart, value, ref),
 // onCrash(cart, speedInto, solid), onSmash(cart, solid), onKnock(cart, solid), onLand(cart, over) }.
 
-import { TUNE, CFG, CHARS, clamp, lerp, wrapAngle, approach } from './config.js';
+import { TUNE, CFG, CHARS, clamp, lerp, wrapAngle, approach, cartMods } from './config.js';
 import { collide } from './world.js';
 
 export function makeInput() {
@@ -42,13 +42,13 @@ export function makeCart(id, charId, x, z, h) {
     dashKnocks: 0, shaveT: 0, crashes: 0, fullSaid: false,     // shoppers bowled over in this dash; close-shave throttle; crash count
     done: false, doneT: 0, lane: -1, place: 1, prog: 0, receipt: null,
     cp: -1, home: null, wipeT: 0, wipes: 0, padT: 0, popT: 0, popped: false, shoveT: 0, smash: 0, toppleT: 0, bumpT: 0,
-    input: makeInput(), ai: null,
+    input: makeInput(), ai: null, mod: cartMods(),
   };
 }
 
 // 0 while the load is inside the free share, rising to 1 at a full cart (weight is capped there).
 export function loadFactor(k) {
-  const share = Math.min(1, k.load / TUNE.loadfull);
+  const share = Math.min(1, k.load / (TUNE.loadfull * k.mod.cap));
   return clamp((share - TUNE.loadfree) / (1 - TUNE.loadfree), 0, 1);
 }
 
@@ -212,7 +212,7 @@ export function stepCart(k, inp, sim, dt) {
 
   const mad = k.madT > 0;
   const lf = mad ? 0 : loadFactor(k);
-  const top0 = TUNE.maxspeed * (1 - TUNE.loadtop * lf);
+  const top0 = TUNE.maxspeed * k.mod.top * (1 - TUNE.loadtop * lf);
   const top = top0 * (k.boostT > 0 ? k.boostMul : k.sagT > 0 && k.dashT <= 0 ? CFG.dashSag : 1);
 
   // ---- the floor under the cart: a travelator carries it, a wet patch takes the grip for a second,
@@ -246,7 +246,7 @@ export function stepCart(k, inp, sim, dt) {
     k.dashBuf -= dt;
     if (k.dashCd <= 0 && free) {
       if (k.drift) endDrift(k, top0, sim, true);    // a dash out of a drift keeps the earned boost
-      k.dashBuf = 0; k.dashT = CFG.dashTime; k.dashCd = TUNE.dashcooldown; k.dashHits = 0; k.dashKnocks = 0; k.sagT = 0;
+      k.dashBuf = 0; k.dashT = CFG.dashTime; k.dashCd = TUNE.dashcooldown * k.mod.cd; k.dashHits = 0; k.dashKnocks = 0; k.sagT = 0;
       const v = Math.max(Math.hypot(k.vx, k.vz) + TUNE.dashspeed, top0 * 0.65);
       k.vx = Math.sin(k.h) * v; k.vz = Math.cos(k.h) * v;
       sim.emit('dash', k);
@@ -308,7 +308,7 @@ export function stepCart(k, inp, sim, dt) {
   slip -= Math.sin(slip) * (1 - Math.exp(-grip * dt));
 
   // ---- speed along the travel direction
-  const acc = TUNE.accel * (1 - TUNE.loadaccel * lf) * (k.boostT > 0 ? CFG.boostAccel : 1);
+  const acc = TUNE.accel * k.mod.acc * (1 - TUNE.loadaccel * lf) * (k.boostT > 0 ? CFG.boostAccel : 1);
   if (backing) {
     v = -CFG.backSpeed; slip = 0;
   } else if (!free || k.dashT > 0) {

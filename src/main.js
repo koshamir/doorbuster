@@ -20,7 +20,10 @@ import { R, initRender, resizeRender, updateCamera, renderFrame, watchFrameRate,
 import { buildScene, syncScene, sceneEvent, disposeScene } from './scene.js';
 import { goodIcon } from './goods.js';
 import { initFx, clearFx, cartFx, eventFx, updateFx, spark } from './fx.js';
-import { initShowcase, makeTitle } from './showcase.js';
+import { initShowcase, makeTitle, makeTurntable, portraitShot } from './showcase.js';
+import { showDirectory, showCustoms, showIntro, recommended } from './meta.js';
+import { UPGRADES, PAINTS, HATS } from './cartart.js';
+import { kitOf } from './kits.js';
 import { audio, unlockAudio, setSound, setVolumes, audioEvent, audioCue, audioFrame, objectSound, loadVoices } from './audio.js';
 import { chatterReset, chatterEvent, chatterFrame } from './chatter.js';
 import { ui, initUI, updateHud, popWord, announce, floatText, sticker, updateStickers, chainText, setList, setArrow, setWarn, setHint, showTouch, showTitle, showReceipt,
@@ -42,7 +45,7 @@ const game = {
   mark: null, markT: 0, markText: '',   // where the arrow points (a piece or a lane), for how long, its word
   flash: 0, flashAt: -9, flipT: 0, warner: null, dodgeHint: false, glassT: 0, rammed: false, frozen: false, clock: 0, steered: 0, tagAt: -9, aim: { x: 0, z: 0, fx: 0, fz: 0, left: 0 },
 };
-let save = null;                  // platform.progress: { best, medals, unlocked, fails, seen, music, sfx, shake }
+let save = null;                  // platform.progress: { best, medals, unlocked, fails, seen, music, sfx, shake, wallet, up, paints, paint, hats, hat }
 
 const KEYS = {
   ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'gas', KeyW: 'gas',
@@ -54,10 +57,12 @@ const WORDS = { cleansweep: 'CLEAN SWEEP', strike: 'STRIKE!', ram: 'RAM!', taked
 function startLevel(quick) {
   chatterReset();
   if (game.titleShow) { game.titleShow.dispose(); game.titleShow = null; }
+  if (game.turntable) { game.turntable.dispose(); game.turntable = null; }
   if (game.view) disposeScene(game.view);
   clearFx();
   const def = game.custom || LEVELS[game.level];
-  game.sim = createSim(def, game.seed, { bot: BOTS[game.bot] ? game.bot : undefined, countdown: quick ? 1.5 : CFG.countdown });
+  game.sim = createSim(def, game.seed, { bot: BOTS[game.bot] ? game.bot : BOTS[query.get('pilot')] ? query.get('pilot') : undefined, countdown: quick ? 1.5 : CFG.countdown,
+    up: game.bot ? undefined : save.up, look: { paint: save.paint, tiers: save.up, kind: 'cart' }, hat: save.hat });
   if (query.get('fill')) giveGoods(game.sim, game.sim.player, Number(query.get('fill')));   // test aid: start with goods
   game.view = buildScene(game.sim);
   setGrade(game.view.kit.grade);
@@ -73,18 +78,45 @@ function play(quick) {
   hideScreens();
   game.state = 'play';
   platform.runStart();
+  // the intro card: the store's sign, its mode, YOU against the rivals (not on a quick restart)
+  const def = game.sim.def, P = game.view.kit.palette;
+  if (!quick && !query.has('manual') || query.get('screen') === 'intro') showIntro(def, [P.a, P.b, P.c, P.d], def.rivals || [], ui.root, portraitShot);
+}
+// The stores as the Mall Directory shows them (every store is open).
+function storeCards() {
+  return LEVELS.slice(1).map((d) => { const P = kitOf(d).palette; return { name: d.name, mode: d.mode || 'rush', medal: save.medals[d.id] || 0, best: save.best[d.id] || 0, pal: [P.a, P.b, P.c, P.d], hot: kitOf(d).hot }; });
+}
+function openDirectory() {
+  if (game.turntable) { game.turntable.dispose(); game.turntable = null; if (game.view) game.view.root.visible = true; }
+  game.state = 'directory';
+  showDirectory(storeCards(), save.wallet, (i) => { game.level = i + 1; play(false); }, openCustoms, null);
+}
+// Cart Customs: the turntable replaces the store behind the catalogue page.
+function openCustoms() {
+  game.state = 'customs';
+  if (game.view) game.view.root.visible = false;
+  if (game.titleShow) game.titleShow.root.visible = false;
+  const look = () => ({ paint: save.paint, tiers: save.up, kind: 'cart' });
+  if (!game.turntable) game.turntable = makeTurntable(look(), save.hat);
+  const st = { wallet: save.wallet, up: save.up, paints: save.paints, paint: save.paint, hats: save.hats, hat: save.hat };
+  const sync = () => { Object.assign(st, { wallet: save.wallet, paint: save.paint, hat: save.hat }); game.turntable.set(look(), save.hat); platform.save(); };
+  showCustoms(st, (kind, id) => {
+    if (kind === 'up') { const t = save.up[id] || 0, price = UPGRADES[id].price[t]; if (t < 3 && save.wallet >= price) { save.wallet -= price; save.up[id] = t + 1; } }
+    else if (kind === 'paint') { const p = PAINTS[id]; if (save.wallet >= p.price) { save.wallet -= p.price; save.paints.push(id); save.paint = id; } }
+    else { const h = HATS.find((x) => x.id === id); if (h && save.wallet >= h.price) { save.wallet -= h.price; save.hats.push(id); save.hat = id; } }
+    audioCue('kaching'); sync();
+  }, (kind, id) => { if (kind === 'paint') save.paint = id; else save.hat = id; sync(); }, openDirectory);
 }
 // The title: the start grid of the chosen store; once a store has been finished, the loyalty card too.
 function title() {
   startLevel(false);
   game.state = 'title';
-  const cards = save.unlocked > 1 || save.best[LEVELS[1].id] ? LEVELS.slice(1).map((d, i) => ({ name: d.name, medal: save.medals[d.id] || 0,
-    best: save.best[d.id] || 0, locked: i + 1 > save.unlocked, on: i + 1 === game.level })) : null;
+  const cards = null, back = Object.keys(save.best).length > 0;
   // the cast of this store lined up behind the mall doors, Penny in the middle
   game.titleShow = makeTitle(game.view.kit);
   game.view.root.visible = false;
   game.opening = 0;
-  showTitle(LEVELS[game.level].name, startFromTitle, cards, (i) => { game.level = i + 1; title(); });
+  showTitle(LEVELS[game.level].name, startFromTitle, cards, (i) => { game.level = i + 1; title(); }, back ? { directory: openDirectory, customs: openCustoms } : null);
 }
 // START on the title: the doors slide open, then the run begins.
 function startFromTitle() {
@@ -144,6 +176,7 @@ function finish() {
   const sim = game.sim, p = sim.player, def = sim.def, total = p.receipt.total;
   const prev = save.best[def.id] || 0, isNew = total > prev, medal = 1 + (def.medals || []).filter((m) => total >= m).length;
   if (isNew) save.best[def.id] = total;
+  if (!p.ai || query.has('pilot')) save.wallet = (save.wallet || 0) + Math.max(0, total);     // (pilot: a bot drives as the player, for the flow test)
   save.medals[def.id] = Math.max(save.medals[def.id] || 0, medal);
   save.fails = 0;
   if (game.level >= 1 && game.level < LAST) save.unlocked = Math.max(save.unlocked, game.level + 1);
@@ -158,8 +191,9 @@ function finish() {
     game.frozen = true;
     return settle(sim).map((k) => ({ name: k.player ? 'YOU' : k.def.name, total: k.receipt ? k.receipt.total : -1, me: k.player }));
   }, { value: Math.max(prev, total), isNew: isNew && prev > 0 }, def.name, medal, () => play(true),
-  game.level >= 1 && game.level < LAST ? next : null, save.unlocked > 1 ? title : null,
-  medal < 3 && def.medals ? { medal: medal + 1, at: def.medals[medal - 1] } : null);      // (the Black Card stays a secret)
+  openCustoms, openDirectory,
+  medal < 3 && def.medals ? { medal: medal + 1, at: def.medals[medal - 1] } : null,      // (the Black Card stays a secret)
+  { wallet: save.wallet, afford: Object.keys(UPGRADES).some((u) => (save.up[u] || 0) < 3 && save.wallet >= UPGRADES[u].price[save.up[u] || 0]) });
 }
 // After the close-up the receipt prints.
 function closeupTick(dt) {
@@ -327,6 +361,7 @@ function tick(dt, draw) {
     return;
   }
   if (game.show) { game.show.update(dt); game.clock += dt; if (draw) renderFrame({}, { x: 0, z: 0 }); return; }
+  if (game.state === 'customs' && game.turntable) { game.clock += dt; R.clock = game.clock; game.turntable.update(dt); audioFrame(game.sim, dt, 'title'); if (draw) renderFrame({}, { x: 0, z: 0 }); return; }
   const sim = game.sim, t0 = performance.now(), p = sim.player;
   game.now = t0;
   if (game.paused) { audioFrame(sim, dt, 'pause'); if (draw) renderFrame({}, R.cam); return; }   // the music carries on under water
@@ -432,10 +467,10 @@ function frame(now) {
 async function boot() {
   await loadThree();
   await platform.init();
-  save = Object.assign({ best: {}, medals: {}, unlocked: 1, fails: 0, seen: {}, music: 0.55, sfx: 0.9, shake: TUNE.shake, impact: true }, platform.progress);
+  save = Object.assign({ best: {}, medals: {}, unlocked: 1, fails: 0, seen: {}, music: 0.55, sfx: 0.9, shake: TUNE.shake, impact: true, wallet: 0, up: {}, paints: ['pink'], paint: 'pink', hats: ['none'], hat: 'none' }, platform.progress);
   platform.progress = save;
   TUNE.shake = save.shake;
-  if (!query.has('level')) game.level = Math.min(LAST, Math.max(1, save.unlocked));     // carry on where the player left off
+  if (!query.has('level')) game.level = 1 + recommended(storeCards());                      // carry on at the store the directory recommends
   initRender(document.getElementById('game'));
   initFx();
   initUI(document.getElementById('ui'));
@@ -462,8 +497,8 @@ async function boot() {
     if (game.state !== 'play') {
       // Any driving key starts from the title; R retries and Enter goes on after a run.
       if (game.state === 'title') { if (k || e.code === 'Enter') { startFromTitle(); e.preventDefault(); } }
-      else if (e.code === 'KeyR') play(true);
-      else if (e.code === 'Enter') { if (game.state === 'receipt' && game.level >= 1 && game.level < LAST) next(); else play(true); }
+      else if (e.code === 'KeyR' && game.state !== 'directory' && game.state !== 'customs') play(true);
+      else if (e.code === 'Enter') { if (game.state === 'receipt') { game.level = 1 + recommended(storeCards()); play(false); } else if (game.state !== 'directory' && game.state !== 'customs') play(true); }
       return;
     }
     if (k) {
@@ -522,7 +557,7 @@ async function boot() {
   }
   // A showcase scene, or: a bot or the capture tool goes straight into the run; a person gets the title and one click.
   if (query.get('scene')) { game.show = initShowcase(query.get('scene'), query); ui.hud.classList.add('off'); }
-  else if (query.has('title')) title();
+  else if (query.has('title')) { title(); if (query.get('screen') === 'directory') openDirectory(); else if (query.get('screen') === 'customs') { save.wallet = save.wallet || 2600; openCustoms(); } }
   else if (game.bot || game.manual || query.has('go')) play(false);
   else title();
   tick(1 / 60, true);

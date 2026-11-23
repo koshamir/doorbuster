@@ -193,7 +193,7 @@ export const LEVELS = [
     // more panels with blue at its entry and red at its exit (flip while crossing; the long way round has a vacuum); the
     // VR zone's laser turret with the GIGA TV in its glass case inside the sweep; two checkouts behind red and blue.
     id: 'gadget', name: 'GADGET GOBLIN', mode: 'rush', kit: 'electronics', v3: true, timer: 70, author: 29, heading: Math.PI,
-    rivals: ['selfie', 'dad'], crowd: 12, rush: 4, maxRams: 2, hotGood: 'tv', medals: [5200, 6600, 7400],
+    rivals: ['selfie', 'dad'], crowd: 12, rush: 4, maxRams: 2, hotGood: 'tv', medals: [5000, 7500, 9500],
     zones: [{ pool: 'gadget', color: 0, name: 'GADGET GOBLIN' }],
     objects: [
       ['barrier', 3, 27, { c1: 5, color: 'red' }],
@@ -274,7 +274,7 @@ export const LEVELS = [
     // pairs of giant scissors on it, or the walkways round the pits; the GOLDEN HANDBAG on its pedestal on the stage.
     // Taking it lets the giant yarn ball go: it rolls after you down the shoe department's serpentine to the checkouts.
     id: 'dress', name: 'DRESS TO DISTRESS', mode: 'rush', kit: 'boutique', v3: true, timer: 70, author: 29, heading: Math.PI,
-    rivals: ['granny'], crowd: 12, rush: 4, maxRams: 2, hotGood: 'goldbag', medals: [5200, 6600, 7400],
+    rivals: ['granny'], crowd: 12, rush: 4, maxRams: 2, hotGood: 'goldbag', medals: [6500, 8500, 10500],
     zones: [{ pool: 'boutique', color: 0, name: 'DRESS TO DISTRESS' }],
     objects: [
       ['glove', 2.5, 29, { from: [1.5, 27.6], dir: 'e', reach: 3.6, pw: 2 }],
@@ -308,22 +308,22 @@ export const LEVELS = [
       '  .....                    ................... ',
       '  .....                    ...b...........b... ',
       '  .....                    .......o........... ',
-      '  .o...                    LLLLLLLLLLLLLLL.... ',
+      '  .o...                                   .... ',
       '  .....                    ................... ',
       '  .....                    ..o......b......... ',
       '  .....                    .............b..... ',
       '  ...o.                    ................... ',
-      '  .....                    ....LLLLLLLLLLLLLLL ',
+      '  .....                    ....                ',
       '  .....                    ................... ',
       '  .....                    ......b......o..... ',
       '  .o...                    ..b........b....... ',
       '  .....                    ................... ',
-      '  .....                    LLLLLLLLLLLLLLL.... ',
+      '  .....                                   .... ',
       '  .....                    .........o......... ',
       '  .....                    .....b............. ',
       ' .......p                  .............b..... ',
       ' ........                  ...o............... ',
-      ' .....r..                  ....LLLLLLLLLLLLLLL ',
+      ' .....r..                  ....                ',
       ' ...@....                  .......b........... ',
       ' ........                  .............o..... ',
       ' p.......                     kCcCcCk          ',

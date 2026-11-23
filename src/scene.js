@@ -172,7 +172,7 @@ export function buildScene(sim) {
   // the HIGH-tier shadow (layer 1).
   for (const k of sim.carts) {
     const g = new THREE.Group(), id = Object.keys(CAST_IDS).find((n) => CAST_IDS[n] === k.char) || 'penny';
-    const rc = makeRacer(id, null, k.player ? { hat: view.hat } : {});
+    const rc = makeRacer(id, k.player && sim.opts.look ? sim.opts.look : null, k.player ? { hat: sim.opts.hat } : {});
     g.add(rc.mesh);
     rc.mesh.layers.enable(1);
     view.root.add(g);

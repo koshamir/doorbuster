@@ -106,6 +106,18 @@ export const CFG = {
   stunts: { cleansweep: 50, strike: 150, ram: 75, takedown: 200, shave: 10, smash: 25, jump: 250, dodge: 40, selfie: 150, glass: 100 },
 };
 
+// ---- Cart upgrades (DESIGN.md section 8): what each tier does to the player's cart (levels are tuned without them).
+export const UPGRADE_FX = {
+  wheels: { top: [0.04, 0.08, 0.12], acc: [0.05, 0.1, 0.15] },     // top speed and acceleration
+  basket: { cap: [0.2, 0.4, 0.6] },                                  // capacity (the tower sways less too)
+  bumper: { cd: [0.15, 0.3, 0.45] },                                 // dash cooldown
+  magnet: { mag: [0.25, 0.5, 0.8], sweep: [0.1, 0.2, 0.3] },         // pickup radius, sweep distance (m)
+};
+export function cartMods(up = {}) {
+  const t = (k) => Math.max(0, Math.min(3, up[k] | 0)), f = (k, e) => t(k) ? UPGRADE_FX[k][e][t(k) - 1] : 0;
+  return { top: 1 + f('wheels', 'top'), acc: 1 + f('wheels', 'acc'), cap: 1 + f('basket', 'cap'), cd: 1 - f('bumper', 'cd'), mag: 1 + f('magnet', 'mag'), sweep: f('magnet', 'sweep') };
+}
+
 // ---- Palette (ART.md section 3). Stored as sRGB hex; rgb() converts to 0..1 floats. ----------
 export const PAL = {
   floor: 0xF3E9DC, grout: 0xE6D8C5, wall: 0xFFF6EA, walltop: 0x5B4A78, white: 0xFFFFFF, steel: 0xDDE3EA,

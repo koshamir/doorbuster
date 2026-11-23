@@ -352,7 +352,7 @@ export function hurryUI() { if (ui.tally) ui.tally.fast = true; }
 // The first thing a player sees: the name and one button; the cart stays visible in the middle.
 // cards (optional, once the first level has been finished) is the loyalty card: one stamp per level
 // [{ name, medal 0-4, best, locked, on }], and pick(index) chooses a level.
-export function showTitle(levelName, onStart, cards, pick) {
+export function showTitle(levelName, onStart, cards, pick, more) {
   hideScreens();
   ui.hud.classList.add('off');
   ui.screen.className = 'screen title on';
@@ -370,6 +370,7 @@ export function showTitle(levelName, onStart, cards, pick) {
     });
   }
   button('btn big', 'START', low, onStart);
+  if (more) { const r = el('div', 'btn-row', undefined, low); button('btn small', 'MALL DIRECTORY', r, more.directory); button('btn small', 'CART CUSTOMS', r, more.customs); }
   el('div', 'hint', navigator.maxTouchPoints > 0 && !matchMedia('(pointer: fine)').matches ? 'Steer with the left thumb · DASH and DRIFT under the right · the cart rolls by itself'
     : 'Arrows or WASD to drive · Space to drift · Shift to dash · P to pause', low);
 }
@@ -379,7 +380,7 @@ export function showTitle(levelName, onStart, cards, pick) {
 // when the table is due (main.js plays the rest of the race out at that moment); best = { value, isNew };
 // medal 1-4; onNext is absent on the last level; onMenu (optional) goes back to the loyalty card;
 // goal (optional) = { medal, at }: the next medal and the receipt it takes.
-export function showReceipt(rc, tableOf, best, storeName, medal, onRetry, onNext, onMenu, goal) {
+export function showReceipt(rc, tableOf, best, storeName, medal, onRetry, onNext, onMenu, goal, purse) {
   hideScreens();
   ui.hud.classList.add('off');
   ui.screen.className = 'screen receipt on';
@@ -403,16 +404,17 @@ export function showReceipt(rc, tableOf, best, storeName, medal, onRetry, onNext
   line('TIME ' + rc.left + ' s', money(rc.time));
   const total = line('TOTAL', money(rc.total), 'total');
   const row = el('div', 'btn-row', undefined, ui.screen);
-  const again = button('btn', 'RETRY  (R)', row, onRetry), next = onNext ? button('btn go', 'NEXT  (Enter)', row, onNext) : null, menu = onMenu ? button('btn', 'STORES', row, onMenu) : null;
+  const again = button('btn', 'RETRY  (R)', row, onRetry), next = onNext ? button('btn go' + (purse && purse.afford ? ' pulse' : ''), 'CART CUSTOMS', row, onNext) : null, menu = onMenu ? button('btn', 'MALL DIRECTORY', row, onMenu) : null;
   steps.push(() => { el('div', 'stamp m' + medal, MEDAL[medal], total); audioCue('stamp'); });
   if (rc.badge) steps.push(() => { el('div', 'stamp new', rc.badge, total); audioCue('stamp'); });
   steps.push(() => {
     tableOf().forEach((r, i) => line((i + 1) + '. ' + r.name, r.total < 0 ? 'still shopping' : money(r.total), 'rank' + (r.me ? ' me' : '')));
     const bestRow = line('BEST', money(best.value), 'rank best');
     if (goal) line(MEDAL[goal.medal] + ' AT', money(goal.at), 'rank next');       // what the next medal takes
+    if (purse) line('WALLET', money(purse.wallet), 'rank wallet');
     steps.push(() => {
       if (best.isNew) el('div', 'stamp new', 'NEW BEST!', bestRow);
-      if (!onNext) el('div', 'paper-sub end', 'that was the last store. thank you for shopping!', paper);
+
       for (const b of [again, next, menu]) if (b) b.classList.add('in');
     });
   });
