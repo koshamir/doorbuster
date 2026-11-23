@@ -77,7 +77,7 @@ export function showCustoms(st, buy, equip, onDone) {
     mel('div', 'col-head', 'UPGRADES', left);
     for (const id of Object.keys(UPGRADES)) {
       const u = UPGRADES[id], have = st.up[id] || 0, r = mel('div', 'uprow', undefined, left);
-      mel('b', 'uname', u.name, r);
+      mel('b', 'uname', u.name, r); mel('span', 'uwhat', u.what, r);
       u.tiers.forEach((tn, i) => {
         const owned = i < have, nextOne = i === have, can = nextOne && st.wallet >= u.price[i];
         const tag = mbtn('tag' + (owned ? ' owned' : nextOne ? (can ? ' can' : ' short') : ' later'), '', r, () => { if (can) { buy('up', id); draw(); } });

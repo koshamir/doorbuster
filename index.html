@@ -106,6 +106,10 @@
 
   .hint-keys { position: absolute; left: 0; top: 0; display: flex; gap: .3em; margin: -5em 0 0 3.2em; opacity: 0; transition: opacity .3s; }
   .hint-keys.in { opacity: 1; animation: beat .45s infinite alternate; }
+  .ramtag { position: absolute; left: 0; top: 0; margin: -1.3em 0 0 -2.6em; padding: .2em .55em .15em 1.15em; font: 900 1.05em/1 var(--mono); white-space: nowrap; pointer-events: none;
+    background: var(--sale); color: var(--night); border: .15em solid var(--night); border-radius: .25em .7em .7em .25em; box-shadow: 0 .2em 0 var(--night); opacity: 0; transition: opacity .15s; }
+  .ramtag::before { content: ''; position: absolute; left: .38em; top: 50%; width: .34em; height: .34em; margin-top: -.17em; border-radius: 50%; background: var(--night); }
+  .ramtag.in { opacity: 1; animation: beat .3s infinite alternate; }
   .hint-keys b { min-width: 1.5em; height: 1.5em; line-height: 1.5em; padding: 0 .15em; text-align: center; font-size: 1.25em; background: var(--paper);
     border: .14em solid var(--night); border-radius: .3em; box-shadow: 0 .2em 0 var(--night); }
   .hint-keys b.wide { font-size: .9em; height: 2.1em; line-height: 2.1em; padding: 0 .6em; }
@@ -186,7 +190,8 @@
   .cat .stage { flex: 1; }
   .cat .col { width: min(19em, 36vw); background: var(--paper); border: .16em solid var(--night); border-radius: .5em; padding: .6em .7em; box-shadow: 0 .25em 0 var(--night); max-height: 100%; overflow: auto; box-sizing: border-box; }
   .col-head { font: 900 1em 'Arial Black', Impact, sans-serif; border-bottom: .14em dashed var(--ink); margin: .2em 0 .4em; }
-  .uprow { margin-bottom: .5em; } .uname { display: block; font: 900 .8em 'Arial Black', Impact, sans-serif; margin-bottom: .2em; }
+  .uprow { margin-bottom: .5em; } .uname { display: block; font: 900 .8em 'Arial Black', Impact, sans-serif; margin-bottom: 0; }
+  .uwhat { display: block; font: 700 .56em/1.2 var(--mono); opacity: .7; margin-bottom: .3em; }
   .cat .tag { font: inherit; display: inline-flex; flex-direction: column; width: 31%; margin-right: 2%; padding: .3em .25em .3em .6em; text-align: left; cursor: pointer; background: #fff; color: var(--night);
     border: .12em solid var(--night); border-radius: .2em .9em .9em .2em; position: relative; vertical-align: top; box-sizing: border-box; }
   .cat .tag::before { content: ''; position: absolute; left: .18em; top: 50%; width: .22em; height: .22em; margin-top: -.11em; border-radius: 50%; background: var(--night); }
@@ -197,7 +202,7 @@
   .swatch, .chip { font: inherit; display: flex; flex-direction: column; align-items: flex-start; padding: .3em .4em; background: #fff; color: var(--night); border: .12em solid var(--night); border-radius: .3em; cursor: pointer; text-align: left; }
   .swatch .dot { width: 1.6em; height: 1.6em; border-radius: 50%; background: radial-gradient(circle at 35% 35%, var(--r), var(--p) 60%); border: .12em solid var(--night); margin-bottom: .15em; }
   .swatch.on, .chip.on { outline: .2em solid var(--pink); }
-  .hats { display: grid; grid-template-columns: repeat(2, 1fr); gap: .35em; }
+  .hats { display: grid; grid-template-columns: repeat(3, 1fr); gap: .35em; }
   /* the level intro card */
   .intro { position: absolute; left: 50%; top: 11%; transform: translateX(-50%); display: flex; align-items: center; gap: 1em; pointer-events: none; animation: introIn .35s both, introOut .4s 2.6s both; z-index: 4; }
   .isign { background: var(--night); border: .2em solid var(--a); border-radius: .5em; padding: .4em .9em; color: #fff; text-align: center; box-shadow: 0 .25em 0 #000a; }

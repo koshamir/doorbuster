@@ -218,7 +218,7 @@ export function makeTurntable(look, hat) {
   t.update = (dt) => {
     t.spin += dt * 0.55; root.rotation.y = t.spin;
     animate(t.racer.rig, { mode: 'count', speed: 0 }, dt);
-    const cam = R.camera; cam.position.set(0, 2.5, 6.6); cam.lookAt(0, 0.95, 0);
+    const cam = R.camera; cam.position.set(0, 2.7, 7.9); cam.lookAt(0, 1.0, 0);     // far enough that Penny never turns behind a panel
     if (cam.fov !== 36) { cam.fov = 36; cam.updateProjectionMatrix(); }
   };
   t.dispose = () => { R.scene.remove(root); root.traverse((o) => { if (o.geometry) o.geometry.dispose(); }); mats[0].dispose(); };

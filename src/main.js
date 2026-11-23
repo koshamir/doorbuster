@@ -26,7 +26,7 @@ import { UPGRADES, PAINTS, HATS } from './cartart.js';
 import { kitOf } from './kits.js';
 import { audio, unlockAudio, setSound, setVolumes, audioEvent, audioCue, audioFrame, objectSound, loadVoices } from './audio.js';
 import { chatterReset, chatterEvent, chatterFrame } from './chatter.js';
-import { ui, initUI, updateHud, resetHud, popWord, announce, floatText, sticker, updateStickers, chainText, setList, setArrow, setWarn, setHint, showTouch, showTitle, showReceipt,
+import { ui, initUI, updateHud, resetHud, popWord, announce, floatText, sticker, updateStickers, chainText, setList, setArrow, setWarn, setHint, setRamTag, showTouch, showTitle, showReceipt,
   showClosed, showPause, hideScreens, hurryUI, money, initDebug, updateDebug } from './ui.js';
 
 const query = new URLSearchParams(location.search);
@@ -132,7 +132,7 @@ function startFromTitle() {
 }
 function pause(on) {
   if (on === game.paused || (on && game.state !== 'play')) return;      // only a run can be paused
-  game.paused = on;
+  game.paused = on; setRamTag(null);
   if (on) {
     platform.pause();
     showPause({ sound: platform.soundOn, music: save.music, sfx: save.sfx, shake: TUNE.shake, impact: save.impact !== false }, {
@@ -301,6 +301,23 @@ function onEvent(e) {
 
 // The arrow to the current event (the flash sale, a hot item someone shouted about, the checkouts at
 // closing time), the "!" over a rival about to ram, and the key hints of the first runs.
+// The ram invitation (DESIGN.md section 4, the headline move): with the dash ready, a rival carrying loot a few metres
+// ahead wears a pulsing price tag with what a ram can knock out of its cart.
+function ramCue() {
+  const sim = game.sim, p = sim.player;
+  let best = null, bd = 10.5;
+  if (game.state === 'play' && sim.phase === 'run' && !p.done && p.wipeT <= 0 && (p.dashCd <= 0 || p.madT > 0)) {
+    const fx = Math.sin(p.h), fz = Math.cos(p.h);
+    for (const k of sim.carts) {
+      if (k.player || k.done || k.value < 150 || k.stunT > 0 || k.wipeT > 0) continue;
+      const dx = k.x - p.x, dz = k.z - p.z, d = Math.hypot(dx, dz);
+      if (d > 3 && d < bd && dx * fx + dz * fz > d * 0.6) { bd = d; best = k; }
+    }
+  }
+  if (!best) { setRamTag(null); return; }
+  const s = toScreen(best.x, 1.7, best.z);                // at the rider's shoulders: on the cart, not on top of its tower
+  setRamTag('RAM! ' + money(Math.round(best.value * TUNE.spillmax)), s.x, s.y);
+}
 function pointers(dt) {
   const sim = game.sim, p = sim.player, playing = game.state === 'play';
   let m = game.markT > 0 ? game.mark : null, text = game.markText;
@@ -422,6 +439,7 @@ function tick(dt, draw) {
     for (const k of sim.carts) if (!k.player) { const s = toScreen(k.x, 2.4 + (k.tower.length ? 1.6 : 0), k.z); if (s.z < 1) floatText(k.def.name.toUpperCase(), s.x, s.y, 'name'); }
   }
   pointers(dt);
+  ramCue();
   updateHud(sim, dt);
   chatterFrame(sim);
   updateStickers(dt, toScreen);

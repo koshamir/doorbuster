@@ -57,6 +57,7 @@ export function initUI(root) {
   el('i', '', undefined, ui.arrow); el('b', '', '', ui.arrow);
   ui.warn = el('div', 'float warn', '!', ui.hud);
   ui.hint = el('div', 'hint-keys', undefined, ui.hud);
+  ui.ramTag = el('div', 'ramtag', undefined, ui.hud);
   ui.chain = el('div', 'float chain', '', ui.hud);
   for (let i = 0; i < 14; i++) ui.floats.push({ e: el('div', 'float', '', ui.hud), t: 0, x: 0, y: 0 });
   for (let i = 0; i < 3; i++) { const e = el('canvas', 'sticker', undefined, ui.hud); e.width = 300; e.height = 190; ui.stickers.push({ e, t: 9, x: 0, y: 0, z: 0, word: '' }); }
@@ -289,6 +290,11 @@ export function setWarn(on, x, y) {
   if (on) ui.warn.style.transform = `translate(${x.toFixed(0)}px, ${y.toFixed(0)}px)`;
 }
 // Teaching without text: key caps beside the cart (keys = ['A', 'D'] ...), or nothing (null).
+// The ram invitation: a price tag over a loaded rival in dash range (text null hides it).
+export function setRamTag(text, x, y) {
+  if (text !== ui.ramText) { ui.ramText = text; if (text) ui.ramTag.textContent = text; ui.ramTag.classList.toggle('in', !!text); }
+  if (text) ui.ramTag.style.transform = `translate(${x.toFixed(0)}px, ${y.toFixed(0)}px)`;
+}
 export function setHint(keys, x, y) {
   const key = keys ? keys.join(' ') : '';
   if (key !== ui.hintKey) {
