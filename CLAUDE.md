@@ -36,6 +36,7 @@ Read the ones the current prompt names. When they disagree, the earlier one in t
 | `docs/QUALITY.md` | The lean check process, budgets, release checklist |
 | `docs/GDD.md` | Design v2: reference for systems that still work and are not changed by v3 |
 | `docs/RESEARCH.md` | Background: sources for techniques |
+| `docs/LEVEL_FORMAT.md` | The universal level file (made by the level editor in `editor/`, read by `tools/level.mjs`) |
 | `references/` | Style images (cel shading and ink lines) |
 | `prompts/` | The phase prompts P1–P5; `NOTES.md` STATUS names the current one |
 
@@ -59,3 +60,5 @@ Read the ones the current prompt names. When they disagree, the earlier one in t
 ## Running
 
 `npm run serve` (or any static server in the project root), then open `index.html`. URL parameters (`level`, `seed`, `autoplay`, `debug`, `manual`, and the `scene` showcases from `docs/QUALITY.md`) are listed at the top of `src/main.js`.
+
+The level editor (a development tool, not shipped) is at `editor/index.html` on the same server. A level file from it goes into the game with `node tools/level.mjs add <file>` (`docs/LEVEL_FORMAT.md`).

@@ -10,7 +10,8 @@
     "build": "node tools/build.mjs",
     "sim": "node tools/sim.mjs",
     "script": "node tools/script.mjs",
-    "package": "node tools/package.mjs"
+    "package": "node tools/package.mjs",
+    "level": "node tools/level.mjs"
   },
   "devDependencies": {
     "playwright-core": "1.61.1"

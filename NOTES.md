@@ -3,8 +3,10 @@ Phase: P5 SHIP done — released (tag release, moved after the art review) and p
 Done: P1-P5; six stores, four modes, Directory, Customs, jury fixes, the handoff package in handoff/ (node tools/package.mjs rebuilds and checks it)
 Next: the owner uploads handoff/ to Mindblown (steps in REPORTS.md, P5) and enters it in the cup by 30 Nov
 Open problems: see Known issues
+After release: a level editor (editor/, served at /editor/) and the universal level format (docs/LEVEL_FORMAT.md, tools/level.mjs)
 
 ## Owner feedback (verbatim, latest first, last 3 rounds)
+2026-11-23 (translated from Russian): "Make me a convenient, practical level creator where I can design a level by hand and place everything myself, objects and so on, in a practical way. Above all, I must be able to export it in the most universal form, one I can hand to you, that suits many versions of our project and is very clear to AI agents."
 
 ## Decisions (one line each)
 D1 2026-11-22 Fixed step 1/120 s with render interpolation, at most 20 steps a frame; key events carry time stamps and land on their own step.
@@ -67,6 +69,10 @@ D57 2026-11-23 Levels 7 NEON NIGHTS and 8 LAST CALL are not built: the shipped s
 D58 2026-11-23 A third reviewer, the art director on the final build, at the owner's request (QUALITY.md section 4 planned two).
 D59 2026-11-23 Art review applied: a calm violet backroom, wall stripes as flat paint, puddles in saturated blue with ink and a white rim, mint route chevrons, a cut cheese wheel, broken crowd silhouettes, bolder brows and mouths.
 D60 2026-11-23 Art review skips: no fog or wall-top ink line (a global change this late risks all six stores); no lens lids for Selfie or mouth through Bubba's beard (their bolder brows carry the emotion); no belt edges (the "belt" is an open freezer chest).
+D61 2026-11-23 Level files are JSON with the map as ASCII rows plus a legend that names every character: readers map by name, so the game may change its characters; every setting and field is written out, with units in the names.
+D62 2026-11-23 Each file carries an about text and a glossary of the names it uses, so an AI agent needs nothing else to read or edit it; editor/catalog.js is the one vocabulary, editor/format.js the one converter.
+D63 2026-11-23 The editor lives outside src/ (the shipped game stays at 30 files); its checks and bot runs call the game's own world.js, objects.js and sim.js, and its test drive is index.html?custom=1 (a level in localStorage; nothing saved or submitted).
+D64 2026-11-23 All six levels go game -> file -> game with the same expert receipt and checkout time (seed 1), so the format loses nothing.
 
 ## Known issues (at most 10)
 - Level 4 receipts run small (the boutique spills most loot), so bronze is common there.

@@ -8,7 +8,8 @@
 //
 // URL parameters, all optional: level=N, seed=N, autoplay=beginner|confident|expert (a bot drives),
 // fill=N (start with N goods in the cart), debug=1 (panel and window.__db), manual=1 (time advances only
-// through window.__db.advance(seconds); the capture tool uses it for exact, repeatable frames).
+// through window.__db.advance(seconds); the capture tool uses it for exact, repeatable frames), custom=1 (a test
+// drive of the level the editor, editor/index.html, left in localStorage: nothing is saved or submitted).
 
 import { TUNE, CFG, GOOD } from './config.js';
 import { LEVELS } from './levels.js';
@@ -93,7 +94,7 @@ function openDirectory() {
   if (game.turntable) { game.turntable.dispose(); game.turntable = null; if (game.view) game.view.root.visible = true; }
   game.state = 'directory';
   const cards = storeCards(); for (const c of cards) c.pic = hotPic(c.hot);
-  showDirectory(cards, save.wallet, (i) => { game.level = i + 1; play(false); }, openCustoms, null);
+  showDirectory(cards, save.wallet, (i) => { game.level = i + 1; game.custom = null; play(false); }, openCustoms, null);
 }
 // Cart Customs: the turntable replaces the store behind the catalogue page.
 function openCustoms() {
@@ -178,16 +179,18 @@ function toScreen(x, y, z) {
 // is due) the rest of the race played out.
 function finish() {
   const sim = game.sim, p = sim.player, def = sim.def, total = p.receipt.total;
-  const prev = save.best[def.id] || 0, isNew = total > prev, medal = 1 + (def.medals || []).filter((m) => total >= m).length;
-  if (isNew) save.best[def.id] = total;
-  if (!p.ai || query.has('pilot')) save.wallet = (save.wallet || 0) + Math.max(0, total);     // (pilot: a bot drives as the player, for the flow test)
-  save.medals[def.id] = Math.max(save.medals[def.id] || 0, medal);
-  save.fails = 0;
-  if (game.level >= 1 && game.level < LAST) save.unlocked = Math.max(save.unlocked, game.level + 1);
-  platform.save();
-  platform.submit('receipt_l' + game.level, total, def.name);
-  platform.submit('receipt_total', LEVELS.slice(1).reduce((s, d) => s + (save.best[d.id] || 0), 0), 'All stores');
-  platform.runEnd(sim.t, game.level);
+  const prev = game.custom ? 0 : save.best[def.id] || 0, isNew = total > prev, medal = 1 + (def.medals || []).filter((m) => total >= m).length;
+  if (!game.custom) {                      // an editor test drive keeps no record
+    if (isNew) save.best[def.id] = total;
+    if (!p.ai || query.has('pilot')) save.wallet = (save.wallet || 0) + Math.max(0, total);     // (pilot: a bot drives as the player, for the flow test)
+    save.medals[def.id] = Math.max(save.medals[def.id] || 0, medal);
+    save.fails = 0;
+    if (game.level >= 1 && game.level < LAST) save.unlocked = Math.max(save.unlocked, game.level + 1);
+    platform.save();
+    platform.submit('receipt_l' + game.level, total, def.name);
+    platform.submit('receipt_total', LEVELS.slice(1).reduce((s, d) => s + (save.best[d.id] || 0), 0), 'All stores');
+    platform.runEnd(sim.t, game.level);
+  }
   game.state = 'closeup'; game.closeT = 1.5;
   game.view.heroPose = p.place === 1 || medal >= 2 ? 'victory' : 'defeat';
   ui.hud.classList.add('off'); setArrow(false); setWarn(false); setHint(null);
@@ -290,8 +293,7 @@ function onEvent(e) {
     case 'finish': game.state = 'finish'; break;       // handled after the event loop (it plays the race out)
     case 'timeup':
       game.state = 'closed';
-      save.fails = (save.fails || 0) + 1; platform.save();
-      platform.runEnd(sim.t, game.level);
+      if (!game.custom) { save.fails = (save.fails || 0) + 1; platform.save(); platform.runEnd(sim.t, game.level); }
       // Three failures in a row and the store can be skipped: nobody is locked out of the rest.
       showClosed(() => play(true), save.fails >= 3 && game.level >= 1 && game.level < LAST ? () => { save.unlocked = Math.max(save.unlocked, game.level + 1); save.fails = 0; platform.save(); next(); } : null);
       break;
@@ -503,6 +505,7 @@ async function boot() {
   // cover=1 and icon=1 are for the pictures of the handoff package: the title view without its buttons, or without any interface and closer.
   if (query.has('cover')) document.body.classList.add('cover');
   if (query.has('icon')) { document.body.classList.add('icon'); R.cam.near = true; }
+  if (query.has('custom')) try { game.custom = JSON.parse(localStorage.getItem('doorbuster_custom')); } catch (e) { game.custom = null; }
   setSound(platform.soundOn); setVolumes(save.music, save.sfx);
   platform.onSound(setSound);
   platform.onTune(resizeRender);
@@ -583,7 +586,7 @@ async function boot() {
   // A showcase scene, or: a bot or the capture tool goes straight into the run; a person gets the title and one click.
   if (query.get('scene')) { game.show = initShowcase(query.get('scene'), query); ui.hud.classList.add('off'); }
   else if (query.has('title')) { title(); if (query.get('screen') === 'directory') openDirectory(); else if (query.get('screen') === 'customs') { save.wallet = save.wallet || 2600; openCustoms(); } }
-  else if (game.bot || game.manual || query.has('go')) play(false);
+  else if (game.bot || game.manual || query.has('go') || game.custom) play(false);
   else title();
   tick(1 / 60, true);
   game.last = performance.now();
