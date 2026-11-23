@@ -230,7 +230,7 @@ export function stepCart(k, inp, sim, dt) {
     if (k.drift) endDrift(k, top0, sim, false);
     k.air = k.airT = rp.tramp ? 1.05 : CFG.jumpTime; k.over = false;
     if (rp.tramp) { const v = Math.max(9.5, Math.hypot(k.vx, k.vz)); k.vx = rp.dx * v; k.vz = rp.dz * v; k.h = Math.atan2(rp.dx, rp.dz); }      // the mat throws it 10 m along itself
-    sim.emit('jump', k);
+    sim.emit('jump', k, 0, rp);
     break;
   }
   const backing = k.backT > 0;

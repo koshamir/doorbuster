@@ -87,8 +87,10 @@ function cushion(view, ob, mesh) {
   const P = builder(); bind(P, 0, AL(0.4)); at(P, 0, 0.3, 0); box(P, 1.7, 1.7, 0.7, 0x3A86FF, { bevel: 0.35 });
   bind(P, 0, AL(0.6)); at(P, 0, 0.3, 0.36); box(P, 1.5, 0.08, 0.02, 0xFFFFFF, { bevel: 0 }); at(P, 0, 1.92, 0.36); box(P, 1.5, 0.08, 0.02, 0xFFFFFF, { bevel: 0 });
   const pad = mesh(P); g.add(pad); view.root.add(g);
+  let out = 0;
   return { ob, sync(t, dt, draw) {
     const e = gloveReach(ob, t), u = ob.every ? ((t - ob.delay) % ob.every + ob.every) % ob.every : 9, pre = u > ob.every - 0.3 ? (u - ob.every + 0.3) / 0.3 : 0;
+    if (e > 0.05 && !out) { this.snd = 'punch'; this.sx = ob.gx; this.sz = ob.gz; } out = e > 0.05;
     pad.position.z = e * (ob.reach - 0.7); pad.scale.set(1 + pre * 0.12, 1 + pre * 0.12, 1 - pre * 0.25);
     if (e > 0) draw.shadow(ob.gx + ob.dx * (e * ob.reach * 0.5), ob.gz + ob.dz * (e * ob.reach * 0.5), 0.9, e * ob.reach * 0.5 + 0.2, Math.atan2(ob.dx, ob.dz));
   } };
@@ -122,7 +124,8 @@ function foos(view, ob, mesh) {
   bind(P, 0, AL(0.3)); at(P, 0, 0, 0.1); box(P, 0.7, 0.3, 0.7, 0x2B2D42, { bevel: 0.3 });
   const body = mesh(P); view.root.add(body);
   const pos = { x: 0, z: 0, h: 0, moving: false };
-  return { ob, sync(t, dt, draw) { patrolAt(ob, t, pos); body.position.set(pos.x, 0, pos.z); body.rotation.z = Math.sin(t * 7) * 0.04; draw.shadow(pos.x, pos.z, 0.6, 0.45, 0); } };
+  let went = true;
+  return { ob, sync(t, dt, draw) { patrolAt(ob, t, pos); if (went && !pos.moving) { this.snd = 'clack'; this.sx = pos.x; this.sz = pos.z; } went = pos.moving; body.position.set(pos.x, 0, pos.z); body.rotation.z = Math.sin(t * 7) * 0.04; draw.shadow(pos.x, pos.z, 0.6, 0.45, 0); } };
 }
 // A belly bro: a huge round belly in a white vest, a burger in each hand, waddling; a dash makes him spin.
 function belly(view, ob, mesh) {
@@ -155,9 +158,11 @@ function grill(view, ob, mesh) {
   bind(F, 0, [0, 0, 0.1, 1]);
   for (let i = 0; i < n; i++) { const u = -L / 2 + 0.35 + i * 0.7, x = ob.x + (wide ? u : 0), z = ob.z + (wide ? 0 : u); at(F, x, 0.1, z); cyl(F, 0.32, 0.02, 1.4 + (i % 3) * 0.3, 0xFF7F11, { seg: 7 }); at(F, x, 0.1, z); cyl(F, 0.16, 0.02, 0.9, 0xFFE27A, { seg: 6 }); }
   const fire = new THREE.Mesh(toGeometry(F, { groups: false, hull: false }), lamp); fire.frustumCulled = false; view.root.add(fire);
+  let was = 0;
   return { ob, sync(t) {
     const st = flameState(ob, t), u = ((t / ob.period + ob.phase) % 1 + 1) % 1 * ob.period;
     const k = st === 2 ? Math.min(1, u / 0.12) * (0.85 + 0.15 * Math.sin(t * 40)) : 0;
+    if (st === 2 && was !== 2) { this.snd = 'sizzle'; this.sx = ob.x; this.sz = ob.z; } was = st;
     fire.visible = k > 0.02; fire.scale.set(1, k, 1); fire.position.y = 0;
     const heat = st === 2 ? 1.4 : st === 1 ? 0.4 + 0.5 * Math.abs(Math.sin(t * 22)) : 0.15;
     lamp.uniforms.uGlow.value.set(heat * 1.0, heat * 0.45, heat * 0.1);
@@ -181,9 +186,12 @@ function cleavers(view, ob, mesh) {
     at(C, ob.gap * 0.28, -2.4, 0.035); ring(C, 0.1, 0.1, 0.02, 0.01, 0x8E96A8, { seg: 10 });
     const m = mesh(C); hinge.add(m); view.root.add(hinge); blades.push(hinge);
   }
+  const prev = [];
   return { ob, sync(t) {
     for (let i = 0; i < ob.n; i++) {
-      const st = cleaverState(ob, t, i), u = (((t - i * ob.step) / ob.period + ob.phase) % 1 + 1) % 1 * ob.period;
+      const st = cleaverState(ob, t, i);
+      if (st === 2 && prev[i] !== 2) { this.snd = 'shing'; this.sx = blades[i].position.x; this.sz = blades[i].position.z; } prev[i] = st;
+      const u = (((t - i * ob.step) / ob.period + ob.phase) % 1 + 1) % 1 * ob.period;
       blades[i].rotation.x = st === 2 ? 0 : st === 1 ? -1.9 - 0.25 * Math.min(1, (u - ob.period + 0.3) / 0.3) : -Math.min(1.6, (u - ob.down) / 0.25 * 1.6);
     }
   } };

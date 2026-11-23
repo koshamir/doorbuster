@@ -401,6 +401,7 @@ function tick(dt, draw) {
     for (const sc of props.scissors) if (sc.snip) { sc.snip = false; objectSound('snip', near(sc.ob.x, sc.ob.z)); }
     for (const gl of props.gloves) if (gl.punch) { gl.punch = false; objectSound('punch', near(gl.ob.gx, gl.ob.gz)); }
     if (props.yarn && props.yarn.ob.active) { const y = props.yarn.ball.position, c = near(y.x, y.z); R.cam.shake = Math.max(R.cam.shake, c * c * 0.35); if (Math.sin(game.clock * 9) > 0.9) objectSound('rumble', c); }
+    for (const a of props.arena) if (a.snd) { objectSound(a.snd, near(a.sx, a.sz)); a.snd = null; }
     for (const f of props.fields) if (f.clank) { f.clank = false; objectSound(f.trap ? 'clank' : 'boing', near(f.ob.x, f.ob.z)); }
   }
   // Money being swept right now is one running label above the cart; when the run of goods ends it

@@ -217,7 +217,7 @@ export function audioEvent(e, sim) {
     case 'laneclose': tone(A.sfx, 'square', 98, 92, t, 0.3, 0.2); click(t + 0.28, 0.3); break;
     case 'go': arp(t, [64, 71, 76], 'square', 0.2, 0.001, 0.5); whoosh(t, 300, 2500, 0.4, 0.25); break;
     case 'wet': if (mine) { hiss(A.sfx, 'bandpass', 900, 2600, 3, t, 0.3, 0.3); tone(A.sfx, 'sine', 700, 1500, t, 0.22, 0.12); } break;   // wheels squeal on water
-    case 'jump': whoosh(t, 300, 3000, 0.5, 0.4 * far); if (mine) tone(A.sfx, 'triangle', hz(60), hz(84), t, 0.45, 0.16); break;
+    case 'jump': if (e.ref && e.ref.tramp) objectSound('boing', far); whoosh(t, 300, 3000, 0.5, 0.4 * far); if (mine) tone(A.sfx, 'triangle', hz(60), hz(84), t, 0.45, 0.16); break;
     case 'land': boom(t, 0.7 * far, 110); clang(t + 0.03, 4, 0.1 * far); break;
     case 'selfie': click(t, 0.5 * far); tone(A.sfx, 'square', hz(96), 0, t + 0.02, 0.05, 0.1 * far); click(t + 0.09, 0.35 * far); break;   // a shutter
     case 'finish':
@@ -226,7 +226,8 @@ export function audioEvent(e, sim) {
       break;
     case 'timeup': arp(t, [67, 66, 65, 64], 'sawtooth', 0.22, 0.22, 0.3); tone(A.sfx, 'square', 98, 90, t + 0.9, 0.6, 0.2); break;
     // the level objects (ART.md section 8)
-    case 'wipe': boom(t, far, 150); tone(A.sfx, 'sine', 900, 180, t, 0.35, 0.4 * far); tone(A.sfx, 'triangle', 1350, 260, t + 0.02, 0.3, 0.16 * far); clang(t + 0.05, 4, 0.12 * far); if (mine) voice('player', false, true); else voice(k.char, false); break;
+    case 'wipe': if (e.ref && e.ref.kind === 'pit' && sim && sim.def && sim.def.kit === 'sports') { objectSound('splash', far); if (mine) voice('player', false, true); else voice(k.char, false); break; }
+      boom(t, far, 150); tone(A.sfx, 'sine', 900, 180, t, 0.35, 0.4 * far); tone(A.sfx, 'triangle', 1350, 260, t + 0.02, 0.3, 0.16 * far); clang(t + 0.05, 4, 0.12 * far); if (mine) voice('player', false, true); else voice(k.char, false); break;
     case 'pop': tone(A.sfx, 'sine', 140, 620, t, 0.22, 0.5 * far); tone(A.sfx, 'triangle', 300, 1200, t + 0.03, 0.18, 0.18 * far); if (!mine) voice(k.char, false); break;   // boing
     case 'shoved': tone(A.sfx, 'square', 330, 300, t, 0.12, 0.16 * far); tone(A.sfx, 'square', 392, 360, t + 0.13, 0.14, 0.14 * far); boom(t, 0.6 * far, 120); break;   // a horn and a thump
     case 'press': tone(A.sfx, 'sine', hz(96), 0, t, 1.2, 0.35, 0.002); tone(A.sfx, 'sine', hz(103) * 1.004, 0, t, 0.9, 0.12, 0.002); break;   // the service bell: ding!
@@ -256,7 +257,11 @@ export function objectSound(kind, vol) {
   else if (kind === 'snip') { hiss(A.sfx, 'highpass', 6000, 0, 3, t, 0.08, 0.2 * vol); tone(A.sfx, 'triangle', 2600, 1800, t + 0.05, 0.07, 0.12 * vol); }   // scissors shut
   else if (kind === 'punch') { boom(t, 0.5 * vol, 200); click(t, 0.4 * vol); }
   else if (kind === 'rumble') { tone(A.sfx, 'sawtooth', 46, 38, t, 0.3, 0.12 * vol); hiss(A.sfx, 'lowpass', 300, 120, 0.7, t, 0.3, 0.1 * vol); }
-  else if (kind === 'boing') { }
+  else if (kind === 'boing') { tone(A.sfx, 'sine', 160, 560, t, 0.28, 0.3 * vol); tone(A.sfx, 'triangle', 320, 900, t + 0.03, 0.2, 0.1 * vol); }   // a pop-up tile or a trampoline
+  else if (kind === 'sizzle' && soon('sizzle', 0.3)) { hiss(A.sfx, 'highpass', 2600, 0, 0.8, t, 0.7, 0.16 * vol, 0.03); tone(A.sfx, 'sawtooth', 70, 50, t, 0.4, 0.08 * vol); }   // a grill bursts into flame
+  else if (kind === 'shing' && soon('shing', 0.07)) { tone(A.sfx, 'square', 2300, 2150, t, 0.16, 0.05 * vol); hiss(A.sfx, 'highpass', 6000, 0, 1, t, 0.12, 0.12 * vol); boom(t + 0.02, 0.25 * vol, 120); }   // a cleaver chops
+  else if (kind === 'clack' && soon('clack', 0.12)) { tone(A.sfx, 'triangle', 900, 650, t, 0.06, 0.2 * vol); click(t, 0.3 * vol); }   // a foosball player turns on its rod
+  else if (kind === 'splash') { hiss(A.sfx, 'lowpass', 1800, 300, 0.8, t, 0.6, 0.45 * vol, 0.02); for (let i = 0; i < 5; i++) tone(A.sfx, 'sine', 500 + i * 170, 900 + i * 200, t + 0.12 + i * 0.07, 0.06, 0.07 * vol); }   // into the pool
   else if (kind === 'creak') { tone(A.sfx, 'sawtooth', 110 + Math.random() * 30, 70, t, 0.32, 0.07 * vol); hiss(A.sfx, 'bandpass', 600, 300, 4, t, 0.3, 0.06 * vol); }
   else if (kind === 'beep' && soon('beep', 0.4)) tone(A.sfx, 'square', 1250, 0, t, 0.14, 0.07 * vol);
 }
