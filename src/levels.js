@@ -64,6 +64,7 @@ export const LEVELS = [
       ['sign', 42.5, 13.5, { across: 'x', period: 2.6, phase: 0 }],
       ['sign', 42.5, 20.5, { across: 'x', period: 2.6, phase: 0.5 }],
       ['cp', 42.5, 28, { across: 'x', w: 4 }],
+      ['boost', 35, 35, { c1: 36, dir: 'w' }],
       ['boost', 22, 39, { r1: 40, dir: 's' }],
     ],
     plan: [
@@ -443,6 +444,7 @@ export const LEVELS = [
       ['cleavers', 45, 8, { across: 'z', n: 8, gap: 2.2, period: 2.6, down: 0.35, step: 0.22 }],
       ['cp', 52, 14, { across: 'x', w: 13 }],
       ['cp', 52, 37, { across: 'x', w: 13 }],
+      ['boost', 47, 45, { r1: 46, dir: 'w' }],
       ['boost', 40, 47, { r1: 48, dir: 'w' }],
     ],
     plan: [
