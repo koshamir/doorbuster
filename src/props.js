@@ -6,12 +6,13 @@
 //          arches. Built once per level; posed every frame from the simulation's clock, so what the player sees
 //          is exactly what the objects do.
 // Exports: buildProps, syncProps, propEvent
-// Depends on: config.js, objects.js, render.js, shapes.js, atlas.js, kits.js, fixtures.js and the global THREE.
+// Depends on: config.js, objects.js, render.js, shapes.js, atlas.js, kits.js, fixtures.js, arena.js and the global THREE.
 
 import { CFG } from './config.js';
 import { SIGN, signAngle, tilePop, patrolAt, armAngle, laserAngle, gloveReach, scissorState, chaserAt } from './objects.js';
 import { screenMaterial } from './kits.js';
 import { screen } from './fixtures.js';
+import { arenaProp } from './arena.js';
 import { R, celMaterial, hullMaterial, blendMaterial, MRT_OUT, AUX_NONE } from './render.js';
 import { builder, at, bind, box, cyl, ellipsoid, tube, ring, toGeometry } from './shapes.js';
 import { KIT, kitAtlas } from './atlas.js';
@@ -47,12 +48,14 @@ const PROP_FLASH_VS = 'varying vec2 vUv; varying vec3 vColor; void main() { vUv 
 
 // ---- building -------------------------------------------------------------------------------------------
 export function buildProps(view, sim, kit) {
-  const world = sim.world, atlas = kitAtlas(kit), P = view.props = { signs: [], fields: [], patrols: [], buttons: [], gates: [], pads: [], watches: [], arches: [], bars: [], spins: [], lasers: [], gloves: [], scissors: [], yarn: null, t: 0 };
+  const world = sim.world, atlas = kitAtlas(kit), P = view.props = { signs: [], fields: [], patrols: [], buttons: [], gates: [], pads: [], watches: [], arches: [], bars: [], spins: [], lasers: [], gloves: [], scissors: [], yarn: null, arena: [], t: 0 };
   const cel = celMaterial({ mapB: atlas, rim: 0.35 }), hull = hullMaterial(2.5);
   view.own.push(cel, hull);
   const mesh = (B, mats) => { const m = new THREE.Mesh(toGeometry(B, {}), mats || [cel, hull]); m.frustumCulled = false; m.layers.enable(1); return m; };
   const flat = (fs, uniforms, additive) => { const m = blendMaterial(new THREE.ShaderMaterial({ vertexShader: PROP_VS, fragmentShader: fs, uniforms, depthWrite: false }), additive, true); view.own.push(m); return m; };
   for (const ob of world.objs) {
+    const ap = arenaProp(view, ob, mesh, atlas);       // the sports megastore's and the food court's objects (arena.js)
+    if (ap) { P.arena.push(ap); continue; }
     if (ob.kind === 'sign') {
       // the mount: a steel beam across the lane at the pivot, a bracket; the tag hangs from two chains
       const outer = new THREE.Group(), inner = new THREE.Group();
@@ -454,6 +457,7 @@ export function syncProps(view, sim, dt, draw) {
     if (p.ob.loop) p.lamp.uniforms.uGlow.value.set(0, 0.9 * on, 1.0 * on); else p.lamp.uniforms.uGlow.value.set(1.4 * on, 0.7 * on, 0.1 * on);
     draw.shadow(p.pos.x, p.pos.z, p.ob.hx + 0.25, p.ob.hz + 0.35, p.pos.h);
   }
+  for (const a of P.arena) a.sync(t, dt, draw);
   // smart barriers: the solid colour stands tall and glows; the other lies in the floor and throbs while the player's
   // dash is ready (that is what a dash would raise)
   const ready = sim.player && sim.player.dashCd <= 0 && !sim.player.done;

@@ -346,7 +346,8 @@ export const LEVELS = [
     id: 'gameon', name: 'GAME ON', mode: 'list', kit: 'sports', v3: true, timer: 120, author: 47, heading: Math.PI, cpAny: true,
     list: ['basketball', 'dumbbell', 'swimring', 'goalgloves'],
     rivals: ['dad'], roam: { dad: [18, 18, 33, 31] }, roamUntil: 38, crowd: 12, rush: 3, maxRams: 2, hotGood: 'bear', medals: [5500, 7500, 9500], rampDir: { '37,23': 'e' },
-    zones: [{ pool: 'sports', color: 0, name: 'GAME ON' }],
+    zones: [{ pool: 'sports', color: 0, name: 'GAME ON' }, { pool: 'sports', rect: [20, 0, 31, 17], surface: 'wood' }, { pool: 'sports', rect: [34, 12, 51, 36], surface: 'deck' },
+      { pool: 'sports', rect: [0, 15, 17, 32], surface: 'track' }, { pool: 'sports', rect: [16, 32, 35, 47], surface: 'turf' }],
     objects: [
       ['cp', 25.5, 16, { across: 'x', w: 6 }],
       ['glove', 26.5, 13, { from: [26.5, 13], dir: 'w', reach: 5.6, every: 2.5, delay: 0, look: 'cushion' }],
@@ -434,7 +435,7 @@ export const LEVELS = [
     id: 'food', name: 'FOOD FIGHT', mode: 'race', kit: 'food', v3: true, timer: 90, author: 30, heading: Math.PI,
     rivals: ['gramps', 'bro'], racer: 'gramps', roam: { bro: [12, 4, 56, 12] }, crowd: 10, rush: 4, maxRams: 1, hotGood: 'console',
     medals: [5000, 7000, 9000], rampDir: { '45,39': 'w' },
-    zones: [{ pool: 'food', color: 0, name: 'FOOD FIGHT' }],
+    zones: [{ pool: 'food', color: 0, name: 'FOOD FIGHT' }, { pool: 'food', rect: [1, 14, 12, 44], surface: 'warm' }, { pool: 'food', rect: [11, 0, 57, 13], surface: 'steel' }, { pool: 'food', rect: [45, 13, 59, 44], surface: 'dessert' }],
     objects: [
       ['cp', 18, 8, { across: 'z', w: 9 }],
       ['flame', 23, 4, { r1: 12, period: 2.5, on: 1.0, phase: 0 }],

@@ -84,7 +84,7 @@ export const KITS = {
   food: {
     id: 'food', name: 'FOOD FIGHT', palette: { a: '#FFF1DE', b: '#F4A261', c: '#D62828', d: '#E07A5F' }, sign: '#5C2A1E', top: '#7A3B2A',
     signs: ['SUSHI', 'GRILL', 'BURGERS', 'NOODLES', 'DESSERT', 'TACOS', 'PIZZA', 'SODA'],
-    shelves: { S: 'gondola', M: 'gondola', L: 'gondola' }, fixture: { body: 0xFFF1DE, accent: 0xF4A261, trim: 0xD62828, dark: 0x5C2A1E },
+    shelves: { S: 'stall', M: 'stall', L: 'stall' }, fixture: { body: 0xFFF1DE, accent: 0xF4A261, trim: 0xD62828, dark: 0x5C2A1E },
     floor: { a: 0xE58F72, b: 0xDB8166, grout: 0xB9634B, checker: 2, paint: 0xFFF1DE, arrow: 0xFFF1DE, vary: 0.06, wet: 0x7CC6FE },
     walls: { face: 0xFFF1DE, band: 0xF4A261, stripe: 0xD62828, top: 0x7A3B2A, base: 0xB9634B },
     pools: { grid: 10, r: 3.0, warm: [1.08, 0.92, 0.78], k: 0.13 },
@@ -153,8 +153,25 @@ void main() {
   c = mix(c, uGrout, grout);
   // a faint bevel highlight on each square's upper-left edge (tiles, not paint)
   c = mix(c, c * 1.04, (1.0 - smoothstep(0.0, 0.06, cf.x)) * (1.0 - grout) * far * 0.6);
-  float d = floor(t.g * 16.0 + 0.5);
-  if (d > 14.5) discard;                                            // a pit or a field of sliding panels: its own geometry lies below
+  float d = floor(t.g * 16.0 + 0.5), sf = floor(t.r * 16.0 + 0.5);
+  if (d > 14.5) discard;
+  // a zone's own surface (ART.md section 6): turf with mowing stripes, the orange track with lane lines, gym planks,
+  // pool-deck tiles, kitchen tread plate, sushi-bar wood, a dessert checker; a white line where a surface ends
+  if (sf > 0.5) {
+    vec2 q = vW.xz;
+    if (sf < 1.5) c = mix(vec3(0.2, 0.6, 0.3), vec3(0.25, 0.68, 0.35), step(0.5, fract(q.x / 3.0)));
+    else if (sf < 2.5) c = mix(vec3(0.86, 0.42, 0.16), vec3(1.0), (1.0 - smoothstep(0.03, 0.03 + w.x, abs(fract(q.y / 1.4) - 0.5) - 0.44)) * far);
+    else if (sf < 3.5) { float pl = floor(q.x / 0.3); c = vec3(0.8, 0.6, 0.38) * (0.92 + 0.12 * hash2(vec2(pl, floor(q.y / 1.7 + pl * 0.37)))); c = mix(c, c * 0.75, (1.0 - smoothstep(0.0, 0.02 + w.x * 0.3, fract(q.x / 0.3))) * far); }
+    else if (sf < 4.5) { vec2 tq = fract(q / 0.5); c = mix(vec3(0.96, 0.98, 1.0), vec3(0.62, 0.84, 0.94), max(step(0.9, tq.x), step(0.9, tq.y)) * far); }
+    else if (sf < 5.5) { vec2 tq = fract(q / 0.6) - 0.5; c = mix(vec3(0.4, 0.42, 0.47), vec3(0.58, 0.6, 0.66), step(abs(tq.x + tq.y), 0.08) * far); }
+    else if (sf < 6.5) { float pl = floor(q.y / 0.4); c = vec3(0.7, 0.47, 0.3) * (0.9 + 0.14 * hash2(vec2(pl, floor(q.x / 2.1 + pl * 0.5)))); c = mix(c, c * 0.7, (1.0 - smoothstep(0.0, 0.03, fract(q.y / 0.4))) * far); }
+    else c = mix(vec3(1.0, 0.85, 0.9), vec3(0.99, 0.96, 0.9), mod(floor(q.x) + floor(q.y), 2.0));
+    for (int k = 0; k < 4; k++) {
+      vec2 o = k == 0 ? vec2(1.0, 0.0) : k == 1 ? vec2(-1.0, 0.0) : k == 2 ? vec2(0.0, 1.0) : vec2(0.0, -1.0);
+      float n = floor(tileAt(id + o).r * 16.0 + 0.5), edge = k < 2 ? (o.x > 0.0 ? f.x : 1.0 - f.x) : (o.y > 0.0 ? f.y : 1.0 - f.y);
+      if (n != sf && tileAt(id + o).a > 0.5) c = mix(c, vec3(1.0), (smoothstep(0.9, 0.9 + w.x, edge) - smoothstep(0.96, 0.96 + w.x, edge)) * far);
+    }
+  }                                            // a pit or a field of sliding panels: its own geometry lies below
   // marble veins (boutique floors)
   if (uMarble > 0.0) c = mix(c, uVein, vein(vW.xz * 0.55) * uMarble * far * (1.0 - grout));
   if (d > 0.5 && d < 4.5) {                                          // a painted chevron down the route
@@ -252,6 +269,8 @@ export function floorMap(world) {
     data[i * 4 + 2] = (b ? world.nav[to] > world.nav[i] : k === '=' && line[i % cols - 1] !== '=' && line[i % cols + 1] !== '=') ? 255 : 0;
     data[i * 4 + 3] = world.floor[i] ? 255 : 0;
   }
+  const SURF = { turf: 1, track: 2, wood: 3, deck: 4, steel: 5, warm: 6, dessert: 7 }, zones = (world.def && world.def.zones) || [];
+  for (let i = 0; i < cols * rows; i++) data[i * 4] = (SURF[(zones[world.zone[i]] || {}).surface] || 0) * 16;
   for (const ob of world.objs || []) if (ob.kind === 'panels') for (let j = 0; j < ob.nr; j++) for (let i = 0; i < ob.nc; i++) data[((ob.r0 + j) * cols + ob.c0 + i) * 4 + 1] = 15 * 16;   // panels over a pit
   let c = Math.floor(world.start.x / CFG.TILE), r = Math.floor(world.start.z / CFG.TILE);
   for (let n = 0; n < 600; n++) {

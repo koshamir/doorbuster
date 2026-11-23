@@ -455,6 +455,7 @@ export function syncScene(view, sim, alpha, dt) {
       it.mesh.visible = it.fly > 0;
     } else it.mesh.visible = on || (it.p.type === 'podium' && !it.p.sale);
     if (it.p.full) { const u = Math.max(0, it.p.cans) / it.p.full; it.mesh.scale.y = 0.35 + 0.65 * u; }
+    if (it.p.type === 'listrack') { it.mesh.visible = true; if (it.p.good >= 0) { putGood(view.gv, it.p.good, 0, it.p.x, 0.55 + 0.08 * Math.sin(view.time * 3), it.p.z, view.time * 1.4, 1.4, 0, 0, view.hot); putGlow(view, it.p.x, it.p.z, 1.3 + 0.12 * Math.sin(view.time * 5), PAL.list); } }
     if (it.mesh.visible && it.fly <= 0) putShadow(view, it.p.x, it.p.z, it.rad + 0.15, it.rad + 0.15, 0);   // a smashed piece takes its shadow with it
     if (it.beam) {
       const hot = on && it.p.good >= 0;

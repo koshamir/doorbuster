@@ -5,7 +5,7 @@
 //          the store logo, wet-floor signs); and the meshes of the pieces that break, fly or open
 //          (can pyramids, gift piles, standees, hot-item podiums, shop windows, light props).
 // Exports: buildStore, pieceMesh, fixtureDemo, LOOSE
-// Depends on: config.js, shapes.js, atlas.js, goods.js, render.js, kits.js and the global THREE.
+// Depends on: config.js, shapes.js, atlas.js, goods.js, render.js, kits.js, arena.js and the global THREE.
 
 import { CFG, mix } from './config.js';
 import { builder, at, bind, box, cyl, ellipsoid, lathe, tube, ring, quad, toGeometry } from './shapes.js';
@@ -13,6 +13,7 @@ import { KIT, kitAtlas, labelAtlas } from './atlas.js';
 import { putProduct, lockGoods, STORE_STOCK, productSize, PRODUCTS } from './goods.js';
 import { celMaterial, hullMaterial, blendMaterial, MRT_OUT } from './render.js';
 import { screenMaterial } from './kits.js';
+import { ARENA_PIECES, trampPiece, stallRun } from './arena.js';
 
 const T2 = CFG.TILE, F_INK = 0x2A1A3A;
 const K = (cell, g = 0, e = 0) => [3, cell, g, e], KW = (cell, g = 0, e = 0) => [4, cell, g, e], PL = (g = 0, e = 0) => [0, 0, g, e];
@@ -65,6 +66,7 @@ export function buildStore(view, sim, kit, shadow) {
   world.shelves.forEach((s, i) => {
     const style = (kit.shelves || {})[s.kind] || 'gondola';
     if (style === 'produce') produceRun(B, s, F, view, stock); else if (style === 'freezer') freezerRun(B, s, F, view, stock); else if (style === 'rack') rackRun(B, s, F, view, stock);
+    else if (style === 'stall') stallRun(B, s, F, putProduct, view, stock, KIT.sign0 + i % 8, K);
     else if (style === 'clothes') clothesRun(B, s, F, view, stock); else if (style === 'foldtable') foldTable(B, s, F, view, stock); else if (style === 'shoewall') shoeWall(B, s, F, view, stock);
     else if (style === 'tech') techRun(B, S, s, F, view, stock); else if (style === 'techtable') techTable(B, S, s, F, view, stock); else if (style === 'tvwall') tvWall(B, S, s, F, view, stock); else gondolaRun(B, s, F, view, stock, i, kit);
     shadow(s.x, s.z, s.hx + 0.25, s.hz + 0.25, 0);
@@ -106,7 +108,7 @@ export function buildStore(view, sim, kit, shadow) {
   if (S.used) { const sm = screenMaterial(atlas); view.own.push(sm); mesh(S, sm); }
   return { mat };
 }
-export const LOOSE = { pyramid: 1, mega: 1, gifts: 1, stand: 1, podium: 1, glass: 1, table: 1, boxes: 1, mannequin: 1, case: 1 };
+export const LOOSE = { pyramid: 1, mega: 1, gifts: 1, stand: 1, podium: 1, glass: 1, table: 1, boxes: 1, mannequin: 1, case: 1, listrack: 1, crates: 1, caketower: 1, hurdle: 1, cone: 1 };
 
 // Floor decals blend over the floor (alpha from the atlas) and never write the glow mask.
 const DECAL_VS = 'attribute vec4 tex; varying vec2 vUv; varying vec4 vTex; varying vec3 vColor; void main() { vUv = uv; vTex = tex; vColor = color; gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0); }';
@@ -331,11 +333,12 @@ function pits(B, world, kit) {
   const { cols, rows } = world, pitAt = new Uint8Array(cols * rows);
   for (let i = 0; i < pitAt.length; i++) pitAt[i] = world.pit[i];
   for (const ob of world.objs || []) if (ob.kind === 'panels') for (let j = 0; j < ob.nr; j++) for (let i = 0; i < ob.nc; i++) pitAt[(ob.r0 + j) * cols + ob.c0 + i] = 2;
-  const isPit = (c, r) => c >= 0 && r >= 0 && c < cols && r < rows && pitAt[r * cols + c] > 0, D = 2.2, cloth = kit.id === 'boutique';
+  const water = kit.id === 'sports', isPit = (c, r) => c >= 0 && r >= 0 && c < cols && r < rows && pitAt[r * cols + c] > 0, D = water ? 0.6 : 2.2, cloth = kit.id === 'boutique';
   for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
     if (!isPit(c, r)) continue;
     const x0 = c * T2, z0 = r * T2;
-    bind(B, 0, PL(0)); at(B, x0 + 1, -D - 0.05, z0 + 1); box(B, T2, 0.05, T2, cloth ? 0x5A2E4A : 0x1C1A2E, { bevel: 0 });
+    bind(B, 0, water ? PL(0.9, 0.12) : PL(0)); at(B, x0 + 1, -D - 0.05, z0 + 1); box(B, T2, 0.05, T2, water ? 0x48CAE4 : cloth ? 0x5A2E4A : 0x1C1A2E, { bevel: 0 });
+    if (water) { const k = (c * 7 + r * 13) % 9; if (k === 0) { bind(B, 0, PL(0.6)); at(B, x0 + 1, -D + 0.02, z0 + 1, 0, Math.PI / 2); ring(B, 0.45, 0.45, 0.14, 0.14, [0xFF5A4E, 0xFFD23F, 0x3BB273][(c + r) % 3], { seg: 14 }); } if (k === 4) { bind(B, 0, PL(0.9, 0.3)); at(B, x0 + 0.6, -D, z0 + 1.2, 0.5); box(B, 0.9, 0.01, 0.08, 0xFFFFFF, { bevel: 0 }); } continue; }
     for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
       if (isPit(c + dc, r + dr)) continue;
       const ry = dc ? Math.PI / 2 : 0;
@@ -476,6 +479,7 @@ function staticPiece(B, p, F, view, stock, world) {
 }
 
 function rampPiece(B, rp, F) {
+  if (rp.tramp) { trampPiece(B, rp); return; }
   const ry = Math.atan2(rp.dx, rp.dz), s = Math.sin(ry), c = Math.cos(ry);
   bind(B, 0, PL(0.3));
   at(B, rp.x, 0.37, rp.z, ry, -0.33); box(B, 1.8, 0.14, 2.3, 0xFFD23F, { bevel: 0.1, lid: KW(KIT.arrow), uvs: [1, 1] });
@@ -500,7 +504,7 @@ export function pieceMesh(type, kit) {
   return new THREE.Mesh(g.geo, mats);
 }
 const pieceMats = {};
-const PIECE = {
+const PIECE = Object.assign({}, ARENA_PIECES, {
   pyramid(B) {                          // a pyramid of labelled cans, 3 + 2 + 1 seen from each side, on a pallet
     bind(B, 0, KW(KIT.wood)); box(B, 1.5, 0.12, 1.5, 0xC98A5B, { bevel: 0.15 });
     const labels = [3, 2, 4];
@@ -564,7 +568,7 @@ const PIECE = {
     bind(B, 0, PL(1)); cyl(B, 0.3, 0.3, 0.06, F_INK, { seg: 12 }); at(B, 0, 0.06, 0); cyl(B, 0.03, 0.03, 0.5, 0xDDE3EA, { seg: 6 });
     at(B, 0, 0.95, 0); ellipsoid(B, 0.24, 0.42, 0.18, 0xF4F1FA, { seg: 14, rings: 10 }); at(B, 0, 1.55, 0); ellipsoid(B, 0.15, 0.18, 0.15, 0xF4F1FA, { seg: 12, rings: 8 });
   },
-};
+});
 
 // A demonstration set of every supermarket fixture for the kit showcase: deli with awning and shutter, fish counter on ice.
 export function fixtureDemo(B, kit, x, z) {
