@@ -1,8 +1,8 @@
 ## STATUS (at most 10 lines)
-Phase: P2 PLAY (prompts/P2_PLAY.md) — starting; P1 LOOK done and tagged p1 (23 Nov)
-Done: P1 items 1-6, art-director review applied (D16-D20)
-Next: P2 item 1, object system (objects.js) and levels 1-2
-Open problems: levels are v2 placeholders until P2; the full spill fountain on a dash ram comes with P2
+Phase: P3 STORES (prompts/P3_STORES.md) — starting; P2 PLAY done and tagged p2 (23 Nov)
+Done: P1 look; P2 objects, wipeouts and checkpoints, RUSH and SMASH, hazard-aware rivals, crowd moments, voices and bubbles, levels 1-2
+Next: P3 item 1 (read prompts/P3_STORES.md)
+Open problems: the expert bot still gets popped by the tiles now and then; the MEGA room is a secret the bots skip
 
 ## Owner feedback (verbatim, latest first, last 3 rounds)
 
@@ -27,5 +27,12 @@ D17 2026-11-23 Review 2 (blank frames): overstock cartons on every wall top and 
 D18 2026-11-23 Review 3 (rams): world-anchored halftone stickers, hitstop, ink flash, camera kick, the victim looks shocked at the camera. The 8-15 goods fountain is skipped in P1: it is the P2 spill rule.
 D19 2026-11-23 Review 4 (title, close-up): the whole cast as a group photo at the glass (Granny on foot), START below; a front three-quarter close-up without the tower. Fixed.
 D20 2026-11-23 Review 5 (dotted ink): creases from opposite neighbours, ink after the halftone, FXAA keeps ink pixels; hull-inked things take depth silhouettes only (aux alpha <= 0.5). Fixed.
+D21 2026-11-23 Level objects are generic behaviours placed by level data (objects.js); each answers dangerAt and passDelay, which the drivers and the validator use.
+D22 2026-11-23 Drivers judge each hazard once per approach (bots 0.4-1, rivals 0.8-0.97), take the highest steady speed whose whole crossing is clear, wait well short of it, give up after 3.5 s.
+D23 2026-11-23 A pop-up tile throws the cart straight up (no chain onto the next tile) with 2.2 s of tile immunity; level 1's field pops column by column, easy to read.
+D24 2026-11-23 Granny's first try at level 1's tiles is scripted to fail (she picks a speed that meets a pop); scripted failures are not counted as misses.
+D25 2026-11-23 CLOSING TIME is the last 15 s on the clock (no lanes close); the flash sale is gone. RAM warning stays 0.8 s (D6): fairer than 0.5.
+D26 2026-11-23 Voice files: assets/voice/voices.json lists the owner's mp3s (empty), so the game never asks for a file that is not there.
+D27 2026-11-23 The pace rule counts objects, loot, pieces, shoppers and rivals in reach, conveyor rides and turns; a respawn is a jump, not a drive.
 
 ## Known issues (at most 10)

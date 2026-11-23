@@ -388,6 +388,20 @@ const PIECE = {
 // A demonstration set of every supermarket fixture for the kit showcase: deli with awning and shutter, fish counter on ice.
 export function fixtureDemo(B, kit, x, z) {
   const F = kit.fixture;
+  if (kit.id === 'warehouse') {
+    // the loading bay: shrink-wrapped pallets of cans, a stack of stencilled cartons, oil drums, a caged lamp
+    for (let i = 0; i < 3; i++) {
+      bind(B, 0, PL(0.1)); at(B, x + i * 1.6, 0, z); box(B, 1.3, 0.14, 1.1, 0xC98A5B, { bevel: 0.08 });
+      bind(B, 0, PL(0.7)); for (let j = 0; j < 9; j++) { at(B, x + i * 1.6 - 0.4 + (j % 3) * 0.4, 0.14, z - 0.35 + Math.floor(j / 3) * 0.35); cyl(B, 0.17, 0.17, 0.5, [0xE63946, 0x3A86FF, 0xFFC800][(i + j) % 3], { seg: 10 }); }
+      bind(B, 0, PL(0.9)); at(B, x + i * 1.6, 0.14, z); box(B, 1.28, 0.56, 1.06, 0xE8EEF6, { bevel: 0.15, top: 0xF6FAFF });
+    }
+    bind(B, 0, PL(0.1));
+    for (const [dx, dy, s] of [[5.2, 0, 1.0], [6.3, 0, 0.9], [5.7, 0.95, 0.85]]) { at(B, x + dx, dy, z - 0.2); box(B, s, s * 0.9, s, 0xD9B98A, { bevel: 0.04 }); }
+    bind(B, 0, PL(0.6)); for (const [dx, dz] of [[7.6, -0.3], [8.2, 0.2], [7.8, 0.7]]) { at(B, x + dx, 0, z + dz); cyl(B, 0.32, 0.32, 0.95, 0x3A6EA5, { seg: 12, top: 0x2B2F3A }); }
+    bind(B, 0, PL(0.4)); at(B, x + 3, 0, z - 1.6); box(B, 0.1, 3.4, 0.1, 0x2B2F3A, { bevel: 0 }); at(B, x + 3, 3.4, z - 1.6); cyl(B, 0.3, 0.42, 0.3, 0x2B2F3A, { seg: 10 });
+    bind(B, 0, PL(0.6, 0.9)); at(B, x + 3, 3.25, z - 1.6); ellipsoid(B, 0.2, 0.18, 0.2, 0xFFE8B0, { seg: 8, rings: 6 });
+    return;
+  }
   // the deli: a counter under a striped awning, a roller shutter half up behind it, a sign
   bind(B, 0, PL(0.2)); at(B, x, 0, z); box(B, 3.6, 1.0, 1.0, F.body, { bevel: 0.08, top: 0xDDE3EA });
   bind(B, 0, PL(1, 0.05)); at(B, x, 1.0, z + 0.1); box(B, 3.4, 0.5, 0.6, 0xEAF6FF, { bevel: 0.1 });

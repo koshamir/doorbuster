@@ -463,7 +463,8 @@ function checkout(sim, k, lane) {
   let items = 0;
   for (const e of k.tower) items += e.value;
   const left = Math.max(0, Math.floor(sim.timer - sim.t)), smash = sim.mode === 'smash' ? Math.round(k.smash) : 0;
-  k.receipt = { mode: sim.mode, items, smash, stunts: k.stunts, time: left * TUNE.timebonus, left, count: k.tower.length,
+  const badge = sim.mode === 'smash' && k.player && sim.stats.cans === 0 ? 'CLEAN SWEEP' : '';      // through a SMASH store without touching a can
+  k.receipt = { mode: sim.mode, badge, items, smash, stunts: k.stunts, time: left * TUNE.timebonus, left, count: k.tower.length,
     total: items + smash + k.stunts + left * TUNE.timebonus };
   sim.emit('finish', k, k.receipt.total);
   if (k.player) sim.phase = 'done';

@@ -405,6 +405,7 @@ export function showReceipt(rc, tableOf, best, storeName, medal, onRetry, onNext
   const row = el('div', 'btn-row', undefined, ui.screen);
   const again = button('btn', 'RETRY  (R)', row, onRetry), next = onNext ? button('btn go', 'NEXT  (Enter)', row, onNext) : null, menu = onMenu ? button('btn', 'STORES', row, onMenu) : null;
   steps.push(() => { el('div', 'stamp m' + medal, MEDAL[medal], total); audioCue('stamp'); });
+  if (rc.badge) steps.push(() => { el('div', 'stamp new', rc.badge, total); audioCue('stamp'); });
   steps.push(() => {
     tableOf().forEach((r, i) => line((i + 1) + '. ' + r.name, r.total < 0 ? 'still shopping' : money(r.total), 'rank' + (r.me ? ' me' : '')));
     const bestRow = line('BEST', money(best.value), 'rank best');
