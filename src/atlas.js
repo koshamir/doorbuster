@@ -324,7 +324,8 @@ function drawPrint(g, kind) {
 // Cells of 256 px (8 x 8). Signs are drawn for every store's own words (kits.js signs); the rest are shared
 // surfaces: price strips, frost, ice, awning, shutter slats, a checkout belt, wood, decals with a clear ground.
 export const KIT = { sign0: 0, checkout: 8, banner: 9, sale: 10, pct: 11, wet: 12, fish: 13, deli: 14, price: 15, frost: 16, ice: 17, awning: 18,
-  shutter: 19, belt: 20, wood: 21, chalk: 22, ring: 23, star: 24, dash: 25, press: 26, logo: 27, poster2: 28, poster3: 29, glare: 30, pegboard: 31, door: 32, arrow: 33, walltop: 34, backroom: 35 };
+  shutter: 19, belt: 20, wood: 21, chalk: 22, ring: 23, star: 24, dash: 25, press: 26, logo: 27, poster2: 28, poster3: 29, glare: 30, pegboard: 31, door: 32, arrow: 33, walltop: 34, backroom: 35,
+  tag: 36, bell: 37, watch: 38, arch: 39, poptile: 40, fork: 41 };
 export function kitAtlas(store) {
   const key = 'kit_' + store.id;
   if (cache[key]) return cache[key];
@@ -388,6 +389,44 @@ export function kitAtlas(store) {
         else { g.fillStyle = '#FFFFFF'; g.fillRect(X + 6, y0 + inset + 10, w - 12, 12); }
       }
     }
+  });
+  // the level objects (LEVELS.md section 4): a giant price tag (top half), the bell plate, a stopwatch face, the
+  // checkpoint arch's banner (top half), a pop-up tile's top, a forklift's side
+  cell(KIT.tag, () => {
+    g.fillStyle = P.d; g.beginPath(); g.moveTo(40, 6); g.lineTo(250, 6); g.lineTo(250, 122); g.lineTo(40, 122); g.lineTo(6, 64); g.closePath(); g.fill();
+    g.lineWidth = 8; g.strokeStyle = INK; g.stroke();
+    g.beginPath(); g.arc(36, 64, 11, 0, 7); g.fillStyle = INK; g.fill();
+    text('-50%', 150, 58, 76, '#FF5A4E', INK, 190);
+    g.fillStyle = INK; g.fillRect(64, 104, 170, 6);
+  });
+  cell(KIT.bell, () => {
+    g.fillStyle = '#E63946'; g.beginPath(); g.arc(128, 128, 124, 0, 7); g.fill(); g.lineWidth = 8; g.strokeStyle = INK; g.stroke();
+    g.fillStyle = '#FFF6EA'; g.beginPath(); g.arc(128, 128, 78, 0, 7); g.fill(); g.stroke();
+    g.font = '900 23px "Arial Black", sans-serif'; g.fillStyle = '#FFFFFF'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    const words = 'PRESS FOR SERVICE ★ PRESS FOR SERVICE ★ ';
+    for (let i = 0; i < words.length; i++) { const a = i / words.length * 6.283 - Math.PI / 2; g.save(); g.translate(128 + Math.cos(a) * 101, 128 + Math.sin(a) * 101); g.rotate(a + Math.PI / 2); g.fillText(words[i], 0, 0); g.restore(); }
+    // a service bell
+    g.fillStyle = '#FFD23F'; g.beginPath(); g.moveTo(84, 150); g.quadraticCurveTo(84, 92, 128, 92); g.quadraticCurveTo(172, 92, 172, 150); g.closePath(); g.fill(); g.lineWidth = 6; g.strokeStyle = INK; g.stroke();
+    g.fillRect(76, 150, 104, 12); g.strokeRect(76, 150, 104, 12); g.beginPath(); g.arc(128, 86, 9, 0, 7); g.fill(); g.stroke();
+  });
+  cell(KIT.watch, () => {
+    g.fillStyle = '#FFFFFF'; g.beginPath(); g.arc(128, 128, 120, 0, 7); g.fill(); g.lineWidth = 12; g.strokeStyle = INK; g.stroke();
+    for (let i = 0; i < 12; i++) { const a = i / 12 * 6.283; g.lineWidth = i % 3 ? 5 : 10; g.beginPath(); g.moveTo(128 + Math.cos(a) * 92, 128 + Math.sin(a) * 92); g.lineTo(128 + Math.cos(a) * 108, 128 + Math.sin(a) * 108); g.stroke(); }
+    g.fillStyle = 'rgba(255,90,78,0.35)'; g.beginPath(); g.moveTo(128, 128); g.arc(128, 128, 88, -Math.PI / 2, -Math.PI / 2 + 6.283 / 12 * 1.5); g.closePath(); g.fill();
+    g.strokeStyle = '#E63946'; g.lineWidth = 8; g.beginPath(); g.moveTo(128, 128); g.lineTo(128 + Math.cos(-0.9) * 84, 128 + Math.sin(-0.9) * 84); g.stroke();
+    text('+5', 128, 172, 54, '#2A1A3A', null);
+  });
+  cell(KIT.arch, () => { g.fillStyle = P.c; g.fillRect(0, 0, 256, 128); g.fillStyle = P.d; for (let x = 0; x < 256; x += 32) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x + 16, 0); g.lineTo(x, 16); g.fill(); g.beginPath(); g.moveTo(x, 128); g.lineTo(x + 16, 128); g.lineTo(x, 112); g.fill(); } text('SALE', 128, 62, 70, '#FFFFFF', INK); });
+  cell(KIT.poptile, () => {
+    g.fillStyle = P.b; g.fillRect(0, 0, 256, 256); g.lineWidth = 10; g.strokeStyle = INK; g.strokeRect(5, 5, 246, 246);
+    g.fillStyle = '#FFFFFF'; g.beginPath(); g.arc(128, 128, 84, 0, 7); g.fill(); g.lineWidth = 8; g.stroke();
+    g.strokeStyle = '#FF5A4E'; g.lineWidth = 14; g.lineJoin = 'round'; g.beginPath(); for (let i = 0; i <= 6; i++) g.lineTo(86 + i * 14, i % 2 ? 96 : 160); g.stroke();
+    text('POP!', 128, 214, 32, '#FFFFFF', INK);
+  });
+  cell(KIT.fork, () => {
+    g.fillStyle = '#FFC800'; g.fillRect(0, 0, 256, 256);
+    g.fillStyle = INK; for (let x = -256; x < 256; x += 48) { g.beginPath(); g.moveTo(x, 256); g.lineTo(x + 24, 256); g.lineTo(x + 24 + 60, 196); g.lineTo(x + 60, 196); g.fill(); }
+    text('LIFT-O-MATIC', 128, 96, 34, '#FFFFFF', INK);
   });
   // the backroom round the store: the same overstock, dim and grey, so the lit store stands out from it
   cell(KIT.backroom, () => {

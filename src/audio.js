@@ -191,8 +191,30 @@ export function audioEvent(e, sim) {
       else if (soon('rfin', 0.3)) arp(t, [79, 84], 'sine', 0.12, 0.07, 0.2);
       break;
     case 'timeup': arp(t, [67, 66, 65, 64], 'sawtooth', 0.22, 0.22, 0.3); tone(A.sfx, 'square', 98, 90, t + 0.9, 0.6, 0.2); break;
+    // the level objects (ART.md section 8)
+    case 'wipe': boom(t, far, 150); tone(A.sfx, 'sine', 900, 180, t, 0.35, 0.4 * far); tone(A.sfx, 'triangle', 1350, 260, t + 0.02, 0.3, 0.16 * far); clang(t + 0.05, 4, 0.12 * far); if (mine) voice('player', false, true); else voice(k.char, false); break;
+    case 'pop': tone(A.sfx, 'sine', 140, 620, t, 0.22, 0.5 * far); tone(A.sfx, 'triangle', 300, 1200, t + 0.03, 0.18, 0.18 * far); if (!mine) voice(k.char, false); break;   // boing
+    case 'shoved': tone(A.sfx, 'square', 330, 300, t, 0.12, 0.16 * far); tone(A.sfx, 'square', 392, 360, t + 0.13, 0.14, 0.14 * far); boom(t, 0.6 * far, 120); break;   // a horn and a thump
+    case 'press': tone(A.sfx, 'sine', hz(96), 0, t, 1.2, 0.35, 0.002); tone(A.sfx, 'sine', hz(103) * 1.004, 0, t, 0.9, 0.12, 0.002); break;   // the service bell: ding!
+    case 'gateopen': for (let i = 0; i < 9; i++) click(t + i * 0.045, 0.25); tone(A.sfx, 'sawtooth', 90, 140, t, 0.45, 0.08); break;   // a roller shutter rattles up
+    case 'checkpoint': if (mine) { chime(t, [79, 84]); arp(t + 0.1, [84, 88, 91], 'triangle', 0.16, 0.05, 0.18); } break;
+    case 'respawn': if (mine) { whoosh(t, 2000, 400, 0.25, 0.25); tone(A.sfx, 'triangle', hz(72), hz(84), t + 0.05, 0.15, 0.2); } break;
+    case 'watch': arp(t, [84, 91, 96], 'square', 0.12, 0.05, 0.2); click(t, 0.4); click(t + 0.12, 0.4); break;
+    case 'boostpad': whoosh(t, 500, 6000, 0.45, 0.4 * far); tone(A.sfx, 'sawtooth', 200, 900, t, 0.3, 0.12 * far); break;
+    case 'fountain': boom(t, 1, 140); for (let i = 0; i < 7; i++) tone(A.sfx, 'triangle', hz(84 + i * 2), hz(72 + i), t + 0.04 + i * 0.05, 0.12, 0.16); clang(t + 0.05, 10, 0.14); break;
+    case 'cans': if (soon('cans', 0.08)) { for (let i = 0; i < 6; i++) clang(t + i * 0.035, 4 + i, 0.1 * far); } break;
+    case 'topple': clang(t, 6, 0.14 * far); tone(A.sfx, 'triangle', hz(70), hz(58), t, 0.18, 0.16 * far); break;
+    case 'pancake': if (soon('pancake', 0.3)) { tone(A.sfx, 'sine', 300, 80, t, 0.18, 0.3 * far); tone(A.sfx, 'square', 700, 1100, t + 0.15, 0.1, 0.06 * far); } break;   // splat, then a squeak
     default:
   }
+}
+// Sounds of the level objects that come from their state, not from events: a sign creaking at the end of its
+// swing, a forklift's back-up beeper. vol 0..1 from the distance to the player.
+export function objectSound(kind, vol) {
+  if (!A.ctx || !A.on || vol <= 0.02) return;
+  const t = A.ctx.currentTime;
+  if (kind === 'creak') { tone(A.sfx, 'sawtooth', 110 + Math.random() * 30, 70, t, 0.32, 0.07 * vol); hiss(A.sfx, 'bandpass', 600, 300, 4, t, 0.3, 0.06 * vol); }
+  else if (kind === 'beep' && soon('beep', 0.4)) tone(A.sfx, 'square', 1250, 0, t, 0.14, 0.07 * vol);
 }
 // The announcer's "ding-dong": bell-like notes (a sine with an octave partial), long tails.
 function chime(t, notes) {

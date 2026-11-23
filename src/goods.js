@@ -118,10 +118,11 @@ export const PRODUCTS = [
   ['shoebox', 20, 0xFF7F11, [0.7, 0.36, 0.46]], ['shoebox', 21, 0xE63946, [0.7, 0.36, 0.46]], ['speaker', 16, 0x2A2440, [0.66, 1.0, 0.62]], ['suitcase', 19, 0xFF8A7A, [0.9, 0.7, 0.5]],
   ['ball', 22, 0xFF7F11, [0.5, 0.5, 0.5]], ['ball', 22, 0xFFFFFF, [0.44, 0.44, 0.44]], ['ball', 22, 0x3A86FF, [0.5, 0.5, 0.5]],
   ['carton', PRINT0 + 2, 0xE9D3A8, [0.92, 0.6, 0.7]], ['carton', PRINT0 + 3, 0xE9D3A8, [0.66, 0.9, 0.62]],      // 45, 46: boxed microwave and speaker
+  ['box', 25, 0xFFF6EA, [0.86, 0.36, 0.66]], ['jar', 11, 0xFF6FA0, [0.62, 0.62, 0.62]], ['jar', 26, 0x9B2D5A, [0.62, 0.62, 0.62]],   // 47-49: a frozen family pizza, ice cream tubs
 ];
 // The products each gameplay good may look like (its variants).
 const LOOK = { can: [4, 5, 6], soda: [8, 9, 10, 11, 12], chips: [13, 14, 15, 16], roll: [25], cereal: [0, 1, 2], phone: [31, 32], game: [33], toaster: [34],
-  melon: [27, 28], pizza: [26], headset: [36], shoes: [38, 39], microwave: [45], speaker: [46, 40], suitcase: [41] };
+  melon: [27, 28], pizza: [26], headset: [36], shoes: [38, 39], microwave: [45], speaker: [46, 40], suitcase: [41], frozenpizza: [47], icecream: [48, 49] };
 // What a store stocks on its shelves as decor (product indices).
 export const STORE_STOCK = { supermarket: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 27, 28, 29, 30] };
 export function productSize(i) { return PRODUCTS[i][3]; }

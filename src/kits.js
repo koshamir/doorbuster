@@ -128,7 +128,7 @@ export function floorMap(world) {
   const { cols, rows } = world, data = new Uint8Array(cols * rows * 4);
   for (let i = 0; i < cols * rows; i++) {
     const k = world.plan[Math.floor(i / cols)][i % cols];
-    data[i * 4 + 1] = (world.laneOf[i] >= 0 ? 5 : world.belt[i] ? 7 + world.belt[i] : world.wet[i] ? 12 : k === '=' ? 13 : 0) * 16;
+    data[i * 4 + 1] = (world.laneOf[i] >= 0 ? (world.lanes[world.laneOf[i]].closed ? 7 : 5) : world.belt[i] ? 7 + world.belt[i] : world.wet[i] ? 12 : k === '=' ? 13 : 0) * 16;
     const b = world.belt[i], to = b ? i + (b === 1 ? 1 : b === 3 ? -1 : b === 2 ? cols : -cols) : -1, line = world.plan[Math.floor(i / cols)];
     data[i * 4 + 2] = (b ? world.nav[to] > world.nav[i] : k === '=' && line[i % cols - 1] !== '=' && line[i % cols + 1] !== '=') ? 255 : 0;
     data[i * 4 + 3] = world.floor[i] ? 255 : 0;

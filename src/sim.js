@@ -1,18 +1,20 @@
 // DOORBUSTER — sim.js
 // Purpose: one run of the game as pure logic: the carts, the clock, sweeping shelves and picking
-//          goods off the floor, the tower and its spills, Madness, dash targets, rams, the three
-//          events (doors open, flash sale, closing time), the checkout, the receipt and the final
-//          table. Presentation (render, sound, interface) only reads the state and drains
-//          sim.events; it never changes the outcome.
+//          goods off the floor, the tower and its spills, Madness, dash targets and rams, the level
+//          objects' effects (wipeouts and respawns at checkpoints, launches, shoves, boost pads, stopwatches),
+//          doors open and closing time, the modes (RUSH, SMASH), the checkout, the receipt and the final
+//          table. Presentation (render, sound, interface) only reads the state and drains sim.events; it
+//          never changes the outcome.
 // Exports: createSim, stepSim, advanceSim, settle, giveGoods, multOf
-// Depends on: config.js, world.js, cart.js, ai.js. No DOM, no THREE (runs in Node).
+// Depends on: config.js, world.js, cart.js, ai.js, objects.js. No DOM, no THREE (runs in Node).
 //
 // Determinism: fixed step CFG.STEP, one seeded generator (sim.rng) for every random choice.
 // Events are { type, cart, value, ref }; the types are listed where they are emitted.
 
 import { TUNE, CFG, GOODS, GOOD, POOLS, makeRng, clamp, wrapAngle } from './config.js';
 import { buildWorld, navBuild, navDistAt, blockedAt } from './world.js';
-import { makeCart, stepCart } from './cart.js';
+import { makeCart, stepCart, loadFactor } from './cart.js';
+import { buildObjects, stepObjects } from './objects.js';
 import { BOTS, makeDriver, rivalProfile, drive, spawnCrowd, stepCrowd, spawnTrains, stepTrains } from './ai.js';
 
 // opts: bot ('beginner' | 'confident' | 'expert' | 'sloppy') drives the player's cart; countdown and
@@ -21,16 +23,17 @@ import { BOTS, makeDriver, rivalProfile, drive, spawnCrowd, stepCrowd, spawnTrai
 export function createSim(def, seed, opts = {}) {
   const rng = makeRng(Math.imul(seed | 0, 2654435761) + 97);
   const world = buildWorld(def, rng);
+  buildObjects(world, def);
   const sim = {
     def, seed, opts, rng, world,
     phase: 'count',                 // count -> run -> done (player checked out) | closed (time ran out)
     t: -(opts.countdown ?? CFG.countdown),   // seconds since GO
     timer: opts.timer || (def.timer || 90) * TUNE.timer / 90,   // the tune value scales every level's own time: 90 = as designed
     carts: [], player: null, shoppers: [], trains: [], events: [], acc: 0, tick: 0,
-    sale: null,                     // the flash sale: { piece, t } while it runs
-    saleDone: false, closing: false, closeT: 0, order: null, closed: 0, ramCool: 0, table: null,
+    mode: def.mode || 'rush', closing: false, closeT: 0, ramCool: 0, table: null,
     stats: { stuck: 0, crashes: 0, bumps: 0, zeroT: 0, lostNow: 0, lostMax: 0, taken: 0, spilled: 0, firstShelf: 0, firstGroup: -1,
-      rammed: 0, rivalRams: 0, madModes: 0, x2At: -1, shaves: 0, strikes: 0, bowled: 0, rivalCrashes: 0, rivalStuck: 0, rivalModes: 0, pushOuts: 0 },
+      rammed: 0, rivalRams: 0, madModes: 0, x2At: -1, shaves: 0, strikes: 0, bowled: 0, rivalCrashes: 0, rivalStuck: 0, rivalModes: 0, pushOuts: 0,
+      wipeouts: 0, rivalWipes: 0, pops: 0, cans: 0, passes: {} },
     emit(type, cart, value, ref) {
       sim.events.push({ type, cart, value, ref });
       if (type === 'boost') madGain(sim, cart, CFG.madDrift * value);        // a drift held to a boost feeds Madness
@@ -51,20 +54,71 @@ export function createSim(def, seed, opts = {}) {
       if (k.madT <= 0) { spill(sim, k, clamp(into / 16, 0.15, TUNE.spillmax), k.vx / sp, k.vz / sp, true); madLose(sim, k); }
     },
     onSmash(k, solid) { smash(sim, k, solid); },
+    onTopple(k, solid, into) { topple(sim, k, solid, into); },
     onKnock(k, solid) { if (k.dashT <= 0 && k.madT <= 0) { k.vx *= 0.95; k.vz *= 0.95; } sim.emit('knock', k, 0, solid); },
     // Back on the floor after a ramp. Clearing something on the way is a named trick; a hard landing
     // shakes an overloaded tower.
     onLand(k, over) {
       sim.emit('land', k, over ? 1 : 0);
       k.immuneT = Math.max(k.immuneT, 0.6);              // falling short costs the shortcut, not the goods
-      if (over) { stunt(sim, k, 'jump', k.x, k.z); madGain(sim, k, 1); }
+      if (over && !k.popped) { stunt(sim, k, 'jump', k.x, k.z); madGain(sim, k, 1); }
+      k.popped = false;
       if (k.load > TUNE.loadfull && k.madT <= 0) shed(sim, k, 2);
     },
     stunt(k, name, x, z) { stunt(sim, k, name, x, z); },
     madGain(k, amount) { madGain(sim, k, amount); },
+    // ---- the level objects' effects (objects.js calls these) ----
+    // A wipeout: the shopper flies out of the cart, the top quarter of the tower scatters on the spot for anyone
+    // to take, and a moment later the cart is back at its last checkpoint at half speed. The clock runs on.
+    wipeout(k, ob) {
+      if (k.wipeT > 0 || k.done) return;
+      k.wipeT = CFG.wipeTime; k.wipes++;
+      if (k.player) sim.stats.wipeouts++; else sim.stats.rivalWipes++;
+      record(sim, k, ob, false);
+      k.dashT = 0; k.drift = 0; k.driftT = 0; k.tier = 0; k.boostT = 0; k.boostMul = 1; k.turnTo = null;
+      k.stunT = CFG.wipeTime; k.vx *= 0.45; k.vz *= 0.45;
+      const sp = Math.hypot(k.vx, k.vz) || 1;
+      if (k.madT <= 0) { spill(sim, k, 0.25, k.vx / sp, k.vz / sp, true); madLose(sim, k); }
+      sim.emit('wipe', k, 0, ob);
+    },
+    // A pop-up tile launches the cart in an arc off the tile; the top of the tower is shaken loose.
+    pop(k, ob, tx, tz) {
+      let dx = k.x - tx, dz = k.z - tz, d = Math.hypot(dx, dz);
+      if (d < 0.35) { const sp = Math.hypot(k.vx, k.vz) || 1; dx = -k.vx / sp; dz = -k.vz / sp; d = 1; }
+      k.vx = k.vx * 0.3 + dx / d * 4.2; k.vz = k.vz * 0.3 + dz / d * 4.2;
+      k.drift = 0; k.driftT = 0; k.tier = 0; k.dashT = 0;
+      k.air = k.airT = CFG.popTime; k.over = false; k.popped = true;
+      if (k.player) sim.stats.pops++;
+      record(sim, k, ob, false);
+      if (k.tower.length && k.madT <= 0) shed(sim, k, k.tower.length > 8 ? 2 : 1);
+      sim.emit('pop', k, 0, ob);
+    },
+    // A forklift or pallet jack: pushed out of its way, knocked back, the top of the tower shaken loose.
+    shove(k, ob, nx, nz) {
+      k.x += nx * 0.12; k.z += nz * 0.12;
+      if (k.shoveT > 0) return;
+      k.shoveT = 1;
+      const vn = k.vx * nx + k.vz * nz;
+      k.vx += (5.5 - vn) * nx; k.vz += (5.5 - vn) * nz;
+      k.stunT = Math.max(k.stunT, 0.35); k.turnTo = null;
+      record(sim, k, ob, false);
+      if (k.tower.length && k.madT <= 0) shed(sim, k, k.tower.length > 8 ? 2 : 1);
+      sim.emit('shoved', k, 0, ob);
+    },
+    // Boost arrows: +6 m/s over the cart's top speed for 0.8 s.
+    padBoost(k, ob) {
+      const top0 = TUNE.maxspeed * (1 - TUNE.loadtop * loadFactor(k)), mul = (top0 + CFG.padBoost) / top0;
+      k.boostMul = k.boostT > 0 ? Math.max(k.boostMul, mul) : mul; k.boostT = Math.max(k.boostT, CFG.padTime);
+      const v = Math.hypot(k.vx, k.vz), want = Math.min(v + CFG.padBoost, top0 + CFG.padBoost);
+      if (v > 0.5) { k.vx *= want / v; k.vz *= want / v; } else { k.vx = ob.dx * want; k.vz = ob.dz * want; }
+      sim.emit('boostpad', k, 0, ob);
+    },
+    watch(k, ob) { sim.timer += CFG.watchTime; sim.emit('watch', k, CFG.watchTime, ob); },
+    checkpoint(k, ob) { k.cp = ob.index; sim.emit('checkpoint', k, ob.index, ob); },
   };
   const s = world.start;
   sim.player = makeCart(0, 'player', s.x, s.z, s.h);
+  sim.player.home = { x: s.x, z: s.z, h: s.h };
   if (opts.bot) {
     sim.player.ai = makeDriver(BOTS[opts.bot]);
     if (opts.greed !== undefined) sim.player.ai.greed = opts.greed;
@@ -73,6 +127,7 @@ export function createSim(def, seed, opts = {}) {
   if (!opts.alone) {
     (def.rivals || []).slice(0, Math.min(TUNE.rivals, world.slots.length)).forEach((id, i) => {
       const r = makeCart(i + 1, id, world.slots[i].x, world.slots[i].z, s.h);
+      r.home = { x: world.slots[i].x, z: world.slots[i].z, h: s.h };
       r.ai = makeDriver(rivalProfile(id));
       sim.carts.push(r);
       if (id === 'granny') giveGoods(sim, r, 16, true, 2);   // Granny Tank arrives with her tower already built (at x2): a slow treasure chest
@@ -222,6 +277,31 @@ function spill(sim, k, share, dx, dz, fan) {
   if (n > 0) { if (k.player) sim.stats.spilled += n; sim.emit('spill', k, n, { lost, crash: !!fan }); }
   return n;
 }
+// A rival rammed by a dash drops everything in a fountain: the goods land in a ring 2-5 m round it and anyone
+// can take them for a few seconds. Emits 'fountain' with value = goods.
+function fountain(sim, k) {
+  let n = 0, lost = 0;
+  for (let i = k.tower.length - 1; i >= 0; i--) {
+    const e = k.tower[i];
+    if (e.list) continue;
+    k.tower.splice(i, 1);
+    k.load -= GOODS[e.good].w; k.value -= e.value; lost += e.value;
+    const a = n * 2.39996 + sim.rng() * 0.5, r = 2 + sim.rng() * 3;
+    let tx = k.x + Math.cos(a) * r, tz = k.z + Math.sin(a) * r;
+    if (blockedAt(sim.world, tx, tz, 0.35)) { tx = k.x + Math.cos(a) * 1.2; tz = k.z + Math.sin(a) * 1.2; }
+    sim.world.drops.push({ x: tx, z: tz, good: e.good, ttl: TUNE.recollect, live: true, list: 0, arm: 0.6, ox: k.x, oz: k.z, born: sim.t, high: 1 });
+    n++;
+  }
+  if (n) sim.emit('fountain', k, n, { lost });
+  return n;
+}
+// Whether a cart passed an object or was caught by it, per rival and object (the smoke test reads it).
+function record(sim, k, ob, passed) {
+  if (k.player || !ob) return;
+  const key = k.char + ':' + sim.world.objs.indexOf(ob), p = sim.stats.passes[key] || (sim.stats.passes[key] = [0, 0]);
+  p[passed ? 0 : 1]++;
+  if (!passed && k.ai) k.ai.lastFail = ob;
+}
 // Takes tower entry i out of the cart and throws it on the floor.
 function drop(sim, k, i, dx, dz, fan) {
   const e = k.tower[i];
@@ -297,16 +377,39 @@ function smash(sim, k, solid) {
     stunt(sim, k, 'glass', p.x, p.z);
     madGain(sim, k, 0.4);
     sim.emit('glass', k, 0, p);
-  } else {                                           // can pyramid, gift pile, cardboard stand: a burst of goods
-    const pool = POOLS.market, n = solid.type === 'pyramid' ? 6 : solid.type === 'gifts' ? 4 : 3;
-    for (let i = 0; i < n; i++) {
-      const id = solid.type === 'pyramid' ? 'can' : sim.rng.pick(solid.type === 'gifts' ? pool.M : pool.S);
-      scatter(sim, p.x, p.z, ux, uz, GOOD[id], 0, 9);
-    }
+  } else if (solid.type === 'pyramid' || solid.type === 'mega') {     // every can comes down: money per can, a third become goods
+    cans(sim, k, p, p.cans, ux, uz);
+    p.cans = 0;
+    stunt(sim, k, 'smash', p.x, p.z);
+    madGain(sim, k, solid.type === 'mega' ? 2 : 0.35);
+    sim.emit('smash', k, solid.type === 'mega' ? 2 : 1, p);
+  } else {                                           // gift pile, cardboard stand: a burst of goods
+    const pool = POOLS.market, n = solid.type === 'gifts' ? 4 : 3;
+    for (let i = 0; i < n; i++) scatter(sim, p.x, p.z, ux, uz, GOOD[sim.rng.pick(solid.type === 'gifts' ? pool.M : pool.S)], 0, 9);
     stunt(sim, k, 'smash', p.x, p.z);
     madGain(sim, k, 0.35);
     sim.emit('smash', k, n, p);
   }
+}
+// n cans of a pyramid come down: in SMASH each pays its price times the multiplier; about 30% become goods.
+function cans(sim, k, p, n, ux, uz) {
+  const gold = p.type === 'mega', price = gold ? CFG.megaCan : CFG.canPrice;
+  if (sim.mode === 'smash' && k.player) { k.smash += n * price * multOf(k); sim.stats.cans += n; }
+  else if (sim.mode === 'smash') k.smash += n * price * multOf(k);
+  for (let i = 0; i < Math.round(n * 0.3); i++) scatter(sim, p.x, p.z, ux, uz, GOOD.can, 0, 9);
+  if (n) sim.emit('cans', k, n * price * (sim.mode === 'smash' ? multOf(k) : 0), p);
+}
+// A slow hit on a pyramid topples a third of it; the rest stands. A pyramid with nothing left is gone.
+function topple(sim, k, solid, into) {
+  const p = solid.piece;
+  if (!p || !(p.type === 'pyramid' || p.type === 'mega') || p.cans <= 0 || k.toppleT > sim.t) return;
+  k.toppleT = sim.t + 0.4;
+  const n = Math.min(p.cans, Math.ceil(p.full / 3)), sp = Math.hypot(k.vx, k.vz) || 1;
+  cans(sim, k, p, n, k.vx / sp, k.vz / sp);
+  p.cans -= n;
+  if (p.cans <= 0) { solid.on = false; p.alive = false; sim.world.block[p.r * sim.world.cols + p.c] = 0; navBuild(sim.world); }
+  sim.emit('topple', k, n, p);
+  void into;
 }
 
 // A dashing cart `a` hit cart `b` (nx, nz points from a to b): b spins, drops the top of its tower
@@ -325,7 +428,9 @@ function ram(sim, a, b, nx, nz) {
   b.stunT = b.player ? 0.6 : 1; b.spinT = b.stunT; b.turnTo = null;
   b.immuneT = TUNE.immunity + b.stunT;
   b.ramT = 1.3; b.rammedBy = a; b.grudge = a; b.grudgeT = 5;
-  if (b.madT <= 0) { spill(sim, b, TUNE.ramdrop * (a.player || b.player ? 1 : 0.5), nx, nz); madLose(sim, b); }   // rivals jostling each other spill half as much
+  if (a.player && !b.player) fountain(sim, b);       // a rival rammed by the player's dash drops everything
+  else if (b.madT <= 0) spill(sim, b, TUNE.ramdrop * (b.player ? 1 : 0.5), nx, nz);   // the player loses the top 30%; rivals jostling each other half that
+  if (b.madT <= 0) madLose(sim, b);
   stunt(sim, a, 'ram', b.x, b.z);
   madGain(sim, a, 1);
   if (b.player) sim.stats.rammed++; else if (!a.player) sim.stats.rivalRams++;
@@ -351,16 +456,15 @@ function funnel(world, k, dt) {
   }
 }
 
-// The receipt: ITEMS (prices already carry their multipliers), LIST, STUNTS, TIME, TOTAL (GDD 5.9).
+// The receipt (DESIGN.md section 2): ITEMS (prices already carry their multipliers), SMASH in SMASH mode,
+// STUNTS, TIME (dollars per second left), TOTAL.
 function checkout(sim, k, lane) {
   k.done = true; k.doneT = sim.t; k.lane = lane;
-  let items = 0, have = 0;
+  let items = 0;
   for (const e of k.tower) items += e.value;
-  for (let n = 1; n <= 3; n++) if (k.tower.some((e) => e.list === n)) have++;
-  const list = have === 3 ? CFG.listBonus : 0;
-  const left = Math.max(0, Math.floor(sim.timer - sim.t));
-  k.receipt = { items, list, stunts: k.stunts, time: left * TUNE.timebonus, left, count: k.tower.length,
-    total: items + list + k.stunts + left * TUNE.timebonus };
+  const left = Math.max(0, Math.floor(sim.timer - sim.t)), smash = sim.mode === 'smash' ? Math.round(k.smash) : 0;
+  k.receipt = { mode: sim.mode, items, smash, stunts: k.stunts, time: left * TUNE.timebonus, left, count: k.tower.length,
+    total: items + smash + k.stunts + left * TUNE.timebonus };
   sim.emit('finish', k, k.receipt.total);
   if (k.player) sim.phase = 'done';
 }
@@ -376,75 +480,21 @@ export function settle(sim) {
   return sim.table;
 }
 
-// ---- Events: doors open, flash sale, closing time (GDD 5.8) -----------------------------------------
+// ---- Events: doors open and closing time ------------------------------------------------------------
 function rocketStart(sim, k) {
   k.rocket = true;
   k.boostMul = 1 + (TUNE.turbopower - 1) * 0.5; k.boostT = 0.9;
   sim.emit('rocket', k);
 }
-function events(sim, dt) {
-  const world = sim.world, p = sim.player, left = sim.timer - sim.t;
-  const live = sim.phase === 'run';
+function events(sim) {
+  const p = sim.player, left = sim.timer - sim.t;
   // DOORS OPEN: pressing the accelerator right on GO (not holding it early) is a rocket start.
-  if (live && sim.t < 0.25 && !p.rocket && p.input.gas > 0 && p.gasAt > -0.15) rocketStart(sim, p);
-  // FLASH SALE at 40% of the timer: a hot item appears at a sale spot ahead of the player for 10 s
-  // (rivals leave it alone for the first 4 s, see ai.js).
-  if (live && !sim.saleDone && !sim.sale && sim.t >= sim.timer * 0.4) {
-    const here = navDistAt(world, p.x, p.z);
-    let best = null, bd = 1e9;
-    for (const q of world.pieces) {
-      if (!q.sale) continue;
-      const ahead = here - navDistAt(world, q.x, q.z);
-      const score = ahead > 24 ? ahead : 1e6 - ahead;        // the nearest spot at least 24 m ahead (two seconds at full speed), else the least far behind
-      if (score < bd) { bd = score; best = q; }
-    }
-    sim.saleDone = true;
-    if (best) {
-      best.good = GOOD[sim.rng.pick(['tv', 'bear', 'console', 'robovac'])];
-      best.solid.on = true;
-      world.block[best.r * world.cols + best.c] = 1; navBuild(world);     // drivers route round it while it stands
-      sim.sale = { piece: best, t: 10 };
-      sim.emit('flash', p, 0, best);
-    }
-  }
-  if (sim.sale) {
-    sim.sale.t -= dt;
-    if (sim.sale.t <= 0 || sim.sale.piece.good < 0) {
-      const q = sim.sale.piece;
-      q.solid.on = false; q.good = -1;
-      world.block[q.r * world.cols + q.c] = 0; navBuild(world);
-      sim.emit('flashend', p, 0, q);
-      sim.sale = null;
-    }
-  }
-  // CLOSING TIME starts when the first cart comes within `closeAt` metres of the checkouts, or with
-  // `closing` seconds left on the clock, whichever is first: every run gets its finale, whatever the
-  // player's pace. From then the checkouts go dark one by one over `closing` seconds (2 s of warning
-  // each, and never in the face of a cart at the lane's mouth); the last one stays open until the
-  // store shuts.
-  const span = sim.def.closing || 15;
-  if (!sim.closing) {
-    let lead = 1e9;
-    for (const k of sim.carts) if (!k.done) lead = Math.min(lead, world.navStart - k.prog);
-    if (left <= span || (sim.t > 5 && lead < (sim.def.closeAt || 90))) {
-      sim.closing = true; sim.closeT = sim.t;
-      sim.order = world.lanes.map((l) => l.id);      // the order in which lanes close: a seeded shuffle
-      for (let i = sim.order.length - 1; i > 0; i--) { const j = sim.rng.int(i + 1), t = sim.order[i]; sim.order[i] = sim.order[j]; sim.order[j] = t; }
-      sim.emit('closing', p);
-    }
-  }
-  if (sim.closing) {
-    const n = world.lanes.length, since = sim.t - sim.closeT, gap = Math.min(span, sim.timer - sim.closeT) / n;
-    for (let j = sim.closed; j < n - 1; j++) {
-      const at = gap * (j + 1), lane = world.lanes[sim.order[j]];
-      if (since >= at - 2 && !lane.warned) { lane.warned = true; navBuild(world); sim.emit('lanewarn', p, 0, lane); }
-      if (since < at || (since < at + 1.5 && sim.carts.some((k) => !k.done && Math.abs(k.x - lane.x) < 3.5 && Math.abs(k.z - lane.z) < 3.5))) break;
-      lane.open = false; lane.bar.on = true; sim.closed = j + 1;
-      for (const i of lane.tiles) world.block[i] = 1;
-      navBuild(world);
-      sim.emit('laneclose', p, 0, lane);
-    }
-  }
+  if (sim.phase === 'run' && sim.t < 0.25 && !p.rocket && p.input.gas > 0 && p.gasAt > -0.15) rocketStart(sim, p);
+  // CLOSING TIME: the last seconds on the clock (the music speeds up, the lights warm); it can end when a
+  // stopwatch buys time back.
+  const closing = left <= (sim.def.closing || CFG.closingTime);
+  if (closing && !sim.closing) { sim.closing = true; sim.closeT = sim.t; sim.emit('closing', p); }
+  else if (!closing && sim.closing) sim.closing = false;
 }
 
 // ---- The step -------------------------------------------------------------------------------------
@@ -469,7 +519,10 @@ export function stepSim(sim) {
   if (sim.ramCool > 0) sim.ramCool -= dt;
   for (const k of sim.carts) {
     if (k.done && sim.t - k.doneT > 1) { k.px = k.x; k.pz = k.z; k.ph = k.h; k.vx = k.vz = 0; k.spd = 0; continue; }   // checked out and gone
-    if (k.ai) drive(sim, k, dt);
+    if (k.wipeT > 0 && (k.wipeT -= dt) <= 0) respawn(sim, k);
+    if (k.shoveT > 0) k.shoveT -= dt;
+    if (k.ai && k.wipeT <= 0) drive(sim, k, dt);
+    if (k.wipeT > 0) { k.input.gas = 0; k.input.brake = 0; k.input.steer = 0; k.input.drift = false; k.input.dash = false; }
     if (!racing || k.done) {                         // parked: no pedals, roll to a stop
       k.input.gas = 0; k.input.brake = 0; k.input.steer = 0; k.input.drift = false; k.input.dash = false;
       if (k.done) { k.vx *= 0.94; k.vz *= 0.94; }
@@ -486,12 +539,18 @@ export function stepSim(sim) {
     }
   }
   bumpCarts(sim);
-  if (racing) { stepCrowd(sim, dt); stepTrains(sim, dt); }
+  if (racing) { stepObjects(sim, dt); stepCrowd(sim, dt); stepTrains(sim, dt); }
 
   // Spilled goods wait a moment before they can be taken, then time out.
   for (const d of world.drops) {
     if (!d.live) continue;
     if (d.arm > 0) d.arm -= dt;
+    const bi = Math.floor(d.z / CFG.TILE) * world.cols + Math.floor(d.x / CFG.TILE), b = world.belt[bi];
+    if (b && d.arm <= 0) {
+      const nx = d.x + (b === 1 ? CFG.beltSpeed : b === 3 ? -CFG.beltSpeed : 0) * dt, nz = d.z + (b === 2 ? CFG.beltSpeed : b === 4 ? -CFG.beltSpeed : 0) * dt;
+      if (world.belt[Math.floor(nz / CFG.TILE) * world.cols + Math.floor(nx / CFG.TILE)]) { d.x = nx; d.z = nz; }
+      else if (d.home) { d.x = d.home[0]; d.z = d.home[1]; }        // off the end: back to the start of the belt (a new pack)
+    }
     if (d.ttl > 0) { d.ttl -= dt; if (d.ttl <= 0) { d.live = false; sim.emit('gone', null, 0, d); } }
   }
   if (world.drops.length > 160 && sim.tick % 240 === 0) world.drops = world.drops.filter((d) => d.live);
@@ -501,7 +560,7 @@ export function stepSim(sim) {
     k.prog = world.navStart - navDistAt(world, k.x, k.z);
     if (!racing) continue;
     madTick(sim, k, dt);
-    if (k.air <= 0 && k.stunT <= 0) pickups(sim, k);
+    if (k.air <= 0 && k.stunT <= 0 && k.wipeT <= 0) pickups(sim, k);
     // An overloaded tower cannot take a long drift: past the second spark tier it sheds one item after another.
     if (k.drift && k.tier >= 2 && k.load > TUNE.loadfull && k.madT <= 0) {
       k.shedT -= dt;
@@ -511,7 +570,7 @@ export function stepSim(sim) {
     const lane = c >= 0 && r >= 0 && c < world.cols && r < world.rows ? world.laneOf[r * world.cols + c] : -1;
     if (lane >= 0 && world.lanes[lane].open) checkout(sim, k, lane);
   }
-  if (racing) events(sim, dt);
+  if (racing) events(sim);
 
   if (sim.phase === 'run') {
     const st = sim.stats;
@@ -529,6 +588,20 @@ export function stepSim(sim) {
   } else if (sim.phase === 'done' && sim.t >= sim.timer) {
     for (const k of sim.carts) k.done = true;        // the store has closed on whoever is still out there
   }
+}
+
+// Back at the last checkpoint passed (or where the cart started), facing along the route, at half speed, with
+// what is left of its tower and a moment of immunity.
+function respawn(sim, k) {
+  const cp = k.cp >= 0 ? sim.world.checkpoints[k.cp] : null, side = (k.id % 3 - 1) * 1.1;
+  const x = cp ? cp.x + cp.dx * 1.4 + cp.ax * side : k.home.x, z = cp ? cp.z + cp.dz * 1.4 + cp.az * side : k.home.z, h = cp ? cp.h : k.home.h;
+  k.x = k.px = x; k.z = k.pz = z; k.h = k.ph = h;
+  const v = TUNE.maxspeed * 0.5;
+  k.vx = Math.sin(h) * v; k.vz = Math.cos(h) * v; k.spd = v; k.avx = k.vx; k.avz = k.vz;
+  k.wipeT = 0; k.stunT = 0; k.air = 0; k.slip = 0; k.yaw = 0; k.steer = 0; k.wallT = 0; k.turnTo = null;
+  k.immuneT = CFG.respawnImmune;
+  if (k.ai) { k.ai.stuckT = 0; k.ai.backT = 0; k.ai.progT = 0; }
+  sim.emit('respawn', k, 0, cp);
 }
 
 // Advances the run by wall-clock seconds using whole fixed steps. Returns the leftover fraction of
@@ -554,7 +627,7 @@ function bumpCarts(sim) {
   const carts = sim.carts;
   for (let i = 0; i < carts.length; i++) for (let j = i + 1; j < carts.length; j++) {
     const a = carts[i], b = carts[j];
-    if (a.air > 0 || b.air > 0 || a.done || b.done) continue;
+    if (a.air > 0 || b.air > 0 || a.done || b.done || a.wipeT > 0 || b.wipeT > 0) continue;
     if (Math.abs(b.x - a.x) > 3.2 || Math.abs(b.z - a.z) > 3.2) continue;
     // the deepest overlap among the four pairs of circles; the player's own dash reaches a little further
     const reach = (a.player && a.dashT > 0) || (b.player && b.dashT > 0) ? CFG.dashReach : 0;
@@ -579,5 +652,10 @@ function bumpCarts(sim) {
     a.vx -= imp / ma * nx; a.vz -= imp / ma * nz;
     b.vx += imp / mb * nx; b.vz += imp / mb * nz;
     if (-vn > 2) { sim.stats.bumps++; sim.emit('cartbump', a, -vn, b); }
+    // a plain bump at speed knocks the top goods off a rival (the one that was hit harder: the lighter)
+    if (-vn > CFG.bumpKnock && !hitA && !hitB) {
+      const v = ma <= mb ? a : b;
+      if (!v.player && v.tower.length && v.madT <= 0 && !(v.bumpT > sim.t)) { v.bumpT = sim.t + 0.6; shed(sim, v, -vn > CFG.bumpKnock + 3 ? 2 : 1); }
+    }
   }
 }

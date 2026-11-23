@@ -21,7 +21,7 @@ import { buildScene, syncScene, sceneEvent, disposeScene } from './scene.js';
 import { goodIcon } from './goods.js';
 import { initFx, clearFx, cartFx, eventFx, updateFx, spark } from './fx.js';
 import { initShowcase, makeTitle } from './showcase.js';
-import { audio, unlockAudio, setSound, setVolumes, audioEvent, audioCue, audioFrame } from './audio.js';
+import { audio, unlockAudio, setSound, setVolumes, audioEvent, audioCue, audioFrame, objectSound } from './audio.js';
 import { ui, initUI, updateHud, popWord, announce, floatText, sticker, updateStickers, chainText, setList, setArrow, setWarn, setHint, showTouch, showTitle, showReceipt,
   showClosed, showPause, hideScreens, hurryUI, money, initDebug, updateDebug } from './ui.js';
 
@@ -180,7 +180,12 @@ function onEvent(e) {
   sceneEvent(game.view, e);
   // What others do to the player, or near the player.
   if (!mine) {
+    const close = (x, z) => Math.hypot(x - p.x, z - p.z) < 22;
+    if (e.type === 'pancake' && close(e.ref.x, e.ref.z)) sticker('SPLAT!', 'splat', e.ref.x, 1.4, e.ref.z);
     if (!k) return;
+    if (e.type === 'wipe' && close(k.x, k.z)) sticker('BONK!', 'bonk', k.x, 2.8, k.z);
+    else if (e.type === 'pop' && close(k.x, k.z)) sticker('BOING!', 'bam', k.x, 2.8, k.z);
+    else if (e.type === 'fountain' && close(k.x, k.z)) { const s = toScreen(k.x, 3.2, k.z); if (s.z < 1) floatText(money(e.ref.lost) + '!', s.x, s.y, 'big'); }
     if (e.type === 'warn' && e.ref === p) {             // the first two warnings come with the keys that dodge them
       game.warner = k; game.dodgeHint = !p.ai && (save.seen.dodge || 0) < 2;
       if (game.dodgeHint) { save.seen.dodge = (save.seen.dodge || 0) + 1; platform.save(); }
@@ -194,6 +199,15 @@ function onEvent(e) {
   R.cam.shake = Math.min(1, R.cam.shake + shake);
   switch (e.type) {
     case 'crash': game.hitstop = 0.07; if (e.value > 9) { impact(); sticker('BONK!', 'bonk', p.x - p.wnx, 1.5, p.z - p.wnz); } break;
+    // the level objects
+    case 'wipe': impact(); game.hitstop = 0.1; R.cam.shake = Math.min(1, R.cam.shake + 0.8); sticker('BONK!', 'bonk', p.x, 2.6, p.z); popWord('WIPEOUT!', 'bad'); break;
+    case 'pop': game.hitstop = 0.05; sticker('BOING!', 'bam', p.x, 2.6, p.z); break;
+    case 'shoved': game.hitstop = 0.06; sticker('HONK!', 'crash', p.x, 2.6, p.z); break;
+    case 'press': popWord(e.ref.gates.length ? 'IT OPENS!' : 'CLICK!', 'good'); break;
+    case 'checkpoint': popWord('CHECKPOINT ' + (e.value + 1), 'good'); break;
+    case 'watch': { popWord('+' + e.value + ' SECONDS', 'hot'); const s = toScreen(e.ref.x, 2.2, e.ref.z); if (s.z < 1) floatText('+' + e.value + 's', s.x, s.y, 'big'); break; }
+    case 'boostpad': sticker('WHOOSH!', 'bonk', p.x, 2.4, p.z); break;
+    case 'cans': if (e.value > 0) { const s = toScreen(e.ref.x, 2.4, e.ref.z); if (s.z < 1) floatText('+' + money(e.value), s.x, s.y, 'big'); } break;
     case 'take': game.gain += e.value; game.gainT = 0.45; if (e.ref.entry.list) game.gainList = true; break;
     case 'spill': case 'shed': { const s = toScreen(p.x, 2.6, p.z); floatText(money(-e.ref.lost), s.x, s.y - 30, 'loss'); break; }
     case 'heavy': case 'overloaded':                    // said once per run: afterwards the tower itself shows it
@@ -322,6 +336,13 @@ function tick(dt, draw) {
   const tint = R.u.uTintAmt;
   tint.value += ((sim.closing && game.state === 'play' ? 0.24 + 0.08 * Math.sin(game.clock * 6) : 0) - tint.value) * Math.min(1, dt * 4);
   syncScene(game.view, sim, alpha, dt);
+  // the level objects' own sounds: a sign creaks at each end of its swing, a forklift beeps while it moves
+  const props = game.view.props;
+  if (props && game.state === 'play') {
+    const near = (x, z) => Math.max(0, 1 - Math.hypot(x - p.x, z - p.z) / 22);
+    for (const sg of props.signs) if (sg.creak) { sg.creak = false; objectSound('creak', near(sg.ob.x, sg.ob.z)); }
+    for (const pt of props.patrols) if (pt.pos && Math.sin(game.clock * 6.3) > 0.97) objectSound('beep', near(pt.pos.x, pt.pos.z));
+  }
   // Money being swept right now is one running label above the cart; when the run of goods ends it
   // floats away.
   if (game.gain > 0) {

@@ -41,7 +41,7 @@ async function worker() {
     if (sim.phase !== 'run') continue;
     for (const k of sim.carts) {
       if (k.player || k.done) continue;
-      const ai = k.ai, waiting = (ai && (ai.hold || ai.photoT > 0 && ai.photoT < 1.4 || ai.warnT > 0)) || k.stunT > 0 || k.air > 0 || k.wait;
+      const ai = k.ai, waiting = (ai && (ai.hold || ai.photoT > 0 && ai.photoT < 1.4 || ai.warnT > 0)) || k.stunT > 0 || k.air > 0 || k.wipeT > 0 || k.wait;
       const t = !waiting && Math.hypot(k.vx, k.vz) < 0.3 ? (stuck.get(k) || 0) + CFG.STEP : 0;
       stuck.set(k, t);
       if (t > worst) { worst = t; who = k.char; }

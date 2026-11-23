@@ -78,8 +78,18 @@ export const CFG = {
   pinYaw: 4.5,            // how fast a cart pinned nose-first swings along the wall, rad/s
   pinPatience: 0.3,       // seconds of pushing with no movement before the cart backs out by itself
   backTime: 0.32, backSpeed: 3.5, backYaw: 2.8,   // the automatic back-out: seconds, m/s, rad/s
+  // level objects (LEVELS.md section 4)
+  wipeTime: 1.1,          // seconds from a wipeout to the respawn at the last checkpoint
+  respawnImmune: 1.2,     // seconds a respawned cart cannot be wiped out or rammed
+  popTime: 0.75,          // seconds in the air after a pop-up tile
+  padBoost: 6, padTime: 0.8,   // boost arrows: m/s over the top speed, seconds
+  watchTime: 5,           // seconds a stopwatch adds
+  smashSpeed: 8,          // a plain hit this fast (m/s into it) smashes a can pyramid; slower ones topple a third
+  canPrice: 10, megaCan: 40,   // SMASH: dollars per can (times the multiplier), per golden can of the MEGA PYRAMID
+  bumpKnock: 5,           // a plain bump this hard (m/s) knocks the top goods off a rival
+  closingTime: 15,        // CLOSING TIME: the last seconds on the clock
   // mall kit
-  beltSpeed: 5,           // a travelator carries a cart this fast, m/s (with it: faster; against it: about half speed)
+  beltSpeed: 4,           // a conveyor carries a cart this fast, m/s (with it: faster; against it: about half speed)
   jumpSpeed: 7,           // speed along a ramp needed to take off, m/s
   jumpTime: 0.9,          // seconds in the air (at top speed that is 10.8 m)
   jumpHeight: 1.7,        // how high the arc looks, metres
@@ -140,13 +150,15 @@ export const GOODS = [
   { id: 'bear',      size: 'H', w: 6, price: 250, dims: [0.96, 1.10, 0.90] },
   { id: 'console',   size: 'H', w: 7, price: 450, dims: [1.00, 0.56, 0.84] },
   { id: 'robovac',   size: 'H', w: 8, price: 560, dims: [1.04, 0.40, 1.04] },
+  { id: 'frozenpizza', size: 'L', w: 4, price: 95, dims: [0.86, 0.36, 0.66] },
+  { id: 'icecream',  size: 'L', w: 4, price: 85,  dims: [0.62, 0.62, 0.62] },
 ];
 export const GOOD = {};            // id -> index into GOODS
 GOODS.forEach((g, i) => { GOOD[g.id] = i; g.slots = g.size === 'S' ? 1 : g.size === 'M' ? 2 : g.size === 'L' ? 4 : 8; });
 
 // Which goods a store zone stocks on its shelves, by shelf letter (S, M, L) and for floor trails.
 export const POOLS = {
-  market: { S: ['can', 'soda', 'chips', 'cereal', 'roll'], M: ['melon', 'pizza', 'toaster'], L: ['microwave'] },
+  market: { S: ['can', 'soda', 'chips', 'cereal', 'roll'], M: ['melon', 'pizza', 'toaster'], L: ['frozenpizza', 'icecream'] },
   gadget: { S: ['phone', 'game', 'soda'], M: ['headset', 'toaster', 'shoes'], L: ['speaker', 'microwave'] },
   atrium: { S: ['chips', 'soda', 'roll', 'game'], M: ['shoes', 'pizza', 'melon'], L: ['suitcase', 'speaker'] },
 };

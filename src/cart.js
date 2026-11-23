@@ -41,6 +41,7 @@ export function makeCart(id, charId, x, z, h) {
     grudge: null, grudgeT: 0,                 // who rammed this cart, remembered for five seconds
     dashKnocks: 0, shaveT: 0, crashes: 0, fullSaid: false,     // shoppers bowled over in this dash; close-shave throttle; crash count
     done: false, doneT: 0, lane: -1, place: 1, prog: 0, receipt: null,
+    cp: -1, home: null, wipeT: 0, wipes: 0, padT: 0, popT: 0, popped: false, shoveT: 0, smash: 0, toppleT: 0, bumpT: 0,
     input: makeInput(), ai: null,
   };
 }
@@ -347,7 +348,9 @@ export function stepCart(k, inp, sim, dt) {
     if (c && c.depth > depth) { s = c.solid; nx = c.nx; nz = c.nz; depth = c.depth; nose = false; }
     if (!s) break;
     if (s.soft) { s.on = false; sim.onKnock(k, s); continue; }
-    if (s.dash && (k.dashT > 0 || mad)) { s.on = false; sim.onSmash(k, s); continue; }
+    const pyr = s.piece && (s.type === 'pyramid' || s.type === 'mega'), into0 = -(k.vx * nx + k.vz * nz);
+    if (s.dash && (k.dashT > 0 || mad || (pyr && into0 > CFG.smashSpeed && s.type === 'pyramid'))) { s.on = false; sim.onSmash(k, s); continue; }
+    if (pyr && into0 > 2 && sim.onTopple) sim.onTopple(k, s, into0);
     k.x += nx * depth; k.z += nz * depth;
     const vn = k.vx * nx + k.vz * nz;
     if (vn >= 0) continue;

@@ -9,6 +9,7 @@
 
 import { TUNE, CFG, GOODS, CHARS, clamp, wrapAngle } from './config.js';
 import { navAim, navDistAt, clearPath, collide, blockedAt } from './world.js';
+import { switchField } from './objects.js';
 
 // pace = share of top speed, hz = decisions per second, noise = steering error (rad),
 // drift / dash = how readily the driver uses them (0..1), look = tiles of path it looks along,
@@ -107,7 +108,7 @@ function findTarget(sim, k, ai) {
     return true;
   };
   for (const q of world.pieces) {
-    if (!q.solid.on || !q.solid.dash) continue;
+    if (!q.solid.on || !q.solid.dash || (q.type === 'podium' && p.rival && p.char !== 'queen')) continue;
     const hot = q.type === 'podium';
     if (hot && q.good < 0) continue;
     if (q.sale && p.rival && sim.sale && sim.sale.t > 7) continue;   // the first three seconds of a flash sale are the player's
@@ -235,7 +236,17 @@ export function drive(sim, k, dt) {
 
   // Look further along the path the faster the cart goes; a short look keeps it lined up for narrow places.
   const reach = clamp(0.45 * Math.abs(k.spd) + 2.5, 3, p.look * CFG.TILE);
-  if (!navAim(world, k.x, k.z, p.look, CFG.CART_R + 0.3, aim, reach)) { inp.gas = 0; inp.brake = 1; return; }
+  // the way to the checkouts is shut (a gate): first to the nearest switch nobody has pressed yet
+  let field = null;
+  if (navDistAt(world, k.x, k.z) > 1e8) {
+    let best = 1e8;
+    for (const s of world.switches) {
+      if (s.pressed) continue;
+      const f = switchField(world, s), d = navDistAt(world, k.x, k.z, f);
+      if (d < best) { best = d; field = f; }
+    }
+  }
+  if (!navAim(world, k.x, k.z, p.look, CFG.CART_R + 0.3, aim, reach, field)) { inp.gas = 0; inp.brake = 1; return; }
   const bend = Math.abs(wrapAngle(Math.atan2(aim.fx - k.x, aim.fz - k.z) - k.h));
   let tx = aim.x, tz = aim.z;
   const listed = !ai.drifting && findGoods(sim, k, ai) && goal.list;         // a list item ahead comes before any target

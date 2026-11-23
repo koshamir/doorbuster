@@ -195,7 +195,7 @@ const SHOW = {
 // s: { mode ('push' | 'stand' | 'count' | 'victory' | 'defeat' | 'taunt' | 'tumble'), speed, accel, yaw (rate),
 //      steer, drift (-1..1), dash (seconds since a dash, or -1), boost, air (0..1 of a jump), stun (seconds left),
 //      squash (an impulse 0..1), handle ([y, z, half width] of the grips in character space), look ([x, y, z] or null),
-//      expr (a face to force), seat (riding a scooter) }
+//      expr (a face to force), seat (riding a scooter), fly ([x, y, z, pitch, roll] of a thrown body in a tumble) }
 // dt in seconds. rootM (optional) is the character root's 3x4 matrix in its parent's space.
 export function animate(rig, s, dt, rootM) {
   const k = 1 - Math.exp(-dt * 14), kk = 1 - Math.exp(-dt * 6), L = rig.look, t = (rig.t += dt), mode = s.mode || 'push';
@@ -258,7 +258,8 @@ export function animate(rig, s, dt, rootM) {
   // poses at the checkout and when overtaking
   if (posed) applyPose(rig, mode === 'show' ? SHOW[rig.id] || SHOW.penny : mode === 'victory' ? POSE_OF(rig, 'victory') : mode === 'defeat' ? POSE_OF(rig, 'defeat') : POSES.taunt, t, mode === 'show' ? 1 : k);
   else rig.poseK = 0;
-  // tumble: thrown out of the cart, limbs flailing
+  // tumble: thrown out of the cart, limbs flailing (s.fly moves and turns the whole body)
+  if (mode === 'tumble' && s.fly) { rig.off[0] += s.fly[0]; rig.off[1] += s.fly[1]; rig.off[2] += s.fly[2]; eul(rig, B_.root, s.fly[3], 0, s.fly[4]); }
   if (mode === 'tumble') {
     const f = t * 14;
     for (const [b, a] of [[B_.armL, 1], [B_.armR, -1], [B_.thighL, 1], [B_.thighR, -1]]) go(rig, b, Math.sin(f + a) * 1.4 - 0.8, 0, a * (0.6 + Math.sin(f * 1.3) * 0.5), 0.5);

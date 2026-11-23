@@ -16,6 +16,7 @@ import { CROWD, CROWD_COLORS } from './cast.js';
 import { EXPR, KIT, kitAtlas } from './atlas.js';
 import { makeGoods, beginGoods, endGoods, putGood, variantAt } from './goods.js';
 import { buildStore, pieceMesh, LOOSE } from './fixtures.js';
+import { buildProps, syncProps, propEvent } from './props.js';
 import { builder, bind, box, cyl, ring, toGeometry } from './shapes.js';
 
 const CAST_IDS = { penny: 'player', granny: 'granny', dad: 'dad', queen: 'queen', selfie: 'selfie', bubba: 'bro' };
@@ -111,6 +112,9 @@ export function buildScene(sim) {
   view.hot = kit.hot || 'cheese';
   // The store from its kit: walls, shelf runs, counters, displays, signs, decals (fixtures.js).
   buildStore(view, sim, kit, (x, z, rx, rz, ry) => putShadow(view, x, z, rx, rz, ry));
+  // The level objects: signs, pop-up tiles, forklifts, buttons and shutters, boost arrows, arches (props.js).
+  buildProps(view, sim, kit);
+  view.draw = { shadow: (x, z, rx, rz, ry) => putShadow(view, x, z, rx, rz, ry), glow: (x, z, r, c) => putGlow(view, x, z, r, c) };
   // Pieces with a life of their own (they break, fly or open): one mesh each. A hot item stands in a
   // gold column under a turning halo.
   const bb = builder(); bind(bb, 0, [0, 0, 0, 0]); cyl(bb, 0.32, 0.32, 5, PAL.hot, { seg: 10, top: false });
@@ -281,8 +285,11 @@ function syncCart(view, c, sim, alpha, dt) {
   const h = k.ph + wrapAngle(k.h - k.ph) * alpha + (1 - (1 - u) * (1 - u)) * 6.2832;   // one full turn, easing out
   const up = k.air > 0 ? 4 * CFG.jumpHeight * (k.air / k.airT) * (1 - k.air / k.airT) : 0;   // the arc of a jump
   c.g.position.set(x, up, z);
+  // back from a wipeout: the cart pops in and blinks while it cannot be hit
+  const since = sim.t - (c.backAt ?? -9);
+  c.g.visible = gone < 1 && !(since < CFG.respawnImmune && since > 0.25 && Math.floor(since * 12) % 2 === 1);
   c.g.rotation.y = h;
-  c.g.scale.setScalar(1 - gone);
+  c.g.scale.setScalar((1 - gone) * (since < 0.25 && since >= 0 ? Math.max(0.05, since / 0.25) : 1));
   const lat = k.yaw * speed;                                   // sideways acceleration, m/s2
   c.roll += (clamp(lat * 0.007, -0.2, 0.2) + k.drift * 0.1 + k.input.steer * 0.05 - c.roll) * (1 - Math.exp(-dt * 16));
   const acc = dt > 0 ? clamp((speed - c.lastSpd) / dt, -40, 40) : 0;
@@ -302,6 +309,11 @@ function syncCart(view, c, sim, alpha, dt) {
   // the character: the simulation's cart state drives the procedural animation (rig.js)
   const st = c.st;
   st.mode = sim.phase === 'count' ? 'count' : 'push';
+  if (k.wipeT > 0) {
+    const u = 1 - k.wipeT / CFG.wipeTime, a = Math.min(1, u / 0.55);
+    st.mode = 'tumble';
+    st.fly = [Math.sin(u * 5) * 0.3, a < 1 ? Math.sin(a * Math.PI) * 2.1 : 0, a * 4.2, a < 1 ? -a * Math.PI * 2.2 : -Math.PI / 2, Math.sin(u * 7) * 0.3];
+  } else st.fly = null;
   // a rival that overtakes the player points and laughs for a moment
   if (!k.player && sim.phase === 'run') { const ahead = k.prog > sim.player.prog; if (ahead && c.wasBehind && Math.hypot(k.x - sim.player.x, k.z - sim.player.z) < 9) c.tauntT = 1.1; c.wasBehind = !ahead; }
   if ((c.tauntT = (c.tauntT || 0) - dt) > 0 && k.stunT <= 0) st.mode = 'taunt';
@@ -400,6 +412,7 @@ function syncShoppers(view, sim, dt) {
 const GREEN = rgb(PAL.green), RED = rgb(PAL.danger), AMBER = rgb(PAL.sale);
 export function syncScene(view, sim, alpha, dt) {
   const world = sim.world, p = sim.player;
+  view.simT = sim.t;
   view.time += dt; view.frame++;
   beginGoods(view.gv);
   view.shadowN = view.fixed;
@@ -415,9 +428,10 @@ export function syncScene(view, sim, alpha, dt) {
     if (d.ttl > 0 && d.ttl < 1.2 && Math.floor(d.ttl * 10) % 2 === 0) continue;       // blink before vanishing
     const age = d.born === undefined ? 9 : sim.t - d.born;
     const bob = 0.14 + 0.07 * Math.sin(view.time * 4 + d.x * 1.3 + d.z);
-    if (age < 0.45) {                                                               // thrown out of a cart
-      const u = age / 0.45;
-      putGood(view.gv, d.good, variantAt(d.x, d.z), lerp(d.ox, d.x, u), 1.0 + Math.sin(u * Math.PI) * 1.4 - u * 0.86, lerp(d.oz, d.z, u), u * 9 + d.x, 0.9, u * 7, u * 5, view.hot);
+    const fly = d.high ? 0.75 : 0.45;
+    if (age < fly) {                                                                // thrown out of a cart (a fountain throws them high)
+      const u = age / fly;
+      putGood(view.gv, d.good, variantAt(d.x, d.z), lerp(d.ox, d.x, u), 1.0 + Math.sin(u * Math.PI) * (d.high ? 3.6 : 1.4) - u * 0.86, lerp(d.oz, d.z, u), u * 9 + d.x, 0.9, u * 7, u * 5, view.hot);
     } else {
       putGood(view.gv, d.good, variantAt(d.x, d.z), d.x, bob + (d.list ? 0.25 : 0), d.z, view.time * 1.6 + d.x * 1.7, d.list ? 1.3 : 0.95, 0, 0.18, view.hot);
       if (d.list) putGlow(view, d.x, d.z, 0.85 + 0.12 * Math.sin(view.time * 5), PAL.list);   // list items stand on a teal disc
@@ -448,6 +462,7 @@ export function syncScene(view, sim, alpha, dt) {
     }
   }
   for (const c of view.carts) syncCart(view, c, sim, alpha, dt);
+  syncProps(view, sim, dt, view.draw);
   syncShoppers(view, sim, dt);
   // A banner between the camera and the player's cart would hide it: banners fade away as the cart comes near.
   for (const b of view.banners) { b.material.uniforms.uOpacity.value = b.material.opacity = clamp((Math.hypot(b.position.x - p.x, b.position.z - p.z) - 9) / 5, 0, 1); b.visible = b.material.opacity > 0.02; }
@@ -495,6 +510,8 @@ export function syncScene(view, sim, alpha, dt) {
 
 // Visual reactions of scene objects to simulation events.
 export function sceneEvent(view, e) {
+  propEvent(view, e);
+  if (e.type === 'respawn') for (const c of view.carts) if (c.k === e.cart) c.backAt = view.simT || 0;
   if (e.type === 'knock') {
     // A light prop is thrown the way the cart was going.
     for (const it of view.pieces) if (it.p.solid === e.ref) { it.fly = 1.1; it.vx = e.cart.vx * 0.7; it.vz = e.cart.vz * 0.7; it.vy = 6; }
