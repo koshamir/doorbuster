@@ -72,7 +72,8 @@ P pause, M sound, R retry) and touch. Made for Mindblown Cup #2, "Shopping Madne
 | \`assets/voice/\` | ${voices.length} file(s) | \`voices.json\`, the list of voice recordings (empty: every line is synthesized) |
 | \`cover.jpg\`, \`card.jpg\`, \`icon.jpg\` | 1200 × 675, 1000 × 1000, 256 × 256 | made from game frames |
 
-\`lib/three.min.js\` is only for running the package locally; do not upload it.
+\`lib/three.min.js\` is the same three.js r185 bundle the platform hosts. The page loads it only when the hosted copy cannot be
+reached (locally, or if the page is served from another address); uploading it beside \`index.html\` is optional and harmless.
 
 ## Platform calls
 \`tune()\` and \`tune.on\` (values below) · \`sound.on\`, \`sound.set\`, \`sound.onchange\` (the game's sound button and M follow

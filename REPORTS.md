@@ -46,3 +46,14 @@ Try: (1) level 3: dash at the first red wall, then flip again mid-way down the p
 - The race: the expert wins by about 4 s, the confident bot 9 of 10, the beginner loses; `npm run check` passes for levels 1-6.
 
 Try: (1) level 6: take the delivery-box shortcut out of the sushi lane and beat Gramps through all three checkpoints; (2) level 5: do the departments in a different order each run and watch the list racks; (3) play three stores in a row and listen to the music change.
+
+## P5 SHIP — 23 Nov 2026 (tags `p5`, `release`)
+
+- Shipped: six stores in four modes (RUSH, SMASH, LIST, RACE), the cast, the Mall Directory with shop windows, Cart Customs, a band per store; `handoff/` holds `index.html` (822 KB, one file), `tune.json`, `assets/voice/`, cover, card, icon and HANDOFF.md.
+- Release fixes: medals by the release rule, rival hauls trimmed, the HUD receipt back in place and reset per run, clocks short enough for CLOSING TIME, a RAM! price tag on loaded rivals in dash range, sounds for every new object, a close-up camera that never clips; a jury review drove most of these.
+- Checks: `npm run check` passes; the fresh-profile first minutes, a real-time console run (wipeout, pause, blur, resize, phone, restart), budgets (first frame 1.8 s, restarts 0.2 s, no memory growth) and a mock Mindblown run (load before save, boards, sound sync) are clean; the package's clean copy reproduces level 1's reference receipt ($1,812) with no external request.
+- Known issues: level 4 receipts run small, so bronze is common there; in levels 3 and 5 the rivals rarely beat you on the table; integrated graphics are untested here.
+- Upload: 1) `node tools/package.mjs` (rebuilds and checks `handoff/`); 2) on Mindblown create the page and upload `index.html` (entry), `tune.json` and `assets/voice/voices.json`, keeping the paths; 3) set `cover.jpg`, `card.jpg` and `icon.jpg` as the 16:9, square and icon images; 4) run the platform's render check, then the six checks in HANDOFF.md (reference receipt 1812); 5) enter the page in Mindblown Cup #2 before 30 Nov.
+- Not built: levels 7 and 8 (source at the 30-file limit; the time went to the jury's fixes).
+
+Try: (1) a laptop with integrated graphics, if one is at hand (the quality tier should settle by itself); (2) level 1 twice: chase the RAM! tag on Granny's cart; (3) level 6: beat Turbo Gramps to the head-on checkouts.

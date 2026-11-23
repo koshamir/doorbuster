@@ -1,8 +1,8 @@
 ## STATUS (at most 10 lines)
-Phase: P5 SHIP (prompts/P5_SHIP.md) — starting; P4 CAMPAIGN done and tagged p4 (23 Nov)
-Done: P1 look; P2 objects, modes, levels 1-2; P3 levels 3-4, Directory, Customs; P4 LIST and RACE modes, levels 5-6 with the sports and food kits, medals from author runs, a band per store
-Next: P5 item 1 (read prompts/P5_SHIP.md)
-Open problems: L4 receipts run small (spills in the boutique), so its medals are low; the release moment of L6 is a quiet frame
+Phase: P5 SHIP done — released and tagged p5 and release (23 Nov 2026); the game is frozen (deadline 29 Nov 18:00 owner time, UTC+5)
+Done: P1-P5; six stores, four modes, Directory, Customs, jury fixes, the handoff package in handoff/ (node tools/package.mjs rebuilds and checks it)
+Next: the owner uploads handoff/ to Mindblown (steps in REPORTS.md, P5) and enters it in the cup by 30 Nov
+Open problems: see Known issues
 
 ## Owner feedback (verbatim, latest first, last 3 rounds)
 
@@ -58,5 +58,16 @@ D48 2026-11-23 rivalValue (a level's handicap on what the rivals' goods ring up 
 D49 2026-11-23 The Cart Customs price tags are scoped to the customs screen: as a global .tag rule they had pushed the HUD's RECEIPT under the Madness meter since P3.
 D50 2026-11-23 The handoff ships lib/three.min.js only for local runs; on mindblown.ai the page loads the hosted bundle.
 D51 2026-11-23 The arena's objects raise their own sound flags (snd at sx/sz) and main.js plays them by distance, like the signs' creak.
+D52 2026-11-23 Jury review (QUALITY.md section 4) applied: HUD totals, the clocks, a darker backroom and a lower first swoop, shop-window renders in the Directory, the RAM! price tag, Cart Customs fixes, a close-up camera that never clips.
+D53 2026-11-23 Jury skip: no portrait behind the receipt; while the race plays out the hero's spot is not reliably free, so the receipt keeps the wide view and the 1.5 s close-up carries the portrait.
+D54 2026-11-23 Jury skip: no new pieces in level 1's quiet stretches; its plan is tuned against wipeouts, so the shorter clock and the ram cue carry the pace instead.
+D55 2026-11-23 Jury skip: Granny's "stuck" events are her waiting at the pop-up tiles (her scripted first fail), not a jam.
+D56 2026-11-23 Clocks: timer just above the slowest beginner bot; CLOSING TIME (level field closing) starts before the median beginner gets home; level 2 keeps its 30 s with stopwatches.
+D57 2026-11-23 Levels 7 NEON NIGHTS and 8 LAST CALL are not built: the shipped source is at the 30-file limit and the time went to the jury's fixes and the release (DESIGN.md section 10 cut order).
 
 ## Known issues (at most 10)
+- Level 4 receipts run small (the boutique spills most loot), so bronze is common there.
+- In levels 3 and 5 the rivals race for time, not loot: the player usually tops the table.
+- Granny Tank now and then waits at level 1's pop-up tiles long enough for the sim to count her as stuck.
+- Behind the receipt the view is wide; the portrait is the 1.5 s close-up (from behind in most stores).
+- Integrated graphics are untested here (budgets measured on this machine only); the platform calls are tested against a mock of window.mindblown.
