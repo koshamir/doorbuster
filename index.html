@@ -166,7 +166,7 @@
   .front:hover { transform: translateY(-.15em); }
   .front .awning { position: absolute; left: 0; right: 0; top: 0; height: .85em; background: repeating-linear-gradient(90deg, var(--a) 0 .9em, #fff .9em 1.8em); border-bottom: .14em solid var(--night); }
   .front .unit { font: 700 .55em var(--mono); opacity: .6; }
-  .front .sname { font: 900 .95em/1.05 'Arial Black', Impact, sans-serif; color: var(--c); -webkit-text-stroke: .02em var(--night); }
+  .front .sname { font: 900 .95em/1.05 'Arial Black', Impact, sans-serif; color: var(--c); -webkit-text-stroke: .02em var(--night); max-width: 54%; }
   .front .mode { font: 900 .6em 'Arial Black', Impact, sans-serif; color: #fff; background: var(--night); padding: .1em .4em; border-radius: .2em; transform: rotate(-3deg); }
   .front .medal { font: 900 .7em 'Arial Black', Impact, sans-serif; }
   .front .sbest { font: 700 .7em var(--mono); }
@@ -185,11 +185,11 @@
   .cat .col { width: min(19em, 36vw); background: var(--paper); border: .16em solid var(--night); border-radius: .5em; padding: .6em .7em; box-shadow: 0 .25em 0 var(--night); max-height: 100%; overflow: auto; box-sizing: border-box; }
   .col-head { font: 900 1em 'Arial Black', Impact, sans-serif; border-bottom: .14em dashed var(--ink); margin: .2em 0 .4em; }
   .uprow { margin-bottom: .5em; } .uname { display: block; font: 900 .8em 'Arial Black', Impact, sans-serif; margin-bottom: .2em; }
-  .tag { font: inherit; display: inline-flex; flex-direction: column; width: 31%; margin-right: 2%; padding: .3em .25em .3em .6em; text-align: left; cursor: pointer; background: #fff; color: var(--night);
+  .cat .tag { font: inherit; display: inline-flex; flex-direction: column; width: 31%; margin-right: 2%; padding: .3em .25em .3em .6em; text-align: left; cursor: pointer; background: #fff; color: var(--night);
     border: .12em solid var(--night); border-radius: .2em .9em .9em .2em; position: relative; vertical-align: top; box-sizing: border-box; }
-  .tag::before { content: ''; position: absolute; left: .18em; top: 50%; width: .22em; height: .22em; margin-top: -.11em; border-radius: 50%; background: var(--night); }
-  .tag .tname, .chip .pname, .swatch .pname { font: 700 .58em/1.1 var(--mono); } .tag .tprice, .chip .tprice, .swatch .tprice { font: 900 .72em 'Arial Black', Impact, sans-serif; }
-  .tag.owned { background: var(--teal); } .tag.can, .swatch.can, .chip.can { background: var(--sale); animation: throb2 .6s infinite alternate; }
+  .cat .tag::before { content: ''; position: absolute; left: .18em; top: 50%; width: .22em; height: .22em; margin-top: -.11em; border-radius: 50%; background: var(--night); }
+  .cat .tag .tname, .chip .pname, .swatch .pname { font: 700 .58em/1.1 var(--mono); } .cat .tag .tprice, .chip .tprice, .swatch .tprice { font: 900 .72em 'Arial Black', Impact, sans-serif; }
+  .cat .tag.owned { background: var(--teal); } .cat .tag.can, .swatch.can, .chip.can { background: var(--sale); animation: throb2 .6s infinite alternate; }
   .tag.short, .swatch.short, .chip.short { opacity: .65; } .tag.later { opacity: .35; cursor: default; }
   .swatches { display: grid; grid-template-columns: repeat(3, 1fr); gap: .35em; margin-bottom: .5em; }
   .swatch, .chip { font: inherit; display: flex; flex-direction: column; align-items: flex-start; padding: .3em .4em; background: #fff; color: var(--night); border: .12em solid var(--night); border-radius: .3em; cursor: pointer; text-align: left; }
