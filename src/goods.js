@@ -115,6 +115,23 @@ const BUILD = {
     bind(B, 0, TINT(0.3)); for (const x of [-0.22, 0.22]) { at(B, x, 0, 0, x); ellipsoid(B, 0.24, 0.5, 0.4, G_W, { seg: 10, rings: 8, cut: 0 }); }
     bind(B, 0, FIX(0.2)); for (const x of [-0.22, 0.22]) { at(B, x, 0.05, 0, x); cyl(B, 0.22, 0.22, 0.18, 0x2A2440, { seg: 10 }); }
   },
+  sushi(B) {                  // two pieces of nigiri on a little wooden board
+    bind(B, 0, FIX(0.1)); box(B, 1, 0.25, 1, 0xC98A5B, { bevel: 0.1 });
+    for (const x of [-0.24, 0.24]) { bind(B, 0, FIX(0.3)); at(B, x, 0.25, 0); ellipsoid(B, 0.2, 0.22, 0.4, 0xFFF8EE, { seg: 10, rings: 6, cut: 0 }); bind(B, 0, TINT(0.6)); at(B, x, 0.42, 0); ellipsoid(B, 0.22, 0.12, 0.44, G_W, { seg: 10, rings: 6, cut: 0 }); }
+  },
+  burger(B) {                 // bun, patty, cheese, lettuce, bun
+    bind(B, 0, FIX(0.3)); ellipsoid(B, 0.5, 0.22, 0.5, 0xE3A35A, { seg: 14, rings: 6, cut: 0 });
+    for (const [y, h, c] of [[0.2, 0.14, 0x6B3A1E], [0.32, 0.05, 0xFFC93C], [0.36, 0.06, 0x7BC94A]]) { at(B, 0, y, 0); cyl(B, 0.48, 0.48, h, c, { seg: 14 }); }
+    at(B, 0, 0.42, 0); ellipsoid(B, 0.5, 0.42, 0.5, 0xE3A35A, { seg: 14, rings: 8, cut: 0 });
+  },
+  fries(B) {                  // a red carton of golden fries
+    bind(B, 0, LBL(0.2)); box(B, 0.9, 0.7, 0.7, 0xD62828, { bevel: 0.1, front: LBL(0.2) });
+    bind(B, 0, FIX(0.2)); for (let i = 0; i < 7; i++) { at(B, -0.3 + (i % 4) * 0.2, 0.6, -0.15 + Math.floor(i / 4) * 0.3, i * 0.3, (i % 3 - 1) * 0.15); box(B, 0.1, 0.45, 0.1, 0xFFD23F, { bevel: 0.2 }); }
+  },
+  cakeslice(B) {              // a slice of layer cake with a cherry
+    bind(B, 0, TINT(0.3)); box(B, 1, 0.3, 1, G_W, { bevel: 0.12 }); bind(B, 0, FIX(0.2)); at(B, 0, 0.3, 0); box(B, 1, 0.08, 1, 0xFFF3E8, { bevel: 0.1 });
+    bind(B, 0, TINT(0.3)); at(B, 0, 0.38, 0); box(B, 1, 0.3, 1, G_W, { bevel: 0.12 }); bind(B, 0, FIX(0.5)); at(B, 0, 0.68, 0); box(B, 1.02, 0.1, 1.02, 0xFFF3E8, { bevel: 0.3 }); at(B, 0, 0.78, 0); ellipsoid(B, 0.14, 0.14, 0.14, 0xD62828, { seg: 8, rings: 6 });
+  },
   coat(B) {                  // a coat in a garment bag on its hanger
     bind(B, 0, TINT(0.3)); box(B, 1, 0.9, 0.5, G_W, { bevel: 0.22 }); bind(B, 0, FIX(0.2)); at(B, 0, 0.1, 0.26); box(B, 0.04, 0.75, 0.02, G_INK, { bevel: 0 });
     bind(B, 0, FIX(0.8)); at(B, 0, 0, 0); tube(B, [[0, 0.9, 0], [0, 1.0, 0], [0.08, 1.06, 0], [0.04, 1.12, 0]], 0.025, 0xDDE3EA, { seg: 5 });
@@ -146,13 +163,14 @@ export const PRODUCTS = [
   ['folded', 0, 0xFF8FC7, [0.46, 0.26, 0.4]], ['folded', 0, 0x7CC6FE, [0.46, 0.26, 0.4]], ['folded', 0, 0xE9B949, [0.46, 0.26, 0.4]],     // 50-52: sweaters and scarves
   ['bottle', 29, 0xFF8FC7, [0.3, 0.46, 0.3]], ['bottle', 28, 0x9B5DE5, [0.3, 0.46, 0.3]],                                                // 53-54: perfume
   ['purse', 0, 0xE63946, [0.6, 0.5, 0.34]], ['purse', 0, 0x2A2440, [0.6, 0.5, 0.34]], ['coat', 0, 0xC9A0DC, [0.7, 1.0, 0.5]],           // 55-57
+  ['sushi', 0, 0xFF8A7A, [0.46, 0.22, 0.34]], ['burger', 0, 0xFFFFFF, [0.46, 0.4, 0.46]], ['fries', 2, 0xFFFFFF, [0.34, 0.5, 0.26]], ['cakeslice', 0, 0xFF8FC7, [0.5, 0.42, 0.5]], ['cakeslice', 0, 0x7A4A22, [0.5, 0.42, 0.5]],   // 58-62
   ['dumbbell', 0, 0x2A2440, [0.8, 0.36, 0.36]], ['swimring', 0, 0xFF5A4E, [0.9, 0.3, 0.9]], ['gloves', 0, 0x8AC926, [0.5, 0.36, 0.4]], ['bottle', 7, 0x3BB273, [0.3, 0.5, 0.3]],   // 58-61
 ];
 // The products each gameplay good may look like (its variants).
 const LOOK = { can: [4, 5, 6], soda: [8, 9, 10, 11, 12], chips: [13, 14, 15, 16], roll: [25], cereal: [0, 1, 2], phone: [31, 32], game: [33], toaster: [34],
-  basketball: [42], dumbbell: [58], swimring: [59], goalgloves: [60], shaker: [61], trainers: [38, 39], scarf: [50, 51, 52], perfume: [53, 54], purse: [55, 56], coat: [57], melon: [27, 28], pizza: [26], headset: [36], shoes: [38, 39], microwave: [45], speaker: [46, 40], suitcase: [41], frozenpizza: [47], icecream: [48, 49] };
+  sushi: [58], burger: [59], fries: [60], cakeslice: [61, 62], basketball: [42], dumbbell: [63], swimring: [64], goalgloves: [65], shaker: [66], trainers: [38, 39], scarf: [50, 51, 52], perfume: [53, 54], purse: [55, 56], coat: [57], melon: [27, 28], pizza: [26], headset: [36], shoes: [38, 39], microwave: [45], speaker: [46, 40], suitcase: [41], frozenpizza: [47], icecream: [48, 49] };
 // What a store stocks on its shelves as decor (product indices).
-export const STORE_STOCK = { sports: [42, 43, 44, 58, 59, 60, 61, 38, 39, 42, 61, 58], boutique: [50, 51, 52, 53, 54, 55, 56, 38, 39, 50, 52, 55], electronics: [31, 32, 33, 36, 37, 40, 18, 19, 34, 31, 33, 36], warehouse: [4, 5, 6, 7, 0, 1, 2, 36, 37, 45, 46, 43, 44], supermarket: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 27, 28, 29, 30] };
+export const STORE_STOCK = { food: [58, 59, 60, 61, 62, 26, 8, 9, 10, 47, 48, 59], sports: [42, 43, 44, 63, 64, 65, 66, 38, 39, 42, 66, 63], boutique: [50, 51, 52, 53, 54, 55, 56, 38, 39, 50, 52, 55], electronics: [31, 32, 33, 36, 37, 40, 18, 19, 34, 31, 33, 36], warehouse: [4, 5, 6, 7, 0, 1, 2, 36, 37, 45, 46, 43, 44], supermarket: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 27, 28, 29, 30] };
 export function productSize(i) { return PRODUCTS[i][3]; }
 export function variantAt(x, z) { return Math.abs(Math.floor(x * 7.31 + z * 3.17) * 2654435761) >>> 0; }
 

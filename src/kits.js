@@ -80,6 +80,19 @@ export const KITS = {
     hot: 'trophy',
     crowd: CROWD_MIX.sports,
   },
+  // FOOD FIGHT: terracotta tiles with painted queue lines, stalls with neon menus, warm saturated light, steam.
+  food: {
+    id: 'food', name: 'FOOD FIGHT', palette: { a: '#FFF1DE', b: '#F4A261', c: '#D62828', d: '#E07A5F' }, sign: '#5C2A1E', top: '#7A3B2A',
+    signs: ['SUSHI', 'GRILL', 'BURGERS', 'NOODLES', 'DESSERT', 'TACOS', 'PIZZA', 'SODA'],
+    shelves: { S: 'gondola', M: 'gondola', L: 'gondola' }, fixture: { body: 0xFFF1DE, accent: 0xF4A261, trim: 0xD62828, dark: 0x5C2A1E },
+    floor: { a: 0xE58F72, b: 0xDB8166, grout: 0xB9634B, checker: 2, paint: 0xFFF1DE, arrow: 0xFFF1DE, vary: 0.06, wet: 0x7CC6FE },
+    walls: { face: 0xFFF1DE, band: 0xF4A261, stripe: 0xD62828, top: 0x7A3B2A, base: 0xB9634B },
+    pools: { grid: 10, r: 3.0, warm: [1.08, 0.92, 0.78], k: 0.13 },
+    grade: { shade: [0.78, 0.56, 0.66], key: [1, 0.94, 0.84], light: [0.42, 0.8, 0.43], sat: 1.12, contrast: 1.05, lift: [0.03, 0.0, 0.01], gain: [1.03, 0.98, 0.95], vignette: 0.2, bloom: 1.1, halftone: 0.15 },
+    void: 0x2E1A16,
+    hot: 'cake',
+    crowd: CROWD_MIX.food,
+  },
 };
 export function kitOf(def) { return KITS[def.kit || 'supermarket'] || KITS.supermarket; }
 

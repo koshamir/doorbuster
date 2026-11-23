@@ -503,13 +503,13 @@ export function stepObjects(sim, dt) {
           const ox = ob.hx + CFG.CART_R - Math.abs(lx), oz = ob.hz + CFG.CART_R - Math.abs(lz);
           if (ox <= 0 || oz <= 0) break;
           if ((ob.loop || ob.type === 'belly') && (k.dashT > 0 || k.madT > 0) && ob.spitT <= t) { ob.spitT = t + 4; ob.spinT = t + 1.2; sim.spit(ob, OP.x, OP.z); break; }
-          if (ob.loop) {
-            // a robot vacuum stops when it bumps into a cart and the cart is nudged off it; only a cart that drives into
+          if (ob.loop || ob.type === 'belly') {
+            // a robot vacuum (or a belly bro) stops when it bumps into a cart and the cart is nudged off it; only a cart that drives into
             // it fast is knocked back (and loses the top of its tower)
             if (ob.heldAt !== t) { ob.held = (ob.held || 0) + dt; ob.heldAt = t; }
             const d = Math.hypot(ex, ez) || 1, nx = ex / d, nz = ez / d, R = ob.hx + CFG.CART_R;
             if (d < R) { k.x = OP.x + nx * R; k.z = OP.z + nz * R; }
-            if (-(k.vx * nx + k.vz * nz) > 3 && !(k.vacT > t)) { k.vacT = t + 1.5; sim.shove(k, ob, nx, nz); }
+            if (-(k.vx * nx + k.vz * nz) > 3 && !(k.vacT > t)) { k.vacT = t + 1.5; sim.shove(k, ob, nx, nz); if (ob.type === 'belly') { const vn = k.vx * nx + k.vz * nz; if (vn > 2.5) { k.vx -= (vn - 2.5) * nx; k.vz -= (vn - 2.5) * nz; } } }    // (a belly bro bounces a cart back gently)
             break;
           }
           // out along the shallower side of the box

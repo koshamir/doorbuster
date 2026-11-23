@@ -499,11 +499,12 @@ function hazardGate(sim, k, ai, tx, tz, v) {
     // the highest steady speed at which the whole crossing is clear, starting now (it is checked again many times
     // a second, so the cart settles on a speed that lands it in the gap); none: creep up to it, or wait short of it
     const entry = zoneDist(ob, k.x, k.z, ex, ez);
+    if (entry < 0) continue;                          // not on this path after all (its box only overlaps it)
     if (entry < 0.4) { const cv = ai.commit.get(ob); if (cv) { out = Math.min(out, cv); ai.floorV = Math.max(ai.floorV, cv * 0.95); } continue; }   // in it: keep the planned speed (no slowing for a bend in there either), never stop
     let go = -1;
-    for (const f of ob.kind === 'laser' || ob.kind === 'panels' ? [1, 0.85, 0.7] : [1, 0.85, 0.7, 0.55, 0.42]) {     // no crawling through a sweep: wait, then go
+    for (const f of ob.kind === 'laser' || ob.kind === 'panels' || ob.kind === 'flame' || ob.kind === 'cleavers' ? [1, 0.85, 0.7] : [1, 0.85, 0.7, 0.55, 0.42]) {     // no crawling through a sweep or a fire: wait, then go
       const sp = Math.max(4, v * f);
-      if (passDelay(ob, k.x, k.z, ex, ez, sp, sim.t, 0.85, 0.04, Math.abs(k.spd)) === 0) { go = sp; break; }
+      if (passDelay(ob, k.x, k.z, ex, ez, sp, sim.t, ob.kind === 'flame' || ob.kind === 'cleavers' ? 1.4 : 0.85, 0.04, Math.abs(k.spd)) === 0) { go = sp; break; }   // (a fire or a blade reaches the cart's nose first)
     }
     if (go > 0) { out = Math.min(out, go); ai.commit.set(ob, go); }
     else if (entry > 7) out = Math.min(out, 4);

@@ -159,7 +159,9 @@ export function createSim(def, seed, opts = {}) {
       r.ai = makeDriver(rivalProfile(id));
       if (def.roam && def.roam[id]) { r.ai.prof = Object.assign({}, r.ai.prof, { roam: def.roam[id], pace: 0.55, greed: 0 }); r.ai.g = r.ai.greed = 0; }
       sim.carts.push(r);
-      if (id === 'granny') giveGoods(sim, r, 16, true, 2);   // Granny Tank arrives with her tower already built (at x2): a slow treasure chest
+      if (id === 'granny') giveGoods(sim, r, 16, true, 2);
+      if (id === 'gramps') giveGoods(sim, r, 6, false);
+      if (id === 'gramps') giveGoods(sim, r, 6, false);   // Granny Tank arrives with her tower already built (at x2): a slow treasure chest
     });
     spawnCrowd(sim);
   }
@@ -662,7 +664,7 @@ function respawn(sim, k) {
   k.vx = Math.sin(h) * v; k.vz = Math.cos(h) * v; k.spd = v; k.avx = k.vx; k.avz = k.vz;
   k.wipeT = 0; k.stunT = 0; k.air = 0; k.slip = 0; k.yaw = 0; k.steer = 0; k.wallT = 0; k.turnTo = null;
   k.immuneT = CFG.respawnImmune;
-  if (k.ai) { k.ai.stuckT = 0; k.ai.backT = 0; k.ai.progT = 0; }
+  if (k.ai) { k.ai.stuckT = 0; k.ai.backT = 0; k.ai.progT = 0; k.ai.rolls.clear(); k.ai.commit.clear(); k.ai.floorV = 0; }    // a fresh look at every hazard after a respawn
   sim.emit('respawn', k, 0, cp);
 }
 
