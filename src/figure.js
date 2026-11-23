@@ -310,7 +310,7 @@ function extra(B, x, L, P) {
   } else if (x === 'receipt') {
     bind(B, BONE.prop, [3, PAT.receipt, 0, 0], null);
     const w = P.wristR;
-    at(B, w[0] - 0.01, w[1] - 0.02, w[2] + 0.06, 0, 0.1); box(B, 0.13, 0.36, 0.006, 0xFFFDF6, { bevel: 0, front: [3, PAT.receipt, 0, 0], sides: [0, 0, 0, 0] });
+    at(B, w[0] - 0.01, w[1] - 0.02, w[2] + 0.06, 0, 0.1); box(B, 0.13, 0.36, 0.006, 0xFFFDF6, { bevel: 0, front: [3, PAT.receipt, 0, 0], back: [3, PAT.receipt, 0, 0], sides: [0, 0, 0, 0] });
   } else if (x === 'scarf') {
     const T = L.torso;
     bind(B, BONE.chest, [4, PAT.stripes, 0, 0], null);

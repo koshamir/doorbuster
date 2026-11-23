@@ -4,7 +4,7 @@
 //          arrow to the current event, the ram warning, key hints, countdown), touch controls, the
 //          title with the loyalty card, receipt, "store closed" and pause screens, and the debug
 //          panel (?debug=1). It only shows state; decisions stay in main.js.
-// Exports: initUI, ui, money, updateHud, popWord, announce, floatText, chainText, setList, setArrow, setWarn,
+// Exports: initUI, ui, money, updateHud, popWord, announce, floatText, sticker, updateStickers, chainText, setList, setArrow, setWarn,
 //          setHint, showTouch, showTitle, showReceipt, showClosed, showPause, hideScreens, hurryUI,
 //          initDebug, updateDebug
 // Depends on: config.js, audio.js (interface sounds). Browser only. All styles live in index.html.
@@ -14,7 +14,7 @@ import { audioCue } from './audio.js';
 
 export const ui = { root: null, hud: null, timer: null, total: null, pop: null, count: null, chain: null, floats: [], screen: null,
   popT: 0, popQ: [], popKind: '', tally: null, meter: null, segs: [], mult: null, place: null, list: [], news: null, newsT: 0, arrow: null, warn: null,
-  hint: null, hintKey: '', touch: null, em: 16, onPause: null };
+  hint: null, hintKey: '', touch: null, em: 16, onPause: null, stickers: [] };
 
 function el(tag, cls, text, parent) {
   const e = document.createElement(tag);
@@ -59,6 +59,7 @@ export function initUI(root) {
   ui.hint = el('div', 'hint-keys', undefined, ui.hud);
   ui.chain = el('div', 'float chain', '', ui.hud);
   for (let i = 0; i < 14; i++) ui.floats.push({ e: el('div', 'float', '', ui.hud), t: 0, x: 0, y: 0 });
+  for (let i = 0; i < 3; i++) { const e = el('canvas', 'sticker', undefined, ui.hud); e.width = 300; e.height = 190; ui.stickers.push({ e, t: 9, x: 0, y: 0, z: 0, word: '' }); }
   ui.screen = el('div', 'screen', undefined, root);
 }
 
@@ -128,6 +129,50 @@ export function updateHud(sim, dt) {
     y.t += dt * (y.fast ? 4 : 1);
     while (y.t > 0.38 && y.i < y.steps.length) { y.t -= 0.38; y.steps[y.i++](); }
     if (y.i >= y.steps.length) ui.tally = null;
+  }
+}
+
+// ---- onomatopoeia stickers (ART.md section 7) -------------------------------------------------------------
+// BAM!, CRASH!, BONK!, KA-CHING!... a burst with halftone dots and a thick ink outline, anchored to the spot in
+// the world where it happened. It pops in 120 ms and is gone by 0.6 s; at most three are up (the oldest gives way).
+const STICK = { bam: ['#FFD23F', '#FF9F1C'], crash: ['#FF5A4E', '#C8323C'], bonk: ['#7CC6FE', '#3A86FF'], kaching: ['#FFE45C', '#E9B949'], splat: ['#8EE3C8', '#2EC4B6'] };
+export function sticker(word, kind, x, y, z) {
+  let s = ui.stickers[0];
+  for (const c of ui.stickers) if (c.t > s.t) s = c;
+  s.t = 0; s.x = x; s.y = y; s.z = z;
+  if (s.word !== word + kind) { s.word = word + kind; drawSticker(s.e, word, kind); }
+}
+function drawSticker(cv, word, kind) {
+  const g = cv.getContext('2d'), W = cv.width, H = cv.height, [base, dot] = STICK[kind] || STICK.bam, INK = '#2A1A3A';
+  g.clearRect(0, 0, W, H);
+  g.save(); g.translate(W / 2, H / 2); g.rotate(-0.1);
+  const burst = () => { g.beginPath(); for (let i = 0; i < 26; i++) { const a = i / 26 * Math.PI * 2, r = (i % 2 ? 0.33 : 0.46) * (0.92 + ((i * 37) % 9) / 60); g.lineTo(Math.cos(a) * r * W, Math.sin(a) * r * H * 1.08); } g.closePath(); };
+  burst(); g.fillStyle = base; g.fill();
+  g.save(); burst(); g.clip(); g.fillStyle = dot;              // halftone: dots grow toward the lower right
+  for (let yy = -H / 2; yy < H / 2; yy += 11) for (let xx = -W / 2; xx < W / 2; xx += 11) {
+    const k = (xx / W + yy / H) + 0.35, r = k * 6;
+    if (r > 0.6) { g.beginPath(); g.arc(xx + ((yy / 11) & 1 ? 5.5 : 0), yy, Math.min(r, 5.5), 0, 7); g.fill(); }
+  }
+  g.restore();
+  burst(); g.lineWidth = 9; g.lineJoin = 'round'; g.strokeStyle = INK; g.stroke();
+  let size = 76; const font = () => { g.font = '900 ' + size + 'px "Arial Black", Impact, sans-serif'; };
+  font(); while (g.measureText(word).width > W * 0.74 && size > 28) { size -= 3; font(); }
+  g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
+  g.fillStyle = INK; g.fillText(word, 5, 8);
+  g.lineWidth = 12; g.strokeStyle = INK; g.strokeText(word, 0, 2);
+  g.fillStyle = '#FFFFFF'; g.fillText(word, 0, 2);
+  g.restore();
+}
+// Called every frame with a world-to-screen function (returns { x, y, z }, z > 1 behind the camera).
+export function updateStickers(dt, project) {
+  for (const s of ui.stickers) {
+    if (s.t >= 0.6) continue;
+    s.t += dt;
+    const p = project(s.x, s.y, s.z), t = s.t;
+    if (t >= 0.6 || p.z > 1) { s.e.style.opacity = 0; continue; }
+    const sc = t < 0.08 ? 0.35 + t / 0.08 * 0.95 : t < 0.14 ? 1.3 - (t - 0.08) / 0.06 * 0.3 : 1 + (t - 0.14) * 0.25;
+    s.e.style.opacity = (t < 0.36 ? 1 : 1 - (t - 0.36) / 0.24).toFixed(2);
+    s.e.style.transform = 'translate(' + p.x.toFixed(0) + 'px, ' + (p.y - t * 50).toFixed(0) + 'px) scale(' + sc.toFixed(3) + ')';
   }
 }
 

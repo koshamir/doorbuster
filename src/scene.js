@@ -311,6 +311,11 @@ function syncCart(view, c, sim, alpha, dt) {
   c.exprT -= dt;
   st.expr = c.exprT > 0 ? c.expr : k.madT > 0 ? EXPR.happy : null;
   st.squash = c.squash > 0.5 ? c.squash : 0;
+  // just rammed: the head snaps round to the camera (look is in the character's own frame)
+  if ((c.lookT = (c.lookT || 0) - dt) > 0) {
+    const dx = R.camera.position.x - x, dz = R.camera.position.z - z, yaw = h;
+    st.look = [dx * Math.cos(yaw) - dz * Math.sin(yaw), R.camera.position.y, dx * Math.sin(yaw) + dz * Math.cos(yaw)];
+  } else st.look = null;
   animate(c.rc.rig, st, dt);
   const mad = k.madT > 0, ready = k.dashCd <= 0 || mad;
   const gl = ready ? 0.05 + (mad ? 0.3 : 0.16) * (0.5 + 0.5 * Math.sin(view.time * (mad ? 20 : 7))) : -0.45;
@@ -344,7 +349,7 @@ function syncCart(view, c, sim, alpha, dt) {
   if (lane && view.doneAt < 0) view.doneAt = view.time;
   const ch = Math.cos(h + yawShow), shy = Math.sin(h + yawShow);
   c.pending = 0;
-  for (let i = 0; i < k.tower.length && i < 200; i++) {
+  for (let i = 0; i < k.tower.length && i < 200 && !(k.player && view.heroPose); i++) {
     const e = k.tower[i], ty = towY[i];
     // cart space -> world: shear with height (the lean), then rotate by the heading
     const lx = towX[i] + c.swayX * ty * 0.9, lz = towZ[i] + c.swayZ * ty * 0.9;
@@ -504,7 +509,7 @@ export function sceneEvent(view, e) {
   for (const c of view.carts) {
     if (c.k !== e.cart && c.k !== e.ref) continue;
     if (e.type === 'crash') { c.squash = 1; c.swayXv += 3; c.swayZv -= 4; c.expr = EXPR.shocked; c.exprT = 0.8; }
-    else if (e.type === 'ram' || e.type === 'bonk') { c.squash = 0.9; c.swayXv += (c.k === e.ref ? 4 : -2); c.expr = c.k === e.ref ? EXPR.angry : EXPR.happy; c.exprT = 1.2; }
+    else if (e.type === 'ram' || e.type === 'bonk') { c.squash = 0.9; c.swayXv += (c.k === e.ref ? 4 : -2); c.expr = c.k === e.ref ? EXPR.shocked : EXPR.happy; c.exprT = c.k === e.ref ? 0.45 : 1.2; if (c.k === e.ref) c.lookT = 0.7; }
     else if (e.type === 'hot' && c.k === e.cart) { c.expr = EXPR.happy; c.exprT = 1.4; }
     else if ((e.type === 'spill' || e.type === 'shed') && c.k === e.cart) { c.expr = EXPR.crying; c.exprT = 1.0; }
     else if (e.type === 'bump' || e.type === 'cartbump') { c.squash = 0.55; c.swayXv += (c.k.id % 2 ? 2 : -2); }

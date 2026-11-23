@@ -479,6 +479,7 @@ export function watchFrameRate(dt) {
 export function updateCamera(k, alpha, dt, towerHeight, world, orbit, intro = 0, aside, close) {
   const cam = R.cam, camera = R.camera;
   cam.close = (cam.close || 0) + ((close ? 1 : 0) - (cam.close || 0)) * (1 - Math.exp(-dt * (close ? 7 : 3)));
+  if (!close && cam.close < 0.01) cam.side = 0;
   const x = lerp(k.px, k.x, alpha), z = lerp(k.pz, k.z, alpha);
   const h = k.ph + wrapAngle(k.h - k.ph) * alpha;
   const stunned = k.stunT > 0 && Math.hypot(k.vx, k.vz) > 1;
@@ -513,17 +514,30 @@ export function updateCamera(k, alpha, dt, towerHeight, world, orbit, intro = 0,
   camera.position.set(lx - fx * back + fz * sx, height + sy, lz - fz * back - fx * sx);
   camera.lookAt(lx + fz * sx * 0.5, 0.6, lz - fx * sx * 0.5);
   if (cam.close > 0.001) {
-    // the checkout close-up: in front of the hero and a little to the side, at head height
+    // the checkout close-up: a front three-quarter portrait of the hero, from the side the counter is not on, clear
+    // of the lamp pole on the lane's centre line
     const hx = Math.sin(h), hz = Math.cos(h), cx = x - hx * 1.3, cz = z - hz * 1.3, u = cam.close, e = u * u * (3 - 2 * u);
-    const px = cx + hx * 1.3 - hz * 2.15, pz = cz + hz * 1.3 + hx * 2.15;
-    camera.position.lerp(_cv.set(px, 1.45, pz), e);
+    if (!cam.side) {        // pick once: the side whose line of sight stays clear of the lane lamp poles
+      let best = -1;
+      for (const sd of [1, -1]) {
+        const qx = cx + hx * 2.3 - hz * 1.35 * sd, qz = cz + hz * 2.3 + hx * 1.35 * sd;
+        let near = 9;
+        for (const l of (world && world.lanes) || []) {
+          const ox = l.pole ? l.pole[0] : l.x, oz = l.pole ? l.pole[1] : l.z, vx = cx - qx, vz = cz - qz, t = Math.max(0, Math.min(1, ((ox - qx) * vx + (oz - qz) * vz) / (vx * vx + vz * vz)));
+          near = Math.min(near, Math.hypot(qx + vx * t - ox, qz + vz * t - oz));
+        }
+        if (near > best) { best = near; cam.side = sd; }
+      }
+    }
+    const px = cx + hx * 2.3 - hz * 1.35 * cam.side, pz = cz + hz * 2.3 + hx * 1.35 * cam.side;
+    camera.position.lerp(_cv.set(px, 1.58, pz), e);
     _lk.set(lx, 0.6, lz).lerp(_cv.set(cx, 1.12, cz), e);
     camera.lookAt(_lk.x, _lk.y, _lk.z);
   }
   const aspect = R.w / R.h;
   const base = TUNE.camfov - 5 + 8 * Math.min(cam.zoom, 1) + 6 * fast + 7 * cam.punch;
   const tall = aspect < 1.3 ? Math.min(1.7, 1.3 / aspect) : 1;
-  const fov = 2 * Math.atan(Math.tan(base * Math.PI / 360) * tall) * 180 / Math.PI;
+  const fov = 2 * Math.atan(Math.tan((base + (40 - base) * (cam.close || 0)) * Math.PI / 360) * tall) * 180 / Math.PI;
   if (Math.abs(fov - camera.fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
   cam.x = lx; cam.z = lz;
 }

@@ -163,7 +163,7 @@ function reach(rig, side, target, rootM) {
 // ---- the poses (victory, defeat, taunt, fidgets): bone -> [x, y, z] Euler, plus a face -------------------------
 const ARMS_UP = { armL: [-2.9, 0, 0.25], armR: [-2.9, 0, -0.25] };
 const POSES = {
-  trophy: { face: EXPR.happy, bones: { armR: [-3.0, 0, -0.15], foreR: [-0.2, 0, 0], armL: [0.3, 0, 0.9], foreL: [-1.8, 0.6, 0], chest: [-0.12, 0, 0], head: [-0.2, 0.2, 0.1] }, show: ['receipt'] },
+  trophy: { face: EXPR.happy, bones: { armR: [-2.45, 0, -0.95], foreR: [-0.12, 0, 0], armL: [0.3, 0, 0.9], foreL: [-1.8, 0.6, 0], chest: [-0.12, 0, 0], head: [-0.2, 0.2, 0.1] }, show: ['receipt'] },
   slump: { face: EXPR.crying, bones: { chest: [0.75, 0, 0], head: [0.5, 0, 0.2], armL: [-0.8, 0, 0.1], armR: [-0.8, 0, -0.1], foreL: [-0.5, 0, 0], foreR: [-0.5, 0, 0] }, drop: 0.08 },
   bagSwing: { face: EXPR.smug, bones: { armL: [-3.0, 0, 0.3], foreL: [-0.4, 0, 0], armR: [0.2, 0, -0.6], chest: [-0.1, 0, 0.1] }, spin: 'x1' },
   fist: { face: EXPR.angry, bones: { armR: [-2.6, 0.2, -0.3], foreR: [-1.4, 0, 0], chest: [0.1, 0, -0.1], head: [-0.1, 0, 0] }, shake: 'foreR' },

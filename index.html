@@ -81,6 +81,7 @@
   .float { position: absolute; left: 0; top: 0; margin: -1em 0 0 -2em; width: 4em; text-align: center; font-size: 1.25em; color: #fff; opacity: 0;
     -webkit-text-stroke: .16em var(--night); paint-order: stroke fill; transition: opacity .25s; will-change: transform; }
   .float.in { opacity: 1; transition: none; }
+  .sticker { position: absolute; left: 0; top: 0; width: 26.3vh; height: 16.6vh; margin: -8.3vh 0 0 -13.15vh; opacity: 0; pointer-events: none; will-change: transform, opacity; }
   .float.name { width: 12em; margin-left: -6em; font-size: 1em; letter-spacing: .04em; white-space: nowrap; }
   .float.list { color: var(--teal); } .float.big { color: var(--sale); font-size: 1.7em; } .float.loss { color: var(--danger); font-size: 2em; width: 6em; margin-left: -3em; }
   .float.chain { font-size: 1.9em; width: 6em; margin-left: -3em; }
@@ -114,7 +115,7 @@
   .screen { position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; gap: .7em;
     pointer-events: auto; text-align: center; }
   .screen.on { display: flex; }
-  .screen.title { justify-content: space-between; padding: 5% 0 6%; box-sizing: border-box;
+  .screen.title { justify-content: space-between; padding: 3.5% 0 2.5%; box-sizing: border-box;
     background: linear-gradient(rgba(30, 27, 46, .7), rgba(30, 27, 46, 0) 38%, rgba(30, 27, 46, 0) 62%, rgba(30, 27, 46, .75)); }
   .screen.closed { background: radial-gradient(ellipse at 50% 40%, rgba(30, 27, 46, .25), rgba(30, 27, 46, .82)); }
   .screen.pause { background: rgba(30, 27, 46, .74); }
@@ -131,6 +132,7 @@
   .medal { display: block; } .m1 { color: #A8591B; } .m2 { color: #5F6C7B; } .m3 { color: #B88700; } .m4 { color: var(--night); }
   .screen.receipt { background: linear-gradient(90deg, rgba(30, 27, 46, 0) 30%, rgba(30, 27, 46, .6) 75%); align-items: flex-end; padding-right: 6%; box-sizing: border-box; }
   @media (max-aspect-ratio: 1/1) { .screen.receipt { align-items: center; justify-content: flex-start; padding: 5% 0 0; background: rgba(30, 27, 46, .35); } }
+  .screen.title .logo { font-size: min(5.6em, 10vw); }
   .logo { font-size: min(7em, 12vw); line-height: .9; color: var(--sale); transform: rotate(-4deg); letter-spacing: -.01em;
     -webkit-text-stroke: .09em var(--night); paint-order: stroke fill; text-shadow: 0 .07em 0 var(--night), .05em .14em 0 var(--pink); animation: pop .35s both; }
   .logo.small { font-size: min(5em, 11vw); color: var(--danger); text-shadow: 0 .07em 0 var(--night); }

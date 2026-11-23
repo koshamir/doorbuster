@@ -173,13 +173,17 @@ function kitShow(kit, view, q) {
 }
 
 // ---- the title: the cast lined up behind the mall doors (DESIGN.md section 8) ----------------------------
-// The camera stands inside the store and looks out through tall glass doors under the store's sign; the
-// cast waits outside with their carts, the crowd pressed in behind them. open() slides the doors apart.
+// The camera stands inside the store at cart height and looks out through a wide glass front under the store's
+// sign; the whole cast waits right behind the glass with their carts, Penny in the middle, the crowd pressed in
+// behind them, all lit by the light spilling out of the store. open() slides the doors apart.
 const GLASS_VS = 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0); }';
 const GLASS_FS = `uniform sampler2D uMap; varying vec2 vUv; ${MRT_OUT}
 void main() { vec2 o = vec2(6.0, 3.0) / 8.0; vec4 t = texture2D(uMap, o + clamp(vUv, 0.01, 0.99) / 8.0);
-  gl_FragColor = vec4(mix(vec3(0.75, 0.9, 1.0), vec3(1.0), t.a), 0.16 + t.a * 0.55); oAux = vec4(0.0); }`;
-export function makeTitle(kit, ids) {
+  float high = smoothstep(0.62, 0.8, vUv.y);       // glare only above the heads
+  gl_FragColor = vec4(mix(vec3(0.8, 0.93, 1.0), vec3(1.0), t.a), 0.05 + t.a * 0.5 * high); oAux = vec4(0.0); }`;
+// a group photo: the short ones in front against the glass (Penny in the middle), the tall ones behind them
+const TITLE_CAST = [['granny', -1.15, 0], ['penny', 0, 0], ['gramps', 1.3, 0], ['selfie', -2.3, 1], ['dad', -1.45, 1], ['queen', 0.62, 1], ['bubba', 2.35, 1]];
+export function makeTitle(kit) {
   const root = new THREE.Group(), show = { root, t: 0, open: -1, chars: [], people: [], crowd: null };
   R.scene.add(root);
   const add = (m) => { root.add(m); return m; };
@@ -189,48 +193,51 @@ export function makeTitle(kit, ids) {
   const map = new THREE.DataTexture(data, n, n, THREE.RGBAFormat); map.magFilter = map.minFilter = THREE.NearestFilter; map.needsUpdate = true;
   const fm = floorMaterial(kit); fm.uniforms.uMap.value = map; fm.uniforms.uMapSize.value.set(n, n);
   const inside = add(new THREE.Mesh(new THREE.PlaneGeometry(40, 16), fm)); inside.rotation.x = -Math.PI / 2; inside.position.set(0, 0, 8);
-  const B = builder(), atlas = kitAtlas(kit), F = kit.fixture;
-  bind(B, 0, [0, 0, 0.1, 0]); at(B, 0, -0.02, -12); box(B, 40, 0.02, 24, 0x4A4560, { bevel: 0, top: 0x5A5470 });
-  for (let x = -18; x <= 18; x += 3) { at(B, x, 0, -6); box(B, 0.12, 0.01, 12, 0x6A6480, { bevel: 0 }); }
-  // the facade: a wall with a door opening, a sign over it, posters and lamps either side, a red carpet
+  const B = builder(), atlas = kitAtlas(kit), F = kit.fixture, PW = 1.06, W2 = PW * 3.5;      // door panel width, half the glass front
+  // the pavement, lit warm where the store's light falls out through the glass
+  bind(B, 0, [0, 0, 0.1, 0]); at(B, 0, -0.02, -12); box(B, 44, 0.02, 24, 0x6E6888, { bevel: 0, top: 0x7C7696 });
+  for (let x = -21; x <= 21; x += 3) { at(B, x, 0, -6); box(B, 0.12, 0.01, 12, 0x8C86A4, { bevel: 0 }); }
+  at(B, 0, 0.004, -2.6); box(B, W2 * 2 + 1.2, 0.01, 5, 0xF2E2C4, { bevel: 0 });
+  // the facade: walls either side of the glass front, a header with the store's sign, posters, lamps, a red carpet
   bind(B, 0, [0, 0, 0, 0]);
-  for (const s of [1, -1]) { at(B, s * 11.5, 0, 0); box(B, 17, 5.2, 0.6, kit.walls.face, { bevel: 0, top: kit.walls.top }); at(B, s * 11.5, 1.15, 0.31); box(B, 17, 0.5, 0.02, kit.walls.band, { bevel: 0 }); at(B, s * 11.5, 1.78, 0.31); box(B, 17, 0.1, 0.02, kit.walls.stripe, { bevel: 0 }); }
-  at(B, 0, 3.6, 0); box(B, 6.2, 1.6, 0.6, kit.walls.face, { bevel: 0, top: kit.walls.top });
-  bind(B, 0, [0, 0, 0.6, 0]); for (const s of [1, -1]) { at(B, s * 3.05, 0, 0); box(B, 0.25, 3.6, 0.7, F.dark, { bevel: 0.2 }); } at(B, 0, 3.5, 0.05); box(B, 6.3, 0.25, 0.7, F.dark, { bevel: 0.2 });
+  for (const s2 of [1, -1]) { at(B, s2 * (W2 + 8.1), 0, 0); box(B, 16, 5.2, 0.6, kit.walls.face, { bevel: 0, top: kit.walls.top }); at(B, s2 * (W2 + 8.1), 1.15, 0.31); box(B, 16, 0.5, 0.02, kit.walls.band, { bevel: 0 }); at(B, s2 * (W2 + 8.1), 1.78, 0.31); box(B, 16, 0.1, 0.02, kit.walls.stripe, { bevel: 0 }); }
+  at(B, 0, 3.6, 0); box(B, W2 * 2 + 0.4, 1.6, 0.6, kit.walls.face, { bevel: 0, top: kit.walls.top });
+  bind(B, 0, [0, 0, 0.6, 0]); for (const s2 of [1, -1]) { at(B, s2 * (W2 + 0.07), 0, 0); box(B, 0.25, 3.6, 0.7, F.dark, { bevel: 0.2 }); } at(B, 0, 3.5, 0.05); box(B, W2 * 2 + 0.4, 0.25, 0.7, F.dark, { bevel: 0.2 });
   bind(B, 0, [3, KIT.banner, 0.1, 0.25]); at(B, 0, 3.75, 0.33); box(B, 5.6, 1.2, 0.05, 0xFFFFFF, { bevel: 0, front: [3, KIT.banner, 0.1, 0.25], mid: false });
-  for (const [x, c] of [[-6.2, KIT.poster3], [6.2, KIT.sale], [-9.6, KIT.poster2], [9.6, KIT.poster3]]) { bind(B, 0, [3, c, 0.1, 0]); at(B, x, 0.9, 0.32); box(B, 2.2, 2.2, 0.03, 0xFFFFFF, { bevel: 0, front: [3, c, 0.1, 0] }); }
+  for (const [x, c] of [[-6.6, KIT.poster3], [6.6, KIT.sale], [-10, KIT.poster2], [10, KIT.poster3]]) { bind(B, 0, [3, c, 0.1, 0]); at(B, x, 0.9, 0.32); box(B, 2.2, 2.2, 0.03, 0xFFFFFF, { bevel: 0, front: [3, c, 0.1, 0] }); }
   bind(B, 0, [0, 0, 0.3, 0]); at(B, 0, 0.005, 2.5); box(B, 4.2, 0.01, 5, 0xC8323C, { bevel: 0 });
-  for (const s of [1, -1]) for (const z of [1.2, 3.8]) { at(B, s * 2.4, 0, z); cyl(B, 0.06, 0.08, 1.0, 0xFFD23F, { seg: 8 }); at(B, s * 2.4, 1.02, z); ellipsoid(B, 0.1, 0.1, 0.1, 0xFFD23F, { seg: 8, rings: 6 }); }
-  at(B, 0, 0, 0); for (const s of [1, -1]) tube(B, [[s * 2.4, 0.9, 1.2], [s * 2.4, 0.72, 2.5], [s * 2.4, 0.9, 3.8]], 0.05, 0xE63946, { seg: 6, flat: [1, 0.5] });
-  bind(B, 0, [0, 0, 0.6, 0.9]); for (const s of [1, -1]) { at(B, s * 4.4, 3.0, 0.5); ellipsoid(B, 0.22, 0.22, 0.22, 0xFFF1C4, { seg: 10, rings: 8 }); }
-  for (let i = 0; i < 26; i++) { const x = -19 + i * 1.52; at(B, x, 5.25, 0.35); ellipsoid(B, 0.09, 0.09, 0.09, [0xFFF1C4, 0xFF4FA3, 0x8EE3C8, 0xFFD23F][i % 4], { seg: 6, rings: 4 }); }
+  for (const s2 of [1, -1]) for (const z of [1.6, 4.0]) { at(B, s2 * 5.4, 0, z); cyl(B, 0.06, 0.08, 1.0, 0xFFD23F, { seg: 8 }); at(B, s2 * 5.4, 1.02, z); ellipsoid(B, 0.1, 0.1, 0.1, 0xFFD23F, { seg: 8, rings: 6 }); }
+  at(B, 0, 0, 0); for (const s2 of [1, -1]) tube(B, [[s2 * 5.4, 0.9, 1.6], [s2 * 5.4, 0.72, 2.8], [s2 * 5.4, 0.9, 4.0]], 0.05, 0xE63946, { seg: 6, flat: [1, 0.5] });
+  bind(B, 0, [0, 0, 0.6, 0.9]); for (const s2 of [1, -1]) { at(B, s2 * 5.4, 3.0, 0.5); ellipsoid(B, 0.22, 0.22, 0.22, 0xFFF1C4, { seg: 10, rings: 8 }); }
+  for (let i = 0; i < 28; i++) { const x = -20.5 + i * 1.52; at(B, x, 5.25, 0.35); ellipsoid(B, 0.09, 0.09, 0.09, [0xFFF1C4, 0xFF4FA3, 0x8EE3C8, 0xFFD23F][i % 4], { seg: 6, rings: 4 }); }
   const mat = celMaterial({ mapB: atlas, halftone: true, shadow: true });
   add(new THREE.Mesh(toGeometry(B, { groups: false, hull: false }), mat));
-  // the doors: four glass panels with frames; they slide apart on open()
+  // the doors: six glass panels with frames; they slide apart on open()
   const gm = blendMaterial(new THREE.ShaderMaterial({ vertexShader: GLASS_VS, fragmentShader: GLASS_FS, uniforms: { uMap: { value: atlas } } }));
-  const fb = builder(); bind(fb, 0, [0, 0, 0.6, 0]); for (const s of [1, -1]) { at(fb, s * 0.71, 0, 0); box(fb, 0.08, 3.3, 0.1, 0xDDE3EA, { bevel: 0.2 }); } at(fb, 0, 0, 0); box(fb, 1.5, 0.12, 0.1, 0xDDE3EA, { bevel: 0.2 }); at(fb, 0, 3.2, 0); box(fb, 1.5, 0.12, 0.1, 0xDDE3EA, { bevel: 0.2 });
-  bind(fb, 0, [0, 0, 1, 0]); at(fb, 0.5, 1.2, 0.06); box(fb, 0.06, 0.8, 0.06, 0x2A2440, { bevel: 0.3 });
-  const fgeo = toGeometry(fb, { groups: false, hull: false }), pane = new THREE.PlaneGeometry(1.36, 3.06);
-  show.doors = [-2.25, -0.75, 0.75, 2.25].map((x) => {
+  const fb = builder(); bind(fb, 0, [0, 0, 0.6, 0]); for (const s2 of [1, -1]) { at(fb, s2 * (PW / 2 - 0.04), 0, 0); box(fb, 0.08, 3.3, 0.1, 0xDDE3EA, { bevel: 0.2 }); } at(fb, 0, 0, 0); box(fb, PW, 0.12, 0.1, 0xDDE3EA, { bevel: 0.2 }); at(fb, 0, 3.2, 0); box(fb, PW, 0.12, 0.1, 0xDDE3EA, { bevel: 0.2 });
+  bind(fb, 0, [0, 0, 1, 0]); at(fb, PW / 2 - 0.16, 2.3, 0.06); box(fb, 0.06, 0.6, 0.06, 0x2A2440, { bevel: 0.3 });
+  const fgeo = toGeometry(fb, { groups: false, hull: false }), pane = new THREE.PlaneGeometry(PW - 0.14, 3.06);
+  show.doors = [-3, -2, -1, 0, 1, 2, 3].map((i) => i * PW).map((x) => {
     const g = new THREE.Group(); g.position.set(x, 0, 0.12);
-    const f = new THREE.Mesh(fgeo, mat); if (x < 0) f.scale.x = -1;
+    const fr = new THREE.Mesh(fgeo, mat); if (x < 0) fr.scale.x = -1;
     const p = new THREE.Mesh(pane, gm); p.position.set(0, 1.66, 0);
-    g.add(f, p); root.add(g); return { g, x };
+    g.add(fr, p); root.add(g); return { g, x };
   });
-  // the cast outside, with their carts, facing the doors; Penny in the middle
-  (ids || ['granny', 'dad', 'penny', 'queen', 'bubba']).forEach((id, i, all) => {
-    const c = makeRacer(id, null, {});
-    const x = (i - (all.length - 1) / 2) * 1.75;
-    c.mesh.position.set(x, 0, id === 'penny' ? -1.7 : -2.3 - Math.abs(x) * 0.12);
-    c.mesh.rotation.y = -x * 0.05;
+  // the whole cast right behind the glass, facing in, Penny in the middle
+  TITLE_CAST.forEach(([id, x, row]) => {
+    // tiny Granny is shorter than a basket: she waits at the glass on foot, handbag at the ready
+    const foot = id === 'granny', c = foot ? makeCharacter(id) : makeRacer(id, null, {});
+    c.mesh.position.set(x, 0, foot ? -0.75 : row ? -2.55 : -0.58 - (id === 'penny' ? 0 : 0.12));
+    c.mesh.rotation.y = -x * 0.04;
+    c.foot = foot;
     c.mesh.layers.enable(1);
     add(c.mesh); show.chars.push(c);
   });
   show.crowd = makeCrowd(kit.crowd);
   add(show.crowd.root);
-  for (let i = 0; i < 16; i++) {
+  for (let i = 0; i < 18; i++) {
     const kind = kit.crowd[i % kit.crowd.length];
-    show.people.push({ kind, x: -7 + (i % 8) * 2 + (i > 7 ? 1 : 0), z: -5.2 - (i > 7 ? 1.6 : 0) - (i % 3) * 0.3, h: (i % 5 - 2) * 0.12, state: 0, t: 0, phase: i, speed: 0, angry: 0,
+    show.people.push({ kind, x: -8 + (i % 9) * 2 + (i > 8 ? 1 : 0), z: -4.4 - (i > 8 ? 1.5 : 0) - (i % 3) * 0.3, h: (i % 5 - 2) * 0.12, state: 0, t: 0, phase: i, speed: 0, angry: 0,
       style: [0, 1, 3, 2][i % 4], cloth: CROWD_COLORS.cloth[(i * 3) % CROWD_COLORS.cloth.length], pants: CROWD_COLORS.pants[i % 5], hair: CROWD_COLORS.hair[(i * 3) % 6], seed: i * 1.3, scale: 1 });
   }
   R.renderer.setClearColor(0x1B1735, 0);
@@ -238,12 +245,13 @@ export function makeTitle(kit, ids) {
   show.update = (dt) => {
     show.t += dt;
     const o = show.open >= 0 ? Math.min(1, (show.open += dt) / 0.45) : 0, e = o * o * (3 - 2 * o);
-    for (const d of show.doors) d.g.position.x = d.x + Math.sign(d.x) * e * 1.5 * (Math.abs(d.x) > 1 ? 1.95 : 1);
-    for (const c of show.chars) animate(c.rig, { mode: o > 0 ? 'push' : 'count', speed: o * 3, accel: o * 10 }, dt);
+    for (const d of show.doors) { if (d.x === 0) d.g.position.y = e * 3.6; else d.g.position.x = d.x + Math.sign(d.x) * e * (Math.abs(d.x) + 1.2); }     // the middle one lifts, the rest slide apart
+    for (const c of show.chars) animate(c.rig, { mode: c.foot && o <= 0 ? 'show' : o > 0 ? 'push' : 'count', speed: o * 3, accel: o * 10 }, dt);
     for (const p of show.people) { p.state = o > 0 ? 4 : 0; p.speed = o * 3.5; p.phase += p.speed * dt * 5; p.pose = crowdPose(p, show.t, p.pose || {}); if (o <= 0) p.pose.armL = -2.2 - Math.sin(show.t * 6 + p.seed) * 0.4; }
     syncCrowd(show.crowd, show.people, R.camera.position);
+    // at cart height, a slow sway; the cast fills the middle band of the frame between the logo and START
     const cam = R.camera, sway = Math.sin(show.t * 0.35);
-    cam.position.set(sway * 0.6, 1.55 - e * 0.2, 7.6 - e * 2.2); cam.lookAt(sway * 0.2, 1.35, -1.6);
+    cam.position.set(sway * 0.25, 2.05 - e * 0.2, 5.15 - e * 1.6); cam.lookAt(sway * 0.08, 1.02, -2.0);
     if (cam.fov !== 40) { cam.fov = 40; cam.updateProjectionMatrix(); }
   };
   show.dispose = () => { R.scene.remove(root); root.traverse((m) => { if (m.geometry) m.geometry.dispose(); }); disposeCrowd(show.crowd); };

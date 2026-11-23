@@ -22,7 +22,7 @@ import { goodIcon } from './goods.js';
 import { initFx, clearFx, cartFx, eventFx, updateFx, spark } from './fx.js';
 import { initShowcase, makeTitle } from './showcase.js';
 import { audio, unlockAudio, setSound, setVolumes, audioEvent, audioCue, audioFrame } from './audio.js';
-import { ui, initUI, updateHud, popWord, announce, floatText, chainText, setList, setArrow, setWarn, setHint, showTouch, showTitle, showReceipt,
+import { ui, initUI, updateHud, popWord, announce, floatText, sticker, updateStickers, chainText, setList, setArrow, setWarn, setHint, showTouch, showTitle, showReceipt,
   showClosed, showPause, hideScreens, hurryUI, money, initDebug, updateDebug } from './ui.js';
 
 const query = new URLSearchParams(location.search);
@@ -79,9 +79,7 @@ function title() {
   const cards = save.unlocked > 1 || save.best[LEVELS[1].id] ? LEVELS.slice(1).map((d, i) => ({ name: d.name, medal: save.medals[d.id] || 0,
     best: save.best[d.id] || 0, locked: i + 1 > save.unlocked, on: i + 1 === game.level })) : null;
   // the cast of this store lined up behind the mall doors, Penny in the middle
-  const ids = (LEVELS[game.level].rivals || []).map((r) => ({ bro: 'bubba' }[r] || r)).filter((r) => r !== 'selfie').slice(0, 4);
-  ids.splice(Math.floor(ids.length / 2), 0, 'penny');
-  game.titleShow = makeTitle(game.view.kit, ids);
+  game.titleShow = makeTitle(game.view.kit);
   game.view.root.visible = false;
   game.opening = 0;
   showTitle(LEVELS[game.level].name, startFromTitle, cards, (i) => { game.level = i + 1; title(); });
@@ -187,7 +185,7 @@ function onEvent(e) {
       game.warner = k; game.dodgeHint = !p.ai && (save.seen.dodge || 0) < 2;
       if (game.dodgeHint) { save.seen.dodge = (save.seen.dodge || 0) + 1; platform.save(); }
     }
-    else if (e.type === 'ram' && e.ref === p) { impact(); game.hitstop = 0.06; R.cam.shake = Math.min(1, R.cam.shake + 0.6); popWord('RAMMED!', 'bad'); }
+    else if (e.type === 'ram' && e.ref === p) { impact(); game.hitstop = 0.07; R.cam.shake = Math.min(1, R.cam.shake + 0.7); popWord('RAMMED!', 'bad'); sticker('CRASH!', 'crash', (k.x + p.x) / 2, 3.1, (k.z + p.z) / 2); }
     else if (e.type === 'selfie') { const s = toScreen(k.x, 3, k.z); if (s.z < 1) floatText('+' + money(CFG.stunts.selfie), s.x, s.y, 'big'); }
     else if (e.type === 'shout') { game.mark = e.ref; game.markT = 5; game.markText = 'HOT!'; const s = toScreen(k.x, 2.6, k.z); if (s.z < 1) floatText('MINE!', s.x, s.y, 'big'); }
     else if (e.type === 'finish') { const s = toScreen(k.x, 2.6, k.z); if (s.z < 1) floatText(money(e.value), s.x, s.y, ''); }
@@ -195,7 +193,7 @@ function onEvent(e) {
   }
   R.cam.shake = Math.min(1, R.cam.shake + shake);
   switch (e.type) {
-    case 'crash': game.hitstop = 0.07; if (e.value > 9) impact(); break;
+    case 'crash': game.hitstop = 0.07; if (e.value > 9) { impact(); sticker('BONK!', 'bonk', p.x - p.wnx, 1.5, p.z - p.wnz); } break;
     case 'take': game.gain += e.value; game.gainT = 0.45; if (e.ref.entry.list) game.gainList = true; break;
     case 'spill': case 'shed': { const s = toScreen(p.x, 2.6, p.z); floatText(money(-e.ref.lost), s.x, s.y - 30, 'loss'); break; }
     case 'heavy': case 'overloaded':                    // said once per run: afterwards the tower itself shows it
@@ -204,12 +202,13 @@ function onEvent(e) {
     case 'full': announce('CART FULL!', 'Only pricier goods fit now. They push the cheap ones out.'); break;
     case 'rocket': popWord('ROCKET START!', 'good'); break;
     case 'bonk': popWord('TOO LIGHT!', 'bad'); break;
-    case 'hot': popWord('HOT ITEM!', 'hot'); game.hitstop = 0.05; dashed(); if (game.mark === e.ref) game.markT = 0; break;
-    case 'smash': case 'glass': game.hitstop = 0.04; game.glassT = 0; dashed(); break;
+    case 'hot': popWord('HOT ITEM!', 'hot'); game.hitstop = 0.05; dashed(); sticker('KA-CHING!', 'kaching', e.ref.x, 2.2, e.ref.z); if (game.mark === e.ref) game.markT = 0; break;
+    case 'smash': case 'glass': game.hitstop = 0.04; game.glassT = 0; dashed(); sticker(e.type === 'glass' ? 'CRASH!' : 'BAM!', e.type === 'glass' ? 'crash' : 'bam', e.ref.x, 1.6, e.ref.z); break;
     case 'bump': if (e.ref && e.ref.type === 'glass') game.glassT = 3; break;       // bounced off a shop window: show the key that opens it
     case 'drift': if (!save.seen.drift && !p.ai) { save.seen.drift = true; platform.save(); } break;
     case 'ram':
-      game.hitstop = 0.08; dashed(); impact();
+      game.hitstop = 0.08; dashed(); impact(); R.cam.shake = Math.min(1, R.cam.shake + 0.3);
+      sticker('BAM!', 'bam', e.ref.x * 0.7 + p.x * 0.3, 3.1, e.ref.z * 0.7 + p.z * 0.3);
       if (!game.rammed) { game.rammed = true; game.slowT = 0.5; }      // the first ram is shown in slow motion
       break;
     case 'madmode': if (e.value) { popWord('MADNESS!', 'hot'); game.hitstop = 0.1; } break;
@@ -338,6 +337,7 @@ function tick(dt, draw) {
   }
   pointers(dt);
   updateHud(sim, dt);
+  updateStickers(dt, toScreen);
   audioFrame(sim, dt, game.state);
   if (game.probe) probeCamera(game.probe, p, dt);
   if (!draw) return;                           // capture mode skips only the GPU work between shots

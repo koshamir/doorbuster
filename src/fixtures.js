@@ -75,7 +75,14 @@ export function buildStore(view, sim, kit, shadow) {
   for (let i = 0; i < world.wet.length; i++) if (world.wet[i] && !world.wet[i - 1] && !world.wet[i - cols]) wetSign(B, (i % cols) * T2 - 0.2, Math.floor(i / cols) * T2 - 0.2);
   // a pole and a lamp housing over every checkout lane (the lamp itself is lit by the scene)
   bind(B, 0, PL(0.6));
-  for (const l of world.lanes) { at(B, l.x, 0, l.z - (l.bar.hz >= l.bar.hx ? l.bar.hz - 0.1 : 0)); cyl(B, 0.05, 0.05, 2.62, 0xDDE3EA, { seg: 8 }); at(B, l.x, 3.04, l.z); cyl(B, 0.4, 0.34, 0.12, F.dark, { seg: 14 }); }
+  // the pole stands at the lane's edge (never in the way of the close-up), an arm carries the lamp over the middle
+  for (const l of world.lanes) {
+    const deep = l.bar.hz >= l.bar.hx, ox = deep ? 0.92 : 0, oz = deep ? 0 : 0.92;
+    l.pole = [l.x + ox, l.z + oz];
+    at(B, l.x + ox, 0, l.z + oz); cyl(B, 0.05, 0.05, 3.0, 0xDDE3EA, { seg: 8 });
+    at(B, l.x + ox / 2, 2.98, l.z + oz / 2); box(B, ox + 0.06, 0.06, oz + 0.06, 0xDDE3EA, { bevel: 0 });
+    at(B, l.x, 3.04, l.z); cyl(B, 0.4, 0.34, 0.12, F.dark, { seg: 14 });
+  }
   // floor decals on open floor: stickers, rings, the store logo by the doors
   floorDecals(D, world, kit);
   lockGoods(view.gv);
