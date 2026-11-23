@@ -46,13 +46,17 @@ D36 2026-11-23 The intro card's portraits are the 3D heads rendered once into sm
 D37 2026-11-23 L4's serpentine dividers are plain walls: as shoe walls they put 27% of the goods on the safe line.
 D38 2026-11-23 The timed barrier fallback (flipEvery) stays off: the bots and the flip flash read well; switch it on if the owner is confused.
 D39 2026-11-23 Level 5 GAME ON: author time 47 s (four departments in any order); level 6 FOOD FIGHT: author time 27 s.
-D40 2026-11-23 The level 6 race keeps LEVELS.md's shape on a track about half as long: Gramps through the checkpoints at about 8.5/15/20 s and home at 29-31 s; the expert wins by about 4 s, the confident bot 9 of 10.
+D40 2026-11-23 Turbo Gramps starts with a loaded cart (24 goods): it slows him to the tuning below and a ram makes it fly. The level 6 race keeps LEVELS.md's shape on a track about half as long: Gramps through the checkpoints at about 8.5/15/20 s and home at 29-31 s; the expert wins by about 4 s, the confident bot 9 of 10.
 D41 2026-11-23 Level 6 ends head-on: counters turned for east-west lanes (plan letter E) close the home stretch; the 90-degree turn into a north-south lane cost up to 10 s.
-D42 2026-11-23 Medals come from the expert bot's 75th-percentile receipt over 24 seeds (the author run): silver 70%, gold 90%, Black Card at 100% (level 6: 105%, its receipts are tight).
+D42 2026-11-23 Medals follow the release rule (QUALITY.md section 8): the author receipt is the best of the expert bot's seeds 1-5, written into the level as authorReceipt; silver 70%, gold 90%, the Black Card above it.
 D43 2026-11-23 One groove, six bands (ART.md section 8): the same bass line, chords and lead, re-voiced per kit with its own drums and a tempo factor.
 D44 2026-11-23 A frame stamped before the previous task ended gives dt 0, never negative: a negative dt broke the rigs' squash into NaN in real-time play.
 D45 2026-11-23 A race's final table ranks by who got to a checkout first and shows the times; a RACE line with a star per checkpoint led prints on the receipt.
 D46 2026-11-23 The sports hub floor is rubber gym matting with coloured flecks, so it never reads as the electronics store's navy floor.
 D47 2026-11-23 Hazards that an object answers for itself (arena.js: cushion walls, bags, foosball, belly bros, grills, cleavers) live in their own module; props.js hands them over.
+D48 2026-11-23 rivalValue (a level's handicap on what the rivals' goods ring up at): level 1 at 0.5 (Sprint Dad swept the freezers to 145% of a confident player), level 4 at 0.55 (Granny's starting tower); levels 3 and 5 stay low on purpose, their rivals race for time.
+D49 2026-11-23 The Cart Customs price tags are scoped to the customs screen: as a global .tag rule they had pushed the HUD's RECEIPT under the Madness meter since P3.
+D50 2026-11-23 The handoff ships lib/three.min.js only for local runs; on mindblown.ai the page loads the hosted bundle.
+D51 2026-11-23 The arena's objects raise their own sound flags (snd at sx/sz) and main.js plays them by distance, like the signs' creak.
 
 ## Known issues (at most 10)

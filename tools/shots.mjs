@@ -72,7 +72,7 @@ async function level(n, only) {
   for (let i = 0; i < 400; i++) {
     const s = await page.evaluate(() => { window.__db.advance(0.5); const i = window.__db.info(); return { t: i.t, state: i.state, log: i.log, moment: i.moment }; });
     if (hit < 0) { const e = s.log.find((x) => x[0] === 'wipeout' || x[0] === 'ram' || x[0] === 'ram<'); if (e) hit = e[1]; }
-    if (s.moment !== undefined && s.moment >= 0 && moment < 0) moment = s.moment;
+    if (moment < 0) { const e = s.log.find((x) => x[1] > 4 && ['ram', 'ram<', 'madmode', 'smash', 'strike', 'bowl', 'jump', 'wipeout', 'hot'].includes(x[0])); if (e) moment = e[1] + 0.15; }   // the release moment: the first big thing after the opening
     if (s.state !== 'play' && s.state !== 'title') { end = s.t; break; }
   }
   await page.context().close();
