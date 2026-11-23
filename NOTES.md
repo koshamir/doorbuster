@@ -1,5 +1,5 @@
 ## STATUS (at most 10 lines)
-Phase: P5 SHIP done — released and tagged p5 and release (23 Nov 2026); the game is frozen (deadline 29 Nov 18:00 owner time, UTC+5)
+Phase: P5 SHIP done — released (tag release, moved after the art review) and p5 (23 Nov 2026); frozen (deadline 29 Nov 18:00 owner time, UTC+5)
 Done: P1-P5; six stores, four modes, Directory, Customs, jury fixes, the handoff package in handoff/ (node tools/package.mjs rebuilds and checks it)
 Next: the owner uploads handoff/ to Mindblown (steps in REPORTS.md, P5) and enters it in the cup by 30 Nov
 Open problems: see Known issues
@@ -64,6 +64,9 @@ D54 2026-11-23 Jury skip: no new pieces in level 1's quiet stretches; its plan i
 D55 2026-11-23 Jury skip: Granny's "stuck" events are her waiting at the pop-up tiles (her scripted first fail), not a jam.
 D56 2026-11-23 Clocks: timer just above the slowest beginner bot; CLOSING TIME (level field closing) starts before the median beginner gets home; level 2 keeps its 30 s with stopwatches.
 D57 2026-11-23 Levels 7 NEON NIGHTS and 8 LAST CALL are not built: the shipped source is at the 30-file limit and the time went to the jury's fixes and the release (DESIGN.md section 10 cut order).
+D58 2026-11-23 A third reviewer, the art director on the final build, at the owner's request (QUALITY.md section 4 planned two).
+D59 2026-11-23 Art review applied: a calm violet backroom, wall stripes as flat paint, puddles in saturated blue with ink and a white rim, mint route chevrons, a cut cheese wheel, broken crowd silhouettes, bolder brows and mouths.
+D60 2026-11-23 Art review skips: no fog or wall-top ink line (a global change this late risks all six stores); no lens lids for Selfie or mouth through Bubba's beard (their bolder brows carry the emotion); no belt edges (the "belt" is an open freezer chest).
 
 ## Known issues (at most 10)
 - Level 4 receipts run small (the boutique spills most loot), so bronze is common there.

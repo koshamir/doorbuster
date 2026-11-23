@@ -57,3 +57,9 @@ Try: (1) level 6: take the delivery-box shortcut out of the sushi lane and beat 
 - Not built: levels 7 and 8 (source at the 30-file limit; the time went to the jury's fixes).
 
 Try: (1) a laptop with integrated graphics, if one is at hand (the quality tier should settle by itself); (2) level 1 twice: chase the RAM! tag on Granny's cart; (3) level 6: beat Turbo Gramps to the head-on checkouts.
+
+## Art review of the final build — 23 Nov 2026 (tag `release` moved)
+
+- At your request an art-director reviewer looked at the final build. Fixed: the backroom (calm violet, not near-black), wall stripes as flat paint (no doubled ink), puddles that read as hazards, mint route chevrons, a cut cheese wheel, varied crowd silhouettes (the hot-dog mascot now shows), bolder brows and mouths.
+- Skipped: fog, a wall-top ink line, lens lids for Selfie and a mouth through Bubba's beard (see NOTES D60).
+- `handoff/` rebuilt and re-checked: the reference receipt is still $1,812, console clean, no external requests.
