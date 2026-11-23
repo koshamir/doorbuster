@@ -14,7 +14,7 @@
 import { TUNE, CFG, GOODS, GOOD, POOLS, makeRng, clamp, wrapAngle } from './config.js';
 import { buildWorld, navBuild, navDistAt, blockedAt } from './world.js';
 import { makeCart, stepCart, loadFactor } from './cart.js';
-import { buildObjects, stepObjects } from './objects.js';
+import { buildObjects, stepObjects, flipBarriers, startChaser } from './objects.js';
 import { BOTS, makeDriver, rivalProfile, drive, inZone, spawnCrowd, stepCrowd, spawnTrains, stepTrains } from './ai.js';
 
 // opts: bot ('beginner' | 'confident' | 'expert' | 'sloppy') drives the player's cart; countdown and
@@ -36,6 +36,8 @@ export function createSim(def, seed, opts = {}) {
       wipeouts: 0, rivalWipes: 0, pops: 0, cans: 0, passes: {} },
     emit(type, cart, value, ref) {
       sim.events.push({ type, cart, value, ref });
+      if (cart && cart.player && type === 'dash') flipBarriers(sim);          // the store hears every BOOM (LEVELS.md, level 3)
+      if (cart && cart.player && type === 'hot' && sim.world.chaser) startChaser(sim);   // taking the treasure lets the yarn ball go
       if (type === 'boost') madGain(sim, cart, CFG.madDrift * value);        // a drift held to a boost feeds Madness
       // An overloaded tower sheds its top on a hard knock (no crash needed). Rubbing along the shelf
       // being swept or a checkout counter never counts.
@@ -79,6 +81,7 @@ export function createSim(def, seed, opts = {}) {
       k.stunT = CFG.wipeTime; k.vx *= 0.45; k.vz *= 0.45;
       const sp = Math.hypot(k.vx, k.vz) || 1;
       if (k.madT <= 0) { spill(sim, k, 0.25, k.vx / sp, k.vz / sp, true); madLose(sim, k); }
+      if (ob && ob.kind === 'chaser' && k.player) unchase(sim, k, ob);
       sim.emit('wipe', k, 0, ob);
     },
     // A pop-up tile launches the cart straight up (a boing that eats its momentum, not a throw onto the next
@@ -116,6 +119,8 @@ export function createSim(def, seed, opts = {}) {
     },
     watch(k, ob) { sim.timer += CFG.watchTime; sim.emit('watch', k, CFG.watchTime, ob); },
     checkpoint(k, ob) { k.cp = ob.index; sim.emit('checkpoint', k, ob.index, ob); },
+    // a robot vacuum hit by a dash spins and spits out what it swept up
+    spit(ob, x, z) { for (let i = 0; i < 3; i++) { const a = i * 2.1 + sim.t; scatter(sim, x, z, Math.sin(a), Math.cos(a), GOOD[['phone', 'game', 'soda'][i]], 0, 8, false); } sim.emit('vacuum', null, 0, ob); },
     // a good thrown out of a stroller onto the floor, toward (dx, dz): anyone may take it
     toss(x, z, dx, dz, good) { const l = Math.hypot(dx, dz) || 1; scatter(sim, x, z, dx / l, dz / l, good, 0, 8, false); },
   };
@@ -300,7 +305,7 @@ function fountain(sim, k) {
 }
 // Whether a cart passed an object or was caught by it, per rival and object (the smoke test reads it).
 function record(sim, k, ob, passed) {
-  if (k.player || !ob) return;
+  if (k.player || !ob || ob.kind === 'barrier') return;           // a barrier rising under a rival is the player's doing, not a miss
   const roll = k.ai && k.ai.rolls.get(ob);
   if (!passed && roll && roll.scripted) return;      // a level's scripted failure (Granny's first go at the tiles) is not a miss
   const key = k.char + ':' + sim.world.objs.indexOf(ob), p = sim.stats.passes[key] || (sim.stats.passes[key] = [0, 0]);
@@ -374,7 +379,8 @@ function makeRoom(sim, k, w, value) {
 function smash(sim, k, solid) {
   const p = solid.piece, sp = Math.hypot(k.vx, k.vz) || 1, ux = k.vx / sp, uz = k.vz / sp;
   k.dashHits++;
-  if (solid.type === 'podium') {                    // through the ribbon: the hot item jumps into the cart
+  if (solid.type === 'podium' || solid.type === 'case') {     // through the ribbon (or the glass): the hot item jumps into the cart
+    if (solid.type === 'case') { stunt(sim, k, 'glass', p.x, p.z); sim.emit('glass', k, 0, p); }
     if (p.good >= 0) { take(sim, k, p.good, p.x, 1, p.z); p.good = -1; madGain(sim, k, 0.5); sim.emit('hot', k, 0, p); }
   } else if (solid.type === 'glass') {              // the window shatters and the short way is open to everyone
     sim.world.block[p.r * sim.world.cols + p.c] = 0;
@@ -604,6 +610,15 @@ function zones(sim) {
       else if (inside.has(ob)) { inside.delete(ob); if (k.ai && k.ai.lastFail !== ob) record(sim, k, ob, true); if (k.ai && k.ai.lastFail === ob) k.ai.lastFail = null; }
     }
   }
+}
+
+// Caught by the yarn ball: the treasure goes back on its pedestal and the ball back to its start.
+function unchase(sim, k, ob) {
+  const q = sim.world.pieces.find((p) => p.type === 'podium' && p.good < 0 && p.hot >= 0);
+  for (let i = k.tower.length - 1; i >= 0; i--) if (q && k.tower[i].good === q.hot) { const e = k.tower[i]; k.tower.splice(i, 1); k.load -= GOODS[e.good].w; k.value -= e.value; break; }
+  if (q) { q.good = q.hot; q.solid.on = true; sim.world.block[q.r * sim.world.cols + q.c] = 1; navBuild(sim.world); }
+  ob.active = false; ob.done = false; ob.x = ob.sx; ob.z = ob.sz;
+  sim.emit('chaser', null, 0, ob);
 }
 
 // Back at the last checkpoint passed (or where the cart started), facing along the route, at half speed, with

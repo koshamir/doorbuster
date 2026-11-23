@@ -9,7 +9,7 @@
 
 import { TUNE, CFG, GOODS, GOOD, CHARS, CROWD_MIX, clamp, wrapAngle } from './config.js';
 import { navAim, navDistAt, clearPath, collide, blockedAt } from './world.js';
-import { switchField, hazardsOn, passDelay } from './objects.js';
+import { switchField, hazardsOn, passDelay, freeField, objExtent, patrolAt } from './objects.js';
 import { loadFactor } from './cart.js';
 
 // pace = share of top speed, hz = decisions per second, noise = steering error (rad),
@@ -94,6 +94,8 @@ function findGoods(sim, k, ai) {
     if (goal.score > before) { shelf = null; goal.list = true; }      // (as keen as on a list item)
   }
   if (goal.score <= 0.4 || navDistAt(world, goal.x, goal.z) > here + 1) return false;
+  // goods on a turnstile's arms, under a laser's sweep or on sliding panels are the player's greed: drivers leave them
+  for (const ob of world.objs) if ((ob.kind === 'turnstile' || ob.kind === 'laser' || ob.kind === 'panels') && inZone(ob, goal.x, goal.z, 0.6)) return false;
   if (shelf) {
     // Run parallel to the shelf: push the aim point along the shelf in the direction of travel.
     let tx = -shelf.nz, tz = shelf.nx;
@@ -118,8 +120,8 @@ function findTarget(sim, k, ai) {
     return true;
   };
   for (const q of world.pieces) {
-    if (!q.solid.on || !q.solid.dash || (q.type === 'podium' && p.rival && p.char !== 'queen')) continue;
-    const hot = q.type === 'podium';
+    const hot = q.type === 'podium' || q.type === 'case';
+    if (!q.solid.on || !q.solid.dash || (hot && p.rival && p.char !== 'queen')) continue;
     if (hot && q.good < 0) continue;
     if (q.sale && p.rival && sim.sale && sim.sale.t > 7) continue;   // the first three seconds of a flash sale are the player's
     if (navDistAt(world, q.x, q.z) > here + 3) continue;
@@ -201,6 +203,17 @@ export function drive(sim, k, dt) {
       }
     }
   }
+  // The smart barriers: a player's bot whose way is clearly shorter through the barriers dashes to flip one that is
+  // up in its way (never so that one rises under it).
+  // The dash is also a burst of speed: with a wipe hazard just behind the barrier it waits until the burst would
+  // carry the cart through a clear window (and slows for the barrier meanwhile).
+  ai.holdFlip = false;
+  if (k.player && world.barriers.length && k.dashCd <= 0 && k.air <= 0 && k.stunT <= 0) {
+    const free = freeField(world);
+    if (navDistAt(world, k.x, k.z) - navDistAt(world, k.x, k.z, free) > 5 && upOnWay(world, k, free) >= 0 && !risesHere(world, k)) {
+      if (burstClear(sim, k, flipTo)) inp.dash = true; else ai.holdFlip = true;
+    }
+  }
   // Getting unstuck: back out with the wheel over, or (backT < 0) push forward at full lock.
   if (ai.backT) {
     const back = ai.backT > 0;
@@ -237,7 +250,7 @@ export function drive(sim, k, dt) {
   if (p.char === 'queen') {
     const here = navDistAt(world, k.x, k.z);
     for (const q of world.pieces) {
-      if (q.type !== 'podium' || q.good < 0 || !q.solid.on || (q.sale && sim.sale && sim.sale.t > 7)) continue;
+      if ((q.type !== 'podium' && q.type !== 'case') || q.good < 0 || !q.solid.on || (q.sale && sim.sale && sim.sale.t > 7)) continue;
       const d = here - navDistAt(world, q.x, q.z);
       if (d < -2 || d > 70) continue;
       ai.g = 0; pace = p.pace;
@@ -247,9 +260,16 @@ export function drive(sim, k, dt) {
 
   // Look further along the path the faster the cart goes; a short look keeps it lined up for narrow places.
   const reach = clamp(0.45 * Math.abs(k.spd) + 2.5, 3, p.look * CFG.TILE);
+  // the smart barriers: the player's bots take the way through them when it is clearly shorter and dash to flip a
+  // barrier that is up right in their way (never so that one rises under them); no other dash near barriers
+  let field = null, flipper = false;
+  if (k.player && world.barriers.length) {
+    const free = freeField(world);
+    if (navDistAt(world, k.x, k.z) - navDistAt(world, k.x, k.z, free) > 5) { field = free; flipper = true; }
+  }
+  const calm = !k.player || !world.barriers.some((b) => Math.hypot(b.x - k.x, b.z - k.z) < 14);
   // the way to the checkouts is shut (a gate): first to the nearest switch nobody has pressed yet
-  let field = null;
-  if (navDistAt(world, k.x, k.z) > 1e8) {
+  if (!field && navDistAt(world, k.x, k.z) > 1e8) {
     let best = 1e8;
     for (const s of world.switches) {
       if (s.pressed) continue;
@@ -260,11 +280,20 @@ export function drive(sim, k, dt) {
   if (!navAim(world, k.x, k.z, p.look, CFG.CART_R + 0.3, aim, reach, field)) { inp.gas = 0; inp.brake = 1; return; }
   const bend = Math.abs(wrapAngle(Math.atan2(aim.fx - k.x, aim.fz - k.z) - k.h));
   let tx = aim.x, tz = aim.z;
+  // a robot vacuum just ahead: steer past it (they are small and slow; nobody waits for one)
+  for (const ob of world.objs) {
+    if (ob.kind !== 'patrol' || !ob.loop || Math.abs(ob.x - k.x) > 40 || Math.abs(ob.z - k.z) > 40) continue;
+    patrolAt(ob, sim.t, VAC);
+    const d = Math.hypot(tx - k.x, tz - k.z) || 1, ux = (tx - k.x) / d, uz = (tz - k.z) / d;
+    patrolAt(ob, sim.t + Math.max(0, (VAC.x - k.x) * ux + (VAC.z - k.z) * uz) / Math.max(3, Math.abs(k.spd)), VAC);     // where it will be when the cart gets there
+    const dx = VAC.x - k.x, dz = VAC.z - k.z, ahead = dx * ux + dz * uz, side = dx * uz - dz * ux;
+    if (ahead > -0.5 && ahead < 7 && Math.abs(side) < 1.9) { const s = side > 0 ? -1 : 1; tx = VAC.x + uz * s * 2.1 + ux * 1.2; tz = VAC.z - ux * s * 2.1 + uz * 1.2; }
+  }
   // in or right before a hazard, a driver keeps its eyes on the hazard: no shopping, no targets
   let busy = ai.drifting;
   for (const ob of world.objs) if ((ob.fx === 'wipe' || ob.fx === 'push') && inZone(ob, k.x, k.z, ob.fx === 'wipe' ? 6 : 2.5)) { busy = true; break; }
   const listed = !busy && findGoods(sim, k, ai) && goal.list;         // a list item ahead comes before any target
-  const hunting = !listed && !busy && p.dash > 0 && ai.g > 0 && k.dashCd <= 0.4 && k.stunT <= 0 && findTarget(sim, k, ai);
+  const hunting = !listed && !busy && calm && p.dash > 0 && ai.g > 0 && k.dashCd <= 0.4 && k.stunT <= 0 && findTarget(sim, k, ai);
   const shopping = listed || (!hunting && !busy && findGoods(sim, k, ai));
   if (hunting) { tx = mark.x; tz = mark.z; } else if (shopping) { tx = goal.x; tz = goal.z; }
   const err = wrapAngle(Math.atan2(tx - k.x, tz - k.z) - k.h) + ai.wobble;
@@ -296,6 +325,7 @@ export function drive(sim, k, dt) {
   const top = TUNE.maxspeed * (1 - TUNE.loadtop * (k.madT > 0 ? 0 : loadFactor(k)));        // what this cart can do with its load
   v = Math.min(v, top);
   const vBend = v;
+  if (flipper) { const d = upOnWay(world, k, field); if (d >= 0 && (k.dashCd > 0 || ai.holdFlip)) v = Math.min(v, Math.max(ai.holdFlip ? 0 : 2.5, (d - 1.4) / Math.max(0.15, k.dashCd > 0 ? k.dashCd : 0.5))); }
   const gate = hazardGate(sim, k, ai, tx, tz, TUNE.maxspeed * pace < top ? TUNE.maxspeed * pace : top), gated = gate < v;
   if (gated) v = gate;
   if (ai.floorV > v) v = Math.min(ai.floorV, top);          // committed inside a hazard: through it before slowing for anything
@@ -333,10 +363,11 @@ export function drive(sim, k, dt) {
     ai.driftT += 1 / p.hz;
     const going = wrapAngle(Math.atan2(tx - k.x, tz - k.z) - Math.atan2(k.vx, k.vz));   // judged by the path, not the nose
     if (Math.abs(going) < 0.2 || going * k.drift < 0 || ai.driftT > 2.6 || !k.drift && ai.driftT > 0.3) ai.drifting = false;
-  } else if (!shopping && !hunting && p.drift > 0 && bend > 0.85 && Math.abs(err) > 0.4 && k.spd > TUNE.maxspeed * 0.6 &&
+  } else if (!shopping && !hunting && !busy && !gated && p.drift > 0 && bend > 0.85 && !world.objs.some((o) => o.kind === 'turnstile' && Math.hypot(o.x - k.x, o.z - k.z) < o.R + 8) && Math.abs(err) > 0.4 && k.spd > TUNE.maxspeed * 0.6 &&
     (k.load <= TUNE.loadfull || p.brakes === 0) && sim.rng() < p.drift) {       // only the careless drift with a skyscraper
     ai.drifting = true; ai.driftT = 0;
   }
+  if (ai.drifting && gated && v < 7) ai.drifting = false;            // a hazard's timing comes before a drift
   inp.drift = ai.drifting;
   if (ai.drifting) { inp.gas = 1; inp.brake = 0; }
 
@@ -352,6 +383,43 @@ export function drive(sim, k, dt) {
   }
 }
 
+const VAC = { x: 0, z: 0, h: 0, moving: false };
+// How far ahead (within 6.5 m) the nearest barrier that is up lies on the way through the barriers (free: the
+// route with them all down; it lies ahead if it is nearer the checkouts than the cart); -1 if none.
+const flipTo = { x: 0, z: 0 };
+// Would a dash now carry the cart through the wipe hazards toward the barrier in a clear window?
+function burstClear(sim, k, to) {
+  const dx = to.x - k.x, dz = to.z - k.z, l = Math.hypot(dx, dz) || 1, ex = k.x + dx / l * 24, ez = k.z + dz / l * 24;
+  for (const ob of sim.world.objs) {
+    if (ob.kind !== 'panels' && ob.kind !== 'laser' && ob.kind !== 'sign') continue;
+    if (Math.hypot(ob.x - k.x, ob.z - k.z) > 30) continue;
+    const d = passDelay(ob, k.x, k.z, ex, ez, 13, sim.t, 0.6, 0.04, 13);
+    if (d > 0) return false;
+  }
+  return true;
+}
+function upOnWay(world, k, free) {
+  const here = navDistAt(world, k.x, k.z, free);
+  let best = -1;
+  for (const b of world.barriers) {
+    if (!b.solid.on) continue;
+    const d = Math.hypot(Math.max(0, Math.abs(b.x - k.x) - b.hx), Math.max(0, Math.abs(b.z - k.z) - b.hz));
+    if (d >= 6.5 || (best >= 0 && d >= best)) continue;
+    let low = 1e9;
+    for (let r = b.r0; r <= b.r1; r++) for (let c = b.c0; c <= b.c1; c++) low = Math.min(low, free[r * world.cols + c]);
+    if (low < here - 0.5) { best = d; flipTo.x = b.x; flipTo.z = b.z; }
+  }
+  return best;
+}
+// A barrier that is down now would rise where the cart is (or is about to be) if it flipped them.
+function risesHere(world, k) {
+  for (const b of world.barriers) {
+    if (b.solid.on) continue;
+    for (const s of [0, 0.25, 0.5]) { const x = k.x + k.vx * s, z = k.z + k.vz * s; if (Math.abs(x - b.x) < b.hx + 1.2 && Math.abs(z - b.z) < b.hz + 1.2) return true; }
+  }
+  return false;
+}
+
 // ---- Hazards ----------------------------------------------------------------------------------------
 // The speed a driver may go at so that it crosses the hazards ahead in a safe window: on each approach it judges
 // the hazard once (a roll against its judge value; a level may make one rival's first try at a kind fail), then,
@@ -363,9 +431,15 @@ function hazardGate(sim, k, ai, tx, tz, v) {
   if (!world.objs.length) return v;
   // the path ahead: where the cart is actually going (its travel direction), or toward its aim point from a stop
   const sp0 = Math.hypot(k.vx, k.vz), moving = sp0 > 3, fx = moving ? k.vx : tx - k.x, fz = moving ? k.vz : tz - k.z, fl = Math.hypot(fx, fz) || 1, look = Math.max(10, Math.abs(k.spd) * 1.3);
-  const ex = k.x + fx / fl * look, ez = k.z + fz / fl * look;
+  const ex0 = k.x + fx / fl * look, ez0 = k.z + fz / fl * look;
   let out = v;
-  for (const ob of hazardsOn(world, k.x, k.z, ex, ez, HZ)) {
+  for (const ob of hazardsOn(world, k.x, k.z, ex0, ez0, HZ)) {
+    if ((ob.kind === 'patrol' && ob.loop) || ob.kind === 'turnstile') continue;     // routes go round turnstiles; vacuums are steered past
+    let ex = ex0, ez = ez0;
+    if (ob.kind === 'laser' || ob.kind === 'panels') {
+      const [cx, cz, near] = objExtent(ob), far = Math.min(32, Math.max(look, Math.hypot(cx - k.x, cz - k.z) + near * 0.85));
+      ex = k.x + fx / fl * far; ez = k.z + fz / fl * far;
+    }
     let roll = ai.rolls.get(ob);
     if (!roll || sim.t > roll.until) {
       const first = sim.def.firstFail && sim.def.firstFail[p.char] === ob.kind && !ai.fails.has(ob.kind);
@@ -391,7 +465,7 @@ function hazardGate(sim, k, ai, tx, tz, v) {
     const entry = zoneDist(ob, k.x, k.z, ex, ez);
     if (entry < 0.4) { const cv = ai.commit.get(ob); if (cv) { out = Math.min(out, cv); ai.floorV = Math.max(ai.floorV, cv * 0.95); } continue; }   // in it: keep the planned speed (no slowing for a bend in there either), never stop
     let go = -1;
-    for (const f of [1, 0.85, 0.7, 0.55, 0.42]) {
+    for (const f of ob.kind === 'laser' || ob.kind === 'panels' ? [1, 0.85, 0.7] : [1, 0.85, 0.7, 0.55, 0.42]) {     // no crawling through a sweep: wait, then go
       const sp = Math.max(4, v * f);
       if (passDelay(ob, k.x, k.z, ex, ez, sp, sim.t, 0.85, 0.04, Math.abs(k.spd)) === 0) { go = sp; break; }
     }
@@ -415,7 +489,11 @@ function zoneDist(ob, x0, z0, x1, z1) {
 }
 export function inZone(ob, x, z, pad) {
   if (ob.kind === 'sign') { const ddx = x - ob.x, ddz = z - ob.z, lat = ddx * ob.ax + ddz * ob.az, along = ddx * ob.az - ddz * ob.ax; return Math.abs(along) < 0.15 + pad && Math.abs(lat) < ob.reach + pad; }
-  if (ob.kind === 'tiles') { const T = CFG.TILE; return x > ob.c0 * T - pad && x < (ob.c0 + ob.nc) * T + pad && z > ob.r0 * T - pad && z < (ob.r0 + ob.nr) * T + pad; }
+  if (ob.kind === 'turnstile') return Math.hypot(x - ob.x, z - ob.z) < ob.R + pad;
+  if (ob.kind === 'laser') return Math.hypot(x - ob.x, z - ob.z) < ob.L + Math.min(pad, 1);
+  if (ob.kind === 'scissors') { const ddx = x - ob.x, ddz = z - ob.z, lat = ddx * ob.ax + ddz * ob.az, along = ddx * ob.az - ddz * ob.ax; return Math.abs(along) < 0.3 + pad && Math.abs(lat) < ob.span / 2 + pad; }
+  if (ob.kind === 'glove') { const ddx = x - ob.gx, ddz = z - ob.gz, along = ddx * ob.dx + ddz * ob.dz; return along > -pad && along < ob.reach + 0.5 + pad && Math.abs(ddx * ob.dz - ddz * ob.dx) < 0.7 + pad; }
+  if (ob.kind === 'tiles' || ob.kind === 'panels') { const T = CFG.TILE; return x > ob.c0 * T - pad && x < (ob.c0 + ob.nc) * T + pad && z > ob.r0 * T - pad && z < (ob.r0 + ob.nr) * T + pad; }
   if (ob.kind === 'patrol') { let a = 1e9, b = -1e9, c = 1e9, d = -1e9; for (const [px, pz] of ob.pts) { a = Math.min(a, px); b = Math.max(b, px); c = Math.min(c, pz); d = Math.max(d, pz); } return x > a - ob.hz - pad && x < b + ob.hz + pad && z > c - ob.hz - pad && z < d + ob.hz + pad; }
   return false;
 }

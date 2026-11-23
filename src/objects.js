@@ -1,13 +1,15 @@
 // DOORBUSTER — objects.js
 // Purpose: the level objects of LEVELS.md section 4, built from a level's `objects` list as a few generic
-//          behaviours: pendulum (swinging sale sign), tile field (pop-up promo tiles), patrol (forklift,
-//          pallet jack), switch (floor button, hidden plate) with linked gates (roller shutter, roller door,
-//          secret door), boost arrows, stopwatches and checkpoint arches. Every hazard answers
+//          behaviours: pendulum (swinging sale sign), tile fields (pop-up promo tiles, sliding floor panels over a
+//          pit), patrols (forklift, pallet jack, robot vacuum), rotators (turnstile display, laser turret), snapping
+//          scissors, boxing gloves on pressure plates, smart red/blue barriers, a path chaser (the giant yarn
+//          ball), switches (floor button, hidden plate) with linked gates (roller shutter, roller door, secret
+//          door), boost arrows, stopwatches and checkpoint arches. Every hazard answers
 //          dangerAt(o, x, z, t, pad) ("is this spot dangerous at time t?") and passDelay(...) ("how long until
 //          a cart can cross here?"); the simulation applies the effects each step, the drivers plan with the
 //          two queries and the level validator checks pass windows and the loot rule with them.
-// Exports: FX, SIGN, buildObjects, stepObjects, dangerAt, passDelay, signAngle, tilePop, patrolAt, hazardsOn,
-//          switchField, levelRules
+// Exports: FX, SIGN, objExtent, buildObjects, stepObjects, dangerAt, passDelay, signAngle, tilePop, patrolAt, hazardsOn,
+//          switchField, levelRules, flipBarriers, freeField, armAngle, laserAngle, scissorState, gloveReach, chaserAt, startChaser
 // Depends on: config.js, world.js. No DOM, no THREE (runs in Node).
 //
 // Level data: objects: [[kind, col, row, { options }], ...] in tile coordinates (fractions allowed; a tile is
@@ -20,6 +22,14 @@
 //   boost    c1, r1, dir 'n'|'e'|'s'|'w'
 //   watch    hidden (inside a secret room)
 //   cp       across 'x'|'z' (the way the arch spans), w (tiles)
+//   panels   cols, rows, period, open (s), lead (s): floor panels that slide open over a pit in turn
+//   patrol   type 'vacuum' runs a closed loop instead (a dash makes it spin and spit goods)
+//   turnstile  radius, speed (turns per second), phase      laser  len, period (s per turn), phase
+//   scissors across 'x'|'z', span (m), period, closed (s), phase
+//   glove    from [c, r] (the mount in the wall), dir 'n'|'e'|'s'|'w', reach (m); (c, r) is its pressure plate
+//   barrier  c1, r1, color 'red'|'blue': solid when its colour is up; the player's dash flips them (def.flipEvery:
+//            also every so many seconds)
+//   chaser   speed: waits at (c, r) until the player takes a hot item, then rolls down the route to the checkouts
 
 import { CFG, TUNE, GOODS } from './config.js';
 import { addSolid, navBuild, fieldFrom, navDistAt } from './world.js';
@@ -28,7 +38,8 @@ const OT = CFG.TILE;
 const OM = (c) => (c + 0.5) * OT;                 // a tile coordinate to metres (its centre)
 
 // Effect classes (LEVELS.md section 4): what touching each kind does.
-export const FX = { sign: 'wipe', tiles: 'push', patrol: 'push', button: 'switch', plate: 'switch', gate: 'switch', boost: 'move', watch: 'pick', cp: 'mark' };
+export const FX = { sign: 'wipe', tiles: 'push', patrol: 'push', button: 'switch', plate: 'switch', gate: 'switch', boost: 'move', watch: 'pick', cp: 'mark',
+  panels: 'wipe', turnstile: 'push', laser: 'wipe', scissors: 'wipe', glove: 'push', barrier: 'switch', chaser: 'wipe' };
 
 // The swinging sale sign: a giant price tag on a chain from a pivot SIGN.H up. At rest its lower edge is
 // SIGN.REST above the floor; it is dangerous while that edge is below SIGN.CLEAR (a cart with its shopper),
@@ -43,7 +54,7 @@ const O_DIRS = { n: Math.PI, s: 0, e: Math.PI / 2, w: -Math.PI / 2 };
 // ---- building ---------------------------------------------------------------------------------------------
 export function buildObjects(world, def) {
   const objs = world.objs = [];
-  world.checkpoints = []; world.switches = []; world.gates = [];
+  world.checkpoints = []; world.switches = []; world.gates = []; world.barriers = []; world.redUp = true; world.flipT = def.flipEvery || 0; world.chaser = null;
   for (const [kind, c, r, o = {}] of def.objects || []) {
     const x = OM(c), z = OM(r);
     let ob;
@@ -62,9 +73,10 @@ export function buildObjects(world, def) {
       const pts = [[x, z], ...(o.to || []).map(([cc, rr]) => [OM(cc), OM(rr)])], seg = [];
       let len = 0;
       for (let i = 1; i < pts.length; i++) { const l = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); seg.push(l); len += l; }
-      const jack = o.type === 'jack';
-      ob = { type: o.type || 'forklift', pts, seg, len, speed: o.speed || 3, wait: o.wait ?? 0.8, phase: o.phase || 0, hx: jack ? 0.5 : 0.75, hz: jack ? 1.0 : 1.35, x, z };
-      ob.cycle = 2 * (len / ob.speed + ob.wait);
+      const jack = o.type === 'jack', vac = o.type === 'vacuum';
+      if (vac) { const l = Math.hypot(pts[0][0] - pts[pts.length - 1][0], pts[0][1] - pts[pts.length - 1][1]); pts.push(pts[0]); seg.push(l); len += l; }   // a loop
+      ob = { type: o.type || 'forklift', pts, seg, len, speed: o.speed || (vac ? 2 : 3), wait: vac ? 0 : o.wait ?? 0.8, phase: o.phase || 0, hx: vac ? 0.55 : jack ? 0.5 : 0.75, hz: vac ? 0.55 : jack ? 1.0 : 1.35, x, z, loop: vac, spinT: 0, spitT: 0 };
+      ob.cycle = vac ? len / ob.speed : 2 * (len / ob.speed + ob.wait);
     } else if (kind === 'button' || kind === 'plate') {
       ob = { x, z, c, r, rad: kind === 'button' ? 1.05 : 0.95, opens: o.opens || [], pressed: false, pressT: -9, by: null, cable: o.cable || null };
       world.switches.push(ob);
@@ -80,6 +92,36 @@ export function buildObjects(world, def) {
       ob = { x: (c + c1 + 1) / 2 * OT, z: (r + r1 + 1) / 2 * OT, hx: (c1 - c + 1) * OT / 2, hz: (r1 - r + 1) * OT / 2, h, dx: Math.sin(h), dz: Math.cos(h) };
     } else if (kind === 'watch') {
       ob = { x, z, taken: false, hidden: !!o.hidden };
+    } else if (kind === 'panels') {
+      const nc = o.cols || 3, nr = o.rows || 3, period = o.period || 3.5;
+      ob = { c0: c, r0: r, nc, nr, x: (c + nc / 2) * OT, z: (r + nr / 2) * OT, period, up: o.open || 1.5, lead: o.lead || 0.7, ph: [] };
+      // a snake through the field, or 'wave': nearly all together, a ripple along the way across (axis 'x' or 'z')
+      for (let j = 0; j < nr; j++) for (let i = 0; i < nc; i++) ob.ph.push((((o.pattern === 'wave' ? (o.axis === 'z' ? j / nr : i / nc) * (o.spread ?? 0.12) : (j * nc + (j % 2 ? nc - 1 - i : i)) / (nc * nr)) + (o.phase || 0)) % 1) * period);
+    } else if (kind === 'turnstile') {
+      ob = { x, z, R: o.radius || 2.5, w: (o.speed || 0.35) * 2 * Math.PI, phase: o.phase || 0, arms: 3 };
+      ob.reach = ob.R; ob.solid = addSolid(world, { x, z, r: 0.45, hx: 0, hz: 0, type: 'pillar', on: true });
+      world.block[Math.floor(z / OT) * world.cols + Math.floor(x / OT)] = 1;
+    } else if (kind === 'laser') {
+      ob = { x, z, L: o.len || 7, period: o.period || 4, phase: o.phase || 0 };
+      ob.reach = ob.L; ob.solid = addSolid(world, { x, z, r: 0.6, hx: 0, hz: 0, type: 'pillar', on: true });
+      world.block[Math.floor(z / OT) * world.cols + Math.floor(x / OT)] = 1;
+    } else if (kind === 'scissors') {
+      const ax = (o.across || 'x') === 'x';
+      ob = { x, z, ax: ax ? 1 : 0, az: ax ? 0 : 1, span: o.span || 4, period: o.period || 2.2, closed: o.closed || 0.4, phase: o.phase || 0 };
+      ob.reach = ob.span / 2;
+    } else if (kind === 'glove') {
+      const [fc, fr] = o.from || [c, r], d = O_DIRS[o.dir || 'e'];
+      ob = { x, z, gx: OM(fc), gz: OM(fr), dx: Math.sin(d), dz: Math.cos(d), reach: o.reach || 3, fireAt: -9, armed: true };
+    } else if (kind === 'barrier') {
+      const c1 = o.c1 ?? c, r1 = o.r1 ?? r;
+      // a wall across the way: as wide as its tiles, thin the other way (the drivers' route treats all its tiles as shut)
+      const wide = c1 - c >= r1 - r;
+      ob = { color: o.color || 'red', c0: c, r0: r, c1, r1, x: (c + c1 + 1) / 2 * OT, z: (r + r1 + 1) / 2 * OT, wide, hx: wide ? (c1 - c + 1) * OT / 2 - 0.05 : 0.3, hz: wide ? 0.3 : (r1 - r + 1) * OT / 2 - 0.05, rise: 0 };
+      ob.solid = addSolid(world, { x: ob.x, z: ob.z, r: 0, hx: ob.hx, hz: ob.hz, type: 'barrier', on: true, barrier: ob });
+      world.barriers.push(ob);
+    } else if (kind === 'chaser') {
+      ob = { x, z, sx: x, sz: z, speed: o.speed || 10.8, R: o.radius || 1.7, active: false, s: 0, path: null, t0: 0, done: false };
+      world.chaser = ob;
     } else if (kind === 'cp') {
       const ax = (o.across || 'x') === 'x';
       ob = { index: world.checkpoints.length, x, z, c, r, ax: ax ? 1 : 0, az: ax ? 0 : 1, w: (o.w || 3) * OT / 2, dx: 0, dz: 1, h: 0 };
@@ -104,11 +146,96 @@ export function buildObjects(world, def) {
     const nx = cp.az, nz = cp.ax, f = navDistAt(world, cp.x + nx * 2.5, cp.z + nz * 2.5) <= navDistAt(world, cp.x - nx * 2.5, cp.z - nz * 2.5) ? 1 : -1;
     cp.dx = nx * f; cp.dz = nz * f; cp.h = Math.atan2(cp.dx, cp.dz);
   }
+  // a turnstile's whole sweep is shut to the route: drivers go round it, the greedy cut through for the goods on its arms
+  for (const ob of objs) {
+    if (ob.kind !== 'turnstile') continue;
+    (world.noGo || (world.noGo = [])).push({ x: ob.x, z: ob.z, r: ob.R + 1.0 });
+    for (let r = Math.floor((ob.z - ob.R) / OT); r <= Math.floor((ob.z + ob.R) / OT); r++) for (let c = Math.floor((ob.x - ob.R) / OT); c <= Math.floor((ob.x + ob.R) / OT); c++)
+      if (c >= 0 && r >= 0 && c < world.cols && r < world.rows && Math.hypot((c + 0.5) * OT - ob.x, (r + 0.5) * OT - ob.z) < ob.R + 0.4) world.block[r * world.cols + c] = 1;
+  }
   for (const g of world.gates) setGateBlock(world, g, 1);
+  setBarriers(world);
   navBuild(world);
   world.navStart = navDistAt(world, world.start.x, world.start.z);
   return objs;
 }
+// The smart barriers: the ones of the colour that is up are solid (and block the drivers' routes).
+function setBarriers(world) {
+  for (const b of world.barriers) {
+    const up = (b.color === 'red') === world.redUp;
+    b.solid.on = up;
+    for (let r = b.r0; r <= b.r1; r++) for (let c = b.c0; c <= b.c1; c++) world.block[r * world.cols + c] = up ? 1 : 0;
+  }
+}
+export function flipBarriers(sim) {
+  const world = sim.world;
+  if (!world.barriers.length) return;
+  world.redUp = !world.redUp; world.flipT = sim.def.flipEvery || 0;
+  setBarriers(world); navBuild(world);
+  // a barrier that rises under a cart pushes it out to the side it is on
+  for (const b of world.barriers) if (b.solid.on) for (const k of sim.carts) {
+    const dx = k.x - b.x, dz = k.z - b.z, R = CFG.CART_R + 0.1;
+    if (k.done || Math.abs(dx) > b.hx + R || Math.abs(dz) > b.hz + R) continue;
+    const nx = b.wide ? 0 : Math.sign(dx) || 1, nz = b.wide ? Math.sign(dz) || 1 : 0;
+    if (b.wide) k.z = b.z + nz * (b.hz + R); else k.x = b.x + nx * (b.hx + R);
+    sim.shove(k, b, nx, nz);
+  }
+  sim.emit('flip', null, world.redUp ? 1 : 0);
+}
+// The route to the checkouts with every barrier down: the player's bots aim through the barriers they will flip.
+export function freeField(world) {
+  if (world.freeVer === world.navVer) return world.navFree;
+  const bar = (v) => { for (const b of world.barriers) for (let r = b.r0; r <= b.r1; r++) for (let c = b.c0; c <= b.c1; c++) world.block[r * world.cols + c] = v === 2 ? (b.solid.on ? 1 : 0) : v; };
+  bar(0);
+  const seeds = [];
+  for (const lane of world.lanes) if (lane.open) for (const i of lane.tiles) seeds.push(i, lane.warned ? 14 : 0);
+  world.navFree = fieldFrom(world, seeds, world.navFree || new Float32Array(world.cols * world.rows));
+  bar(2);
+  world.freeVer = world.navVer;
+  return world.navFree;
+}
+// The giant yarn ball sets off down the route to the checkouts (following the route field downhill).
+export function startChaser(sim) {
+  const ob = sim.world.chaser, world = sim.world;
+  if (!ob || ob.active || ob.done) return;
+  const path = [[ob.sx, ob.sz]];
+  let c = Math.floor(ob.sx / OT), r = Math.floor(ob.sz / OT);
+  for (let n = 0; n < 400; n++) {
+    let best = world.nav[r * world.cols + c], bc = c, br = r;
+    for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const v = world.nav[(r + dr) * world.cols + c + dc]; if (v < best - 1e-3) { best = v; bc = c + dc; br = r + dr; } }
+    if (bc === c && br === r) break;
+    c = bc; r = br; path.push([(c + 0.5) * OT, (r + 0.5) * OT]);
+  }
+  ob.path = path; ob.len = 0; ob.seg = [];
+  for (let i = 1; i < path.length; i++) { const l = Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]); ob.seg.push(l); ob.len += l; }
+  ob.active = true; ob.s = 0; ob.t0 = sim.t;
+  sim.emit('chaser', null, 1, ob);
+}
+// Where the ball is at time t (null when it is not rolling then).
+export function chaserAt(ob, t, out) {
+  if (!ob.active) return null;
+  let s = (t - ob.t0) * ob.speed;
+  if (s > ob.len) return null;
+  let i = 0;
+  while (i < ob.seg.length - 1 && s > ob.seg[i]) { s -= ob.seg[i]; i++; }
+  const a = ob.path[i], b = ob.path[i + 1] || a, f = ob.seg[i] ? Math.min(1, s / ob.seg[i]) : 0;
+  out.x = a[0] + (b[0] - a[0]) * f; out.z = a[1] + (b[1] - a[1]) * f; out.h = Math.atan2(b[0] - a[0], b[1] - a[1]); out.d = (t - ob.t0) * ob.speed;
+  return out;
+}
+const OC = { x: 0, z: 0, h: 0, d: 0 };
+export function armAngle(ob, t, i) { return ob.w * t + ob.phase * 2 * Math.PI + i * 2 * Math.PI / ob.arms; }
+export function laserAngle(ob, t) { return 2 * Math.PI * (t / ob.period + ob.phase); }
+// The scissors: 0 open, 1 the glint before they close, 2 closing or shut (dangerous).
+export function scissorState(ob, t) {
+  const u = ((t / ob.period + ob.phase) % 1 + 1) % 1 * ob.period, shut = ob.period - ob.closed;
+  return u >= shut - 0.1 ? 2 : u >= shut - 0.6 ? 1 : 0;
+}
+// How far a boxing glove is out at time t (0..1).
+export function gloveReach(ob, t) {
+  const u = t - ob.fireAt;
+  return u < 0 || u > 0.75 ? 0 : u < 0.12 ? u / 0.12 : u < 0.4 ? 1 : 1 - (u - 0.4) / 0.35;
+}
+const segDist = (px, pz, ax, az, bx, bz) => { const vx = bx - ax, vz = bz - az, l2 = vx * vx + vz * vz || 1, t = Math.max(0, Math.min(1, ((px - ax) * vx + (pz - az) * vz) / l2)); return Math.hypot(px - ax - vx * t, pz - az - vz * t); };
 function setGateBlock(world, g, v) {
   for (let r = g.r0; r <= g.r1; r++) for (let c = g.c0; c <= g.c1; c++) world.block[r * world.cols + c] = v;
 }
@@ -139,9 +266,10 @@ function tileIndex(ob, x, z) {
 // Where a patrol is at time t: out.x, out.z, out.h (heading of its forks). It runs out along its path, waits,
 // runs back, waits.
 export function patrolAt(ob, t, out) {
-  const run = ob.len / ob.speed, u = ((t / ob.cycle + ob.phase) % 1 + 1) % 1 * ob.cycle;
+  const run = ob.len / ob.speed, u = (((t - (ob.held || 0)) / ob.cycle + ob.phase) % 1 + 1) % 1 * ob.cycle;   // (a vacuum that bumps into a cart waits: held)
   let s, back = false;
-  if (u < ob.wait) s = 0;
+  if (ob.loop) s = u * ob.speed;                             // round and round its loop
+  else if (u < ob.wait) s = 0;
   else if (u < ob.wait + run) s = (u - ob.wait) * ob.speed;
   else if (u < 2 * ob.wait + run) { s = ob.len; back = true; }
   else { s = ob.len - (u - 2 * ob.wait - run) * ob.speed; back = true; }
@@ -150,10 +278,11 @@ export function patrolAt(ob, t, out) {
   const a = ob.pts[i], b = ob.pts[i + 1] || a, l = ob.seg[i] || 1, f = Math.min(1, s / l);
   out.x = a[0] + (b[0] - a[0]) * f; out.z = a[1] + (b[1] - a[1]) * f;
   out.h = Math.atan2(b[0] - a[0], b[1] - a[1]) + (back ? Math.PI : 0);
-  out.moving = u >= ob.wait && (u < ob.wait + run || u >= 2 * ob.wait + run);
+  out.moving = ob.loop || (u >= ob.wait && (u < ob.wait + run || u >= 2 * ob.wait + run));
   return out;
 }
 const OP = { x: 0, z: 0, h: 0, moving: false };
+const PIT = { kind: 'pit', fx: 'wipe' };
 
 // ---- the two questions ------------------------------------------------------------------------------------
 // Is (x, z) dangerous at time t? pad widens the object (a cart's radius).
@@ -164,7 +293,31 @@ export function dangerAt(ob, x, z, t, pad = 0) {
     const th = signAngle(ob, t);
     return Math.abs(th) < SIGN.LOW && Math.abs(lat - SIGN.R * Math.sin(th)) < ob.w / 2 + pad;
   }
-  if (ob.kind === 'tiles') {
+  if (ob.kind === 'turnstile') {
+    if (Math.hypot(x - ob.x, z - ob.z) > ob.R + pad) return false;
+    for (let i = 0; i < ob.arms; i++) { const a = armAngle(ob, t, i); if (segDist(x, z, ob.x, ob.z, ob.x + Math.sin(a) * ob.R, ob.z + Math.cos(a) * ob.R) < 0.2 + pad) return true; }
+    return false;
+  }
+  if (ob.kind === 'laser') {
+    if (Math.hypot(x - ob.x, z - ob.z) > ob.L + pad) return false;
+    const a = laserAngle(ob, t);
+    return segDist(x, z, ob.x, ob.z, ob.x + Math.sin(a) * ob.L, ob.z + Math.cos(a) * ob.L) < 0.2 + pad;
+  }
+  if (ob.kind === 'scissors') {
+    const dx = x - ob.x, dz = z - ob.z, lat = dx * ob.ax + dz * ob.az, along = dx * ob.az - dz * ob.ax;
+    return Math.abs(along) < 0.3 + pad && Math.abs(lat) < ob.span / 2 + pad && scissorState(ob, t) === 2;
+  }
+  if (ob.kind === 'glove') {
+    const e = gloveReach(ob, t);
+    if (e <= 0) return false;
+    const dx = x - ob.gx, dz = z - ob.gz, along = dx * ob.dx + dz * ob.dz, lat = Math.abs(dx * ob.dz - dz * ob.dx);
+    return along > -pad && along < ob.reach * e + 0.5 + pad && lat < 0.7 + pad;
+  }
+  if (ob.kind === 'chaser') {
+    const p = chaserAt(ob, t, OC);
+    return !!p && Math.hypot(x - p.x, z - p.z) < ob.R + pad;
+  }
+  if (ob.kind === 'tiles' || ob.kind === 'panels') {
     for (const [ox, oz] of pad > 0 ? O_PADS : O_ZERO) {
       const i = tileIndex(ob, x + ox * pad, z + oz * pad);
       if (i >= 0 && tilePop(ob, i, t) === 2) return true;
@@ -173,6 +326,7 @@ export function dangerAt(ob, x, z, t, pad = 0) {
   }
   if (ob.kind === 'patrol') {
     patrolAt(ob, t, OP);
+    if (ob.loop) return Math.hypot(x - OP.x, z - OP.z) < 0.55 + pad;
     const dx = x - OP.x, dz = z - OP.z, s = Math.sin(OP.h), c = Math.cos(OP.h);
     return Math.abs(dx * c - dz * s) < ob.hx + pad && Math.abs(dx * s + dz * c) < ob.hz + pad;
   }
@@ -186,8 +340,7 @@ const O_ZERO = [[0, 0]], O_PADS = [[0, 0], [0.7, 0.7], [-0.7, 0.7], [0.7, -0.7],
 export function passDelay(ob, x0, z0, x1, z1, v, t, pad = 0.55, limit = 4, v0) {
   const dx = x1 - x0, dz = z1 - z0, len = Math.hypot(dx, dz), n = Math.max(1, Math.ceil(len / 0.35));
   const hits = [];
-  const near = ob.kind === 'patrol' ? ob.len / 2 + 3 : ob.kind === 'tiles' ? (ob.nc + ob.nr) * OT / 2 + 1 : ob.reach + 2;
-  const cx = ob.kind === 'patrol' ? (ob.pts[0][0] + ob.pts[ob.pts.length - 1][0]) / 2 : ob.x, cz = ob.kind === 'patrol' ? (ob.pts[0][1] + ob.pts[ob.pts.length - 1][1]) / 2 : ob.z;
+  const [cx, cz, near] = extent(ob);
   for (let i = 0; i <= n; i++) {
     const px = x0 + dx * i / n, pz = z0 + dz * i / n;
     if (Math.abs(px - cx) < near + pad && Math.abs(pz - cz) < near + pad) hits.push([px, pz, v0 === undefined ? len * i / n / Math.max(v, 0.5) : timeTo(len * i / n, v0, Math.max(v, 0.5))]);
@@ -199,6 +352,15 @@ export function passDelay(ob, x0, z0, x1, z1, v, t, pad = 0.55, limit = 4, v0) {
     if (safe) return d;
   }
   return limit;
+}
+
+// The middle of an object's area and how far it reaches from there.
+function extent(ob) {
+  if (ob.kind === 'patrol') { let a = 1e9, b = -1e9, c = 1e9, d = -1e9; for (const [px, pz] of ob.pts) { a = Math.min(a, px); b = Math.max(b, px); c = Math.min(c, pz); d = Math.max(d, pz); } return [(a + b) / 2, (c + d) / 2, Math.max(b - a, d - c) / 2 + 2.5]; }
+  if (ob.kind === 'tiles' || ob.kind === 'panels') return [ob.x, ob.z, (ob.nc + ob.nr) * OT / 2 + 1];
+  if (ob.kind === 'glove') return [(ob.gx + ob.x) / 2, (ob.gz + ob.z) / 2, ob.reach + 2];
+  if (ob.kind === 'chaser') return ob.active ? [ob.x, ob.z, 200] : [ob.x, ob.z, 0];
+  return [ob.x, ob.z, (ob.reach || 3) + 2];
 }
 
 // Seconds to cover s metres starting at speed v0 and settling at speed v (accelerating at 10 m/s2, braking at 18).
@@ -216,8 +378,8 @@ export function hazardsOn(world, x0, z0, x1, z1, out) {
   const minx = Math.min(x0, x1) - 3, maxx = Math.max(x0, x1) + 3, minz = Math.min(z0, z1) - 3, maxz = Math.max(z0, z1) + 3;
   for (const ob of world.objs) {
     if (ob.fx !== 'wipe' && ob.fx !== 'push') continue;
-    const r = ob.kind === 'patrol' ? ob.len / 2 + 2 : ob.kind === 'tiles' ? (ob.nc + ob.nr) * OT / 2 : ob.reach;
-    const cx = ob.kind === 'patrol' ? (ob.pts[0][0] + ob.pts[ob.pts.length - 1][0]) / 2 : ob.x, cz = ob.kind === 'patrol' ? (ob.pts[0][1] + ob.pts[ob.pts.length - 1][1]) / 2 : ob.z;
+    if (ob.kind === 'chaser') continue;                // from a chaser there is only running
+    const [cx, cz, r] = extent(ob);
     if (cx + r < minx || cx - r > maxx || cz + r < minz || cz - r > maxz) continue;
     out.push(ob);
   }
@@ -227,8 +389,12 @@ export function hazardsOn(world, x0, z0, x1, z1, out) {
 // ---- one step of the objects -------------------------------------------------------------------------------
 // The simulation provides: emit, wipeout(cart, object), pop(cart, object, tileX, tileZ), shove(cart, object,
 // nx, nz), padBoost(cart, object), watch(cart, object), checkpoint(cart, object).
+export function objExtent(ob) { return extent(ob); }
 export function stepObjects(sim, dt) {
   const world = sim.world, t = sim.t;
+  if (world.barriers.length && sim.def.flipEvery && (world.flipT -= dt) <= 0) flipBarriers(sim);     // the timed fallback
+  const ch = world.chaser;
+  if (ch && ch.active) { const p = chaserAt(ch, t, OC); if (p) { ch.x = p.x; ch.z = p.z; ch.d = p.d; } else { ch.active = false; ch.done = true; sim.emit('chaser', null, 0, ch); } }
   for (const g of world.gates) {
     if (!g.opening || g.open >= 1) continue;
     g.open = Math.min(1, g.open + dt / 0.6);
@@ -247,6 +413,31 @@ export function stepObjects(sim, dt) {
           // nose and tail circles of the cart
           if (dangerAt(ob, k.x + hx * CFG.noseAt, k.z + hz * CFG.noseAt, t, CFG.noseR * 0.85) || dangerAt(ob, k.x + hx * CFG.tailAt, k.z + hz * CFG.tailAt, t, CFG.tailR * 0.85)) sim.wipeout(k, ob);
           break;
+        case 'panels': {
+          if (!ground || k.immuneT > 0) break;
+          const i = tileIndex(ob, k.x, k.z);
+          if (i >= 0 && tilePop(ob, i, t) === 2) sim.wipeout(k, ob);
+          break;
+        }
+        case 'turnstile': case 'laser': case 'scissors': case 'chaser': {
+          if (!ground || k.immuneT > 0 || (ob.kind === 'chaser' && !ob.active)) break;
+          const hit = dangerAt(ob, k.x + hx * CFG.noseAt, k.z + hz * CFG.noseAt, t, CFG.noseR * 0.85) || dangerAt(ob, k.x + hx * CFG.tailAt, k.z + hz * CFG.tailAt, t, CFG.tailR * 0.85);
+          if (!hit) break;
+          if (ob.kind === 'turnstile') {          // the arm sweeps the cart along: pushed the way it turns
+            let best = 0;
+            for (let i = 1; i < ob.arms; i++) if (Math.abs(Math.sin(armAngle(ob, t, i) - Math.atan2(dx, dz))) < Math.abs(Math.sin(armAngle(ob, t, best) - Math.atan2(dx, dz)))) best = i;
+            // swept along the way the arm turns and out of the circle
+            const a = armAngle(ob, t, best) + Math.PI / 2 * Math.sign(ob.w), d = Math.hypot(dx, dz) || 1, nx = Math.sin(a) + dx / d * 0.9, nz = Math.cos(a) + dz / d * 0.9, l = Math.hypot(nx, nz) || 1;
+            sim.shove(k, ob, nx / l, nz / l);
+          } else sim.wipeout(k, ob);
+          break;
+        }
+        case 'glove': {
+          if (ob.armed && ground && Math.hypot(dx, dz) < 1.1) { ob.armed = false; ob.fireAt = t + 0.3; sim.emit('plate', k, 0, ob); }
+          if (!ob.armed && t > ob.fireAt + 1.2) ob.armed = true;
+          if (gloveReach(ob, t) > 0.3 && dangerAt(ob, k.x, k.z, t, CFG.CART_R * 0.8)) sim.shove(k, ob, ob.dx, ob.dz);
+          break;
+        }
         case 'tiles': {
           if (!ground || k.popT > 0) break;
           const i = tileIndex(ob, k.x, k.z);
@@ -259,6 +450,16 @@ export function stepObjects(sim, dt) {
           const ex = k.x - OP.x, ez = k.z - OP.z, s = Math.sin(OP.h), c = Math.cos(OP.h), lx = ex * c - ez * s, lz = ex * s + ez * c;
           const ox = ob.hx + CFG.CART_R - Math.abs(lx), oz = ob.hz + CFG.CART_R - Math.abs(lz);
           if (ox <= 0 || oz <= 0) break;
+          if (ob.loop && (k.dashT > 0 || k.madT > 0) && ob.spitT <= t) { ob.spitT = t + 4; ob.spinT = t + 1.2; sim.spit(ob, OP.x, OP.z); break; }
+          if (ob.loop) {
+            // a robot vacuum stops when it bumps into a cart and the cart is nudged off it; only a cart that drives into
+            // it fast is knocked back (and loses the top of its tower)
+            if (ob.heldAt !== t) { ob.held = (ob.held || 0) + dt; ob.heldAt = t; }
+            const d = Math.hypot(ex, ez) || 1, nx = ex / d, nz = ez / d, R = ob.hx + CFG.CART_R;
+            if (d < R) { k.x = OP.x + nx * R; k.z = OP.z + nz * R; }
+            if (-(k.vx * nx + k.vz * nz) > 3 && !(k.vacT > t)) { k.vacT = t + 1.5; sim.shove(k, ob, nx, nz); }
+            break;
+          }
           // out along the shallower side of the box
           let nx, nz;
           if (ox < oz) { nx = Math.sign(lx) * c; nz = -Math.sign(lx) * s; } else { nx = Math.sign(lz) * s; nz = Math.sign(lz) * c; }
@@ -281,6 +482,7 @@ export function stepObjects(sim, dt) {
           ob.taken = true;
           sim.watch(k, ob);
           break;
+        case 'pitcheck': break;
         case 'cp': {
           if (ob.index <= k.cp) break;
           const lat = dx * ob.ax + dz * ob.az, along = dx * ob.dx + dz * ob.dz;
@@ -290,11 +492,17 @@ export function stepObjects(sim, dt) {
       }
     }
   }
+  // a cart that rolls into a pit (a clearance bin, the stockroom, the pool) is a wipeout unless it is in the air
+  if (world.pits) for (const k of sim.carts) {
+    if (k.done || k.wipeT > 0 || k.air > 0 || k.immuneT > 0) continue;
+    const i = Math.floor(k.z / OT) * world.cols + Math.floor(k.x / OT);
+    if (world.pit[i]) sim.wipeout(k, PIT);
+  }
   // shoppers who wander into a sign or a forklift are flattened like a pancake and pop back up (never a wipeout)
   for (const s of sim.shoppers) {
     if (s.state < 0 || s.state === 5 || s.safeT > t) continue;
     for (const ob of world.objs) {
-      if (ob.kind !== 'sign' && ob.kind !== 'patrol') continue;
+      if (ob.kind !== 'sign' && ob.kind !== 'patrol' && ob.kind !== 'chaser' && ob.kind !== 'laser') continue;
       if (Math.abs(s.x - ob.x) > 12 || Math.abs(s.z - ob.z) > 12) continue;
       if (dangerAt(ob, s.x, s.z, t, 0.25)) { s.state = 5; s.t = 1.4; s.safeT = t + 5; s.vx = s.vz = 0; sim.emit('pancake', null, 0, s); break; }
     }

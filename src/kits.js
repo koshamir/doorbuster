@@ -38,6 +38,20 @@ export const KITS = {
     hot: 'goldcan',
     crowd: CROWD_MIX.warehouse,
   },
+  // GADGET GOBLIN: glossy navy floor under a cyan grid, TV walls playing their channels, neon, hard cool light and
+  // strong bloom; the smart barriers are the red and the blue.
+  electronics: {
+    id: 'electronics', name: 'GADGET GOBLIN', palette: { a: '#1B1F3B', b: '#00E5FF', c: '#FF4FD8', d: '#FFD23F' }, sign: '#11142A', top: '#2A2F5A',
+    signs: ['PHONES', 'AUDIO', 'GAMING', 'LAPTOPS', 'CAMERAS', 'SMART HOME', 'TV & VIDEO', 'VR ZONE'],
+    shelves: { S: 'tech', M: 'techtable', L: 'tvwall' }, fixture: { body: 0x2A2F5A, accent: 0x00E5FF, trim: 0xFF4FD8, dark: 0x11142A },
+    floor: { a: 0x20264D, b: 0x1B1F3B, grout: 0x00E5FF, checker: 1, paint: 0xFF4FD8, arrow: 0x00E5FF, vary: 0.06, wet: 0x7CC6FE, grid: 0.55, gloss: 0.5 },
+    walls: { face: 0x262B52, band: 0x00E5FF, stripe: 0xFF4FD8, top: 0x2A2F5A, base: 0x11142A },
+    pools: { grid: 10, r: 2.6, warm: [0.8, 0.95, 1.12], k: 0.1 },
+    grade: { shade: [0.5, 0.52, 0.92], key: [0.92, 0.96, 1.05], light: [0.3, 0.85, 0.45], sat: 1.12, contrast: 1.1, lift: [0.01, 0.0, 0.05], gain: [0.97, 1, 1.05], vignette: 0.28, bloom: 1.5, halftone: 0.14 },
+    void: 0x0D0F22,
+    hot: 'gigatv',
+    crowd: CROWD_MIX.electronics,
+  },
 };
 export function kitOf(def) { return KITS[def.kit || 'supermarket'] || KITS.supermarket; }
 
@@ -97,6 +111,9 @@ void main() {
     c = mix(c, uWet, pud * 0.75);
     float glint = step(0.92, sin((g.x + g.y) * 7.0 + uTime * 1.6) * sin((g.x - g.y) * 5.0 - uTime));
     c = mix(c, vec3(1.0), glint * pud * far);
+  } else if (d > 14.5) {                                            // a pit: a dark drop with hazard edges
+    c = mix(vec3(0.09, 0.07, 0.13), uHatch, step(0.4, e.x + e.y * 0.0) * step(0.5, fract((f.x + f.y) * 4.0)) * 0.0);
+    c = mix(c, mix(uHatch, uInk, step(0.5, fract((g.x + g.y) * 2.0))), max(step(0.43, e.x), step(0.43, e.y)));
   } else if (d > 13.5) {
     c = mix(mix(uHatch, uInk, step(0.5, fract((f.x + f.y) * 2.0))), c, 0.2);
     c = mix(c, uClosed, step(0.5, fract(uTime * 4.0)) * 0.7);
@@ -151,7 +168,7 @@ export function floorMap(world) {
   const { cols, rows } = world, data = new Uint8Array(cols * rows * 4);
   for (let i = 0; i < cols * rows; i++) {
     const k = world.plan[Math.floor(i / cols)][i % cols];
-    data[i * 4 + 1] = (world.laneOf[i] >= 0 ? (world.lanes[world.laneOf[i]].closed ? 7 : 5) : world.belt[i] ? 7 + world.belt[i] : world.wet[i] ? 12 : k === '=' ? 13 : 0) * 16;
+    data[i * 4 + 1] = (world.pit[i] ? 15 : world.laneOf[i] >= 0 ? (world.lanes[world.laneOf[i]].closed ? 7 : 5) : world.belt[i] ? 7 + world.belt[i] : world.wet[i] ? 12 : k === '=' ? 13 : 0) * 16;
     const b = world.belt[i], to = b ? i + (b === 1 ? 1 : b === 3 ? -1 : b === 2 ? cols : -cols) : -1, line = world.plan[Math.floor(i / cols)];
     data[i * 4 + 2] = (b ? world.nav[to] > world.nav[i] : k === '=' && line[i % cols - 1] !== '=' && line[i % cols + 1] !== '=') ? 255 : 0;
     data[i * 4 + 3] = world.floor[i] ? 255 : 0;

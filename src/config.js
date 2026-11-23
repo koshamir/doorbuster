@@ -168,6 +168,8 @@ export const POOLS = {
 export const CROWD_MIX = {
   supermarket: ['walkerGranny', 'strollerMom', 'staff', 'caneGrandpa', 'toddler', 'phoneTeen', 'bellyBro', 'jogger', 'mascot'],
   warehouse: ['staff', 'bellyBro', 'gymBro', 'caneGrandpa', 'phoneTeen', 'strollerMom', 'jogger', 'gamer', 'scooterElder'],
+  electronics: ['gamer', 'phoneTeen', 'staff', 'gymBro', 'toddler', 'jogger', 'bellyBro', 'strollerMom', 'gamer'],
+  boutique: ['fashionista', 'walkerGranny', 'phoneTeen', 'strollerMom', 'fashionista', 'staff', 'caneGrandpa', 'toddler', 'jogger'],
 };
 
 // ---- Characters. One silhouette, one colour, one behaviour each (GDD 5.6). ---------------------
