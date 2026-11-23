@@ -55,7 +55,7 @@ function startLevel(quick) {
   if (game.view) disposeScene(game.view);
   clearFx();
   const def = game.custom || LEVELS[game.level];
-  game.sim = createSim(def, game.seed, { bot: BOTS[game.bot] ? game.bot : undefined, countdown: quick ? 1.2 : CFG.countdown });
+  game.sim = createSim(def, game.seed, { bot: BOTS[game.bot] ? game.bot : undefined, countdown: quick ? 1.5 : CFG.countdown });
   if (query.get('fill')) giveGoods(game.sim, game.sim.player, Number(query.get('fill')));   // test aid: start with goods
   game.view = buildScene(game.sim);
   setGrade(game.view.kit.grade);

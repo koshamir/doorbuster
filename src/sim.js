@@ -15,7 +15,7 @@ import { TUNE, CFG, GOODS, GOOD, POOLS, makeRng, clamp, wrapAngle } from './conf
 import { buildWorld, navBuild, navDistAt, blockedAt } from './world.js';
 import { makeCart, stepCart, loadFactor } from './cart.js';
 import { buildObjects, stepObjects } from './objects.js';
-import { BOTS, makeDriver, rivalProfile, drive, spawnCrowd, stepCrowd, spawnTrains, stepTrains } from './ai.js';
+import { BOTS, makeDriver, rivalProfile, drive, inZone, spawnCrowd, stepCrowd, spawnTrains, stepTrains } from './ai.js';
 
 // opts: bot ('beginner' | 'confident' | 'expert' | 'sloppy') drives the player's cart; countdown and
 // timer override the defaults (tests use countdown: 0); greed (0..1) overrides the bot's appetite;
@@ -81,11 +81,12 @@ export function createSim(def, seed, opts = {}) {
       if (k.madT <= 0) { spill(sim, k, 0.25, k.vx / sp, k.vz / sp, true); madLose(sim, k); }
       sim.emit('wipe', k, 0, ob);
     },
-    // A pop-up tile launches the cart in an arc off the tile; the top of the tower is shaken loose.
+    // A pop-up tile launches the cart straight up (a boing that eats its momentum, not a throw onto the next
+    // tile); the top of the tower is shaken loose.
     pop(k, ob, tx, tz) {
       let dx = k.x - tx, dz = k.z - tz, d = Math.hypot(dx, dz);
       if (d < 0.35) { const sp = Math.hypot(k.vx, k.vz) || 1; dx = -k.vx / sp; dz = -k.vz / sp; d = 1; }
-      k.vx = k.vx * 0.3 + dx / d * 4.2; k.vz = k.vz * 0.3 + dz / d * 4.2;
+      k.vx = k.vx * 0.5 + dx / d * 1.2; k.vz = k.vz * 0.5 + dz / d * 1.2; k.popT = 2.2;     // a whole wave to drive off the field
       k.drift = 0; k.driftT = 0; k.tier = 0; k.dashT = 0;
       k.air = k.airT = CFG.popTime; k.over = false; k.popped = true;
       if (k.player) sim.stats.pops++;
@@ -298,6 +299,8 @@ function fountain(sim, k) {
 // Whether a cart passed an object or was caught by it, per rival and object (the smoke test reads it).
 function record(sim, k, ob, passed) {
   if (k.player || !ob) return;
+  const roll = k.ai && k.ai.rolls.get(ob);
+  if (!passed && roll && roll.scripted) return;      // a level's scripted failure (Granny's first go at the tiles) is not a miss
   const key = k.char + ':' + sim.world.objs.indexOf(ob), p = sim.stats.passes[key] || (sim.stats.passes[key] = [0, 0]);
   p[passed ? 0 : 1]++;
   if (!passed && k.ai) k.ai.lastFail = ob;
@@ -419,11 +422,6 @@ function ram(sim, a, b, nx, nz) {
   if (b.player && a.ai && !(a.ai.strikeT > 0)) return;   // a rival's ram on the player counts only if it was announced
   if (b.player && a.ai) a.ai.hit = true;
   a.ramCd = 0.5; a.dashHits++;
-  if (b.char === 'granny' && a.load < TUNE.loadfull * 0.7 && a.boostT <= 0 && a.madT <= 0) {
-    a.vx -= nx * 5; a.vz -= nz * 5;
-    sim.emit('bonk', a, 0, b);
-    return;
-  }
   b.vx += nx * 6; b.vz += nz * 6;
   b.stunT = b.player ? 0.6 : 1; b.spinT = b.stunT; b.turnTo = null;
   b.immuneT = TUNE.immunity + b.stunT;
@@ -539,7 +537,7 @@ export function stepSim(sim) {
     }
   }
   bumpCarts(sim);
-  if (racing) { stepObjects(sim, dt); stepCrowd(sim, dt); stepTrains(sim, dt); }
+  if (racing) { stepObjects(sim, dt); zones(sim); stepCrowd(sim, dt); stepTrains(sim, dt); }
 
   // Spilled goods wait a moment before they can be taken, then time out.
   for (const d of world.drops) {
@@ -587,6 +585,21 @@ export function stepSim(sim) {
     if (sim.t >= sim.timer) { sim.phase = 'closed'; sim.emit('timeup', p); }
   } else if (sim.phase === 'done' && sim.t >= sim.timer) {
     for (const k of sim.carts) k.done = true;        // the store has closed on whoever is still out there
+  }
+}
+
+// A rival that leaves a hazard's area without having been caught by it has passed it (the smoke test counts).
+function zones(sim) {
+  if (!sim.world.objs.length || sim.tick % 6) return;
+  for (const k of sim.carts) {
+    if (k.player || k.done) continue;
+    const inside = k.zone || (k.zone = new Set());
+    for (const ob of sim.world.objs) {
+      if (ob.fx !== 'wipe' && ob.fx !== 'push') continue;
+      const now = k.wipeT <= 0 && inZone(ob, k.x, k.z, 0.6);
+      if (now) inside.add(ob);
+      else if (inside.has(ob)) { inside.delete(ob); if (k.ai && k.ai.lastFail !== ob) record(sim, k, ob, true); if (k.ai && k.ai.lastFail === ob) k.ai.lastFail = null; }
+    }
   }
 }
 
@@ -642,7 +655,7 @@ function bumpCarts(sim) {
     if (hitA && !hitB) ram(sim, a, b, nx, nz); else if (hitB && !hitA) ram(sim, b, a, -nx, -nz);
     over -= reach;
     if (over <= 0) continue;
-    const ma = 1 + Math.min(1, a.load / TUNE.loadfull), mb = 1 + Math.min(1, b.load / TUNE.loadfull);
+    const ma = (1 + Math.min(1, a.load / TUNE.loadfull)) * (a.def.mass || 1), mb = (1 + Math.min(1, b.load / TUNE.loadfull)) * (b.def.mass || 1);
     const push = over / (ma + mb);
     a.x -= nx * push * mb; a.z -= nz * push * mb;
     b.x += nx * push * ma; b.z += nz * push * ma;

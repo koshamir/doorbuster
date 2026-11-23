@@ -331,8 +331,10 @@ export function showReceipt(rc, tableOf, best, storeName, medal, onRetry, onNext
     steps.push(() => { row.classList.add('in'); out.textContent = value; audioCue(cls === 'total' ? 'kaching' : 'scan', k); });
     return row;
   };
+  // the lines of the mode (DESIGN.md section 2): RUSH items, stunts, time; SMASH adds the smash money
   line('ITEMS x' + rc.count, money(rc.items));
-  line('LIST', money(rc.list));
+  if (rc.mode === 'smash') line('SMASH', money(rc.smash));
+  if (rc.list) line('LIST', money(rc.list));
   line('STUNTS', money(rc.stunts));
   line('TIME ' + rc.left + ' s', money(rc.time));
   const total = line('TOTAL', money(rc.total), 'total');

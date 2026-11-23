@@ -4,38 +4,42 @@
 //          fills the same input structure the keyboard fills, so bots and rivals obey the same cart
 //          model. Also the crowd: shoppers on foot who stroll, dodge, get bowled over and get up,
 //          and the cart train that shuttles along its track.
-// Exports: BOTS, rivalProfile, makeDriver, drive, spawnCrowd, stepCrowd, spawnTrains, stepTrains
+// Exports: BOTS, rivalProfile, makeDriver, drive, inZone, spawnCrowd, stepCrowd, spawnTrains, stepTrains
 // Depends on: config.js, world.js. No DOM, no THREE.
 
 import { TUNE, CFG, GOODS, CHARS, clamp, wrapAngle } from './config.js';
 import { navAim, navDistAt, clearPath, collide, blockedAt } from './world.js';
-import { switchField } from './objects.js';
+import { switchField, hazardsOn, passDelay } from './objects.js';
+import { loadFactor } from './cart.js';
 
 // pace = share of top speed, hz = decisions per second, noise = steering error (rad),
 // drift / dash = how readily the driver uses them (0..1), look = tiles of path it looks along,
 // greed = how far it leaves its line for goods (0 = never), fill = load (share of a full cart) at
 // which it stops collecting, clock = whether it gives up collecting when time runs short,
 // brakes = how readily it slows for whatever is straight ahead of the cart (0 = never),
-// aggro = appetite for ramming carts that carry loot.
+// aggro = appetite for ramming carts that carry loot, judge = the chance of timing a hazard right (LEVELS.md
+// section 4: a miss is a visible, comic wipeout).
 export const BOTS = {
-  beginner:  { pace: 0.72, hz: 6,  noise: 0.22, drift: 0,   dash: 0.2, look: 5, greed: 0.35, fill: 1.0, clock: false, brakes: 0.5, aggro: 0.1 },
-  confident: { pace: 0.92, hz: 12, noise: 0.08, drift: 0.5, dash: 0.7, look: 7, greed: 0.8, fill: 1.2, clock: true, brakes: 1, aggro: 0.5 },
-  expert:    { pace: 1,    hz: 30, noise: 0,    drift: 1,   dash: 1,   look: 8, greed: 1,   fill: 1.5, clock: true, brakes: 1, aggro: 0.9 },
-  sloppy:    { pace: 1,    hz: 8,  noise: 0.3,  drift: 1,   dash: 1,   look: 4, greed: 1,   fill: 1.5, clock: false, brakes: 0, aggro: 0.6 },   // fast and careless, for tower tests
+  beginner:  { pace: 0.72, hz: 6,  noise: 0.22, drift: 0,   dash: 0.2, look: 5, greed: 0.35, fill: 1.0, clock: false, brakes: 0.5, aggro: 0.1, judge: 0.8 },
+  confident: { pace: 0.92, hz: 12, noise: 0.08, drift: 0.5, dash: 0.7, look: 7, greed: 0.8, fill: 1.2, clock: true, brakes: 1, aggro: 0.5, judge: 0.93 },
+  expert:    { pace: 1,    hz: 30, noise: 0,    drift: 1,   dash: 1,   look: 8, greed: 1,   fill: 1.5, clock: true, brakes: 1, aggro: 0.9, judge: 1 },
+  sloppy:    { pace: 1,    hz: 8,  noise: 0.3,  drift: 1,   dash: 1,   look: 4, greed: 1,   fill: 1.5, clock: false, brakes: 0, aggro: 0.6, judge: 0.4 },   // fast and careless, for tower tests
 };
+// How well each rival times a hazard (DESIGN.md section 5: 80-97%).
+const JUDGE = { granny: 0.8, dad: 0.97, queen: 0.88, selfie: 0.85, bro: 0.85, gramps: 0.96 };
 
 // A rival's driver comes from its character (config.js CHARS) and the two rival tune values.
 export function rivalProfile(id) {
   const c = CHARS[id], skill = clamp(c.skill * TUNE.rivalskill, 0.2, 1);
   return { rival: true, char: id, pace: c.pace, hz: 6 + Math.round(skill * 14), noise: (1 - skill) * 0.3, drift: skill > 0.75 ? 0.7 : 0,
     dash: 0.4 + skill * 0.6, look: 5 + Math.round(skill * 3), greed: c.greed, fill: 1.5,
-    clock: true, brakes: skill, aggro: c.aggro * TUNE.rivalaggro };
+    clock: true, brakes: skill, aggro: c.aggro * TUNE.rivalaggro, judge: JUDGE[id] || 0.85 };
 }
 
 export function makeDriver(prof) {
   return { prof, greed: prof.greed, g: prof.greed, next: 0, wobble: 0, drifting: false, driftT: 0, stuckT: 0, backT: 0, backSteer: 1, stuck: 0,
     err: 0, turnAt: -9, warnT: 0, strikeT: 0, aimH: 0, hit: false, hold: false, victim: null, mean: false, selfT: 6, photoT: 0, mood: 0, moodT: 0, wants: new Map(), shout: null,
-    progAt: 0, progT: 0 };
+    progAt: 0, progT: 0, rolls: new Map(), fails: new Set(), commit: new Map() };
 }
 
 const aim = { x: 0, z: 0, fx: 0, fz: 0, left: 0 };
@@ -249,9 +253,12 @@ export function drive(sim, k, dt) {
   if (!navAim(world, k.x, k.z, p.look, CFG.CART_R + 0.3, aim, reach, field)) { inp.gas = 0; inp.brake = 1; return; }
   const bend = Math.abs(wrapAngle(Math.atan2(aim.fx - k.x, aim.fz - k.z) - k.h));
   let tx = aim.x, tz = aim.z;
-  const listed = !ai.drifting && findGoods(sim, k, ai) && goal.list;         // a list item ahead comes before any target
-  const hunting = !listed && !ai.drifting && p.dash > 0 && ai.greed > 0 && k.dashCd <= 0.4 && k.stunT <= 0 && findTarget(sim, k, ai);
-  const shopping = listed || (!hunting && !ai.drifting && findGoods(sim, k, ai));
+  // in or right before a hazard, a driver keeps its eyes on the hazard: no shopping, no targets
+  let busy = ai.drifting;
+  for (const ob of world.objs) if ((ob.fx === 'wipe' || ob.fx === 'push') && inZone(ob, k.x, k.z, ob.fx === 'wipe' ? 6 : 2.5)) { busy = true; break; }
+  const listed = !busy && findGoods(sim, k, ai) && goal.list;         // a list item ahead comes before any target
+  const hunting = !listed && !busy && p.dash > 0 && ai.greed > 0 && k.dashCd <= 0.4 && k.stunT <= 0 && findTarget(sim, k, ai);
+  const shopping = listed || (!hunting && !busy && findGoods(sim, k, ai));
   if (hunting) { tx = mark.x; tz = mark.z; } else if (shopping) { tx = goal.x; tz = goal.z; }
   const err = wrapAngle(Math.atan2(tx - k.x, tz - k.z) - k.h) + ai.wobble;
   inp.steer = clamp(err * 2.4, -1, 1);
@@ -278,8 +285,16 @@ export function drive(sim, k, dt) {
       break;
     }
   }
-  inp.gas = clamp(v / TUNE.maxspeed, 0, 1);
-  inp.brake = k.spd > v + 3 ? 1 : 0;
+  // Hazards ahead (signs, pop-up tiles, patrols): time the crossing, or (on a misjudged approach) drive on.
+  const top = TUNE.maxspeed * (1 - TUNE.loadtop * (k.madT > 0 ? 0 : loadFactor(k)));        // what this cart can do with its load
+  v = Math.min(v, top);
+  const vBend = v;
+  const gate = hazardGate(sim, k, ai, tx, tz, TUNE.maxspeed * pace < top ? TUNE.maxspeed * pace : top), gated = gate < v;
+  if (gated) v = gate;
+  if (ai.floorV > v) v = Math.min(ai.floorV, top);          // committed inside a hazard: through it before slowing for anything
+  void vBend;
+  inp.gas = clamp(v / top, 0, 1);
+  inp.brake = k.spd > v + (gated ? 0.4 : 3) ? 1 : 0;       // a hazard's speed is kept to, not just aimed at
   // The cart train: a driver whose nose points at the track waits while the train is passing the
   // spot it would cross at (a cart that has stopped reckons with the speed it will cross at, or it
   // would roll out in front of the train). A careless driver looks less often.
@@ -292,7 +307,7 @@ export function drive(sim, k, dt) {
     const at = clamp(tr.s + (tr.wait > when ? 0 : tr.dir * CFG.trainSpeed * (when - Math.max(0, tr.wait))), 0, tr.len);
     if (Math.abs(along - at + tr.dir * TRAIN_L / 2) < TRAIN_L / 2 + 1.9) { inp.gas = 0; inp.brake = 1; hold = true; }
   }
-  ai.hold = hold;
+  ai.hold = hold || ai.waiting;
 
   // The lunge: lined up with a target and close enough. The player gets a warning first; the line
   // announced is the one to where the player's cart will be if it just carries on.
@@ -328,6 +343,74 @@ export function drive(sim, k, dt) {
       sim.stats.pushOuts++;
     }
   }
+}
+
+// ---- Hazards ----------------------------------------------------------------------------------------
+// The speed a driver may go at so that it crosses the hazards ahead in a safe window: on each approach it judges
+// the hazard once (a roll against its judge value; a level may make one rival's first try at a kind fail), then,
+// if it judged right, it slows so that it arrives when the way is clear, or stops short and waits for it.
+const HZ = [];
+function hazardGate(sim, k, ai, tx, tz, v) {
+  const world = sim.world, p = ai.prof;
+  ai.waiting = false; ai.floorV = 0;
+  if (!world.objs.length) return v;
+  // the path ahead: where the cart is actually going (its travel direction), or toward its aim point from a stop
+  const sp0 = Math.hypot(k.vx, k.vz), moving = sp0 > 3, fx = moving ? k.vx : tx - k.x, fz = moving ? k.vz : tz - k.z, fl = Math.hypot(fx, fz) || 1, look = Math.max(10, Math.abs(k.spd) * 1.3);
+  const ex = k.x + fx / fl * look, ez = k.z + fz / fl * look;
+  let out = v;
+  for (const ob of hazardsOn(world, k.x, k.z, ex, ez, HZ)) {
+    let roll = ai.rolls.get(ob);
+    if (!roll || sim.t > roll.until) {
+      const first = sim.def.firstFail && sim.def.firstFail[p.char] === ob.kind && !ai.fails.has(ob.kind);
+      roll = { ok: !first && sim.rng() < (p.judge ?? 1), until: sim.t + 6, scripted: first };
+      if (first) ai.fails.add(ob.kind);
+      ai.rolls.set(ob, roll);
+    }
+    // a level's scripted failure on the pop-up tiles: goes in at a speed that is sure to meet a pop (never a
+    // stop: whoever follows must not be held up in the field)
+    if (roll.scripted && ob.kind === 'tiles') {
+      if (k.air > 0) { roll.scripted = false; roll.until = sim.t + 1; continue; }
+      const entry = zoneDist(ob, k.x, k.z, ex, ez);
+      if (entry >= 0.4) {
+        let bad = 3.5;
+        for (const f of [1, 0.85, 0.7, 0.55]) { const sp = Math.max(4, v * f); if (passDelay(ob, k.x, k.z, ex, ez, sp, sim.t, 0.3, 0.04, Math.abs(k.spd)) > 0) { bad = sp; break; } }
+        ai.commit.set(ob, bad); out = Math.min(out, bad);
+      } else { const cv = ai.commit.get(ob); if (cv) out = Math.min(out, cv); }
+      continue;
+    }
+    if (!roll.ok) continue;                           // misjudged: drives straight in
+    // the highest steady speed at which the whole crossing is clear, starting now (it is checked again many times
+    // a second, so the cart settles on a speed that lands it in the gap); none: creep up to it, or wait short of it
+    const entry = zoneDist(ob, k.x, k.z, ex, ez);
+    if (entry < 0.4) { const cv = ai.commit.get(ob); if (cv) { out = Math.min(out, cv); ai.floorV = Math.max(ai.floorV, cv * 0.95); } continue; }   // in it: keep the planned speed (no slowing for a bend in there either), never stop
+    let go = -1;
+    for (const f of [1, 0.85, 0.7, 0.55, 0.42]) {
+      const sp = Math.max(4, v * f);
+      if (passDelay(ob, k.x, k.z, ex, ez, sp, sim.t, 0.85, 0.04, Math.abs(k.spd)) === 0) { go = sp; break; }
+    }
+    if (go > 0) { out = Math.min(out, go); ai.commit.set(ob, go); }
+    else if (entry > 7) out = Math.min(out, 4);
+    else { out = 0; ai.waiting = true; }              // wait well short of it: from there the cart can take a run at the gap
+  }
+  // patience: after a long wait at a hazard a driver goes anyway (and may be caught: comic, never stuck)
+  ai.waitT = ai.waiting ? (ai.waitT || 0) + 1 / p.hz : 0;
+  if (ai.waitT > 3.5) { for (const ob of HZ) { const r = ai.rolls.get(ob); if (r) r.ok = false; } ai.waiting = false; ai.waitT = 0; return v; }
+  return out;
+}
+// How far along a path from (x0, z0) to (x1, z1) the object's area begins (-1 if never).
+function zoneDist(ob, x0, z0, x1, z1) {
+  const dx = x1 - x0, dz = z1 - z0, len = Math.hypot(dx, dz), n = Math.ceil(len / 0.4);
+  for (let i = 0; i <= n; i++) {
+    const x = x0 + dx * i / n, z = z0 + dz * i / n;
+    if (inZone(ob, x, z, 1.2)) return len * i / n;
+  }
+  return -1;
+}
+export function inZone(ob, x, z, pad) {
+  if (ob.kind === 'sign') { const ddx = x - ob.x, ddz = z - ob.z, lat = ddx * ob.ax + ddz * ob.az, along = ddx * ob.az - ddz * ob.ax; return Math.abs(along) < 0.15 + pad && Math.abs(lat) < ob.reach + pad; }
+  if (ob.kind === 'tiles') { const T = CFG.TILE; return x > ob.c0 * T - pad && x < (ob.c0 + ob.nc) * T + pad && z > ob.r0 * T - pad && z < (ob.r0 + ob.nr) * T + pad; }
+  if (ob.kind === 'patrol') { let a = 1e9, b = -1e9, c = 1e9, d = -1e9; for (const [px, pz] of ob.pts) { a = Math.min(a, px); b = Math.max(b, px); c = Math.min(c, pz); d = Math.max(d, pz); } return x > a - ob.hz - pad && x < b + ob.hz + pad && z > c - ob.hz - pad && z < d + ob.hz + pad; }
+  return false;
 }
 
 // ---- The crowd -------------------------------------------------------------------------------------

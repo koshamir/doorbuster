@@ -180,17 +180,17 @@ export function dangerAt(ob, x, z, t, pad = 0) {
 }
 const O_ZERO = [[0, 0]], O_PADS = [[0, 0], [0.7, 0.7], [-0.7, 0.7], [0.7, -0.7], [-0.7, -0.7]];
 
-// A cart now at (x0, z0) drives straight to (x1, z1) at speed v (m/s). How many seconds must it wait before
-// setting off so that the whole crossing of this object is safe? 0 = go now; up to `limit` (nothing safe
-// sooner); -1 = the object is not on that path at all.
-export function passDelay(ob, x0, z0, x1, z1, v, t, pad = 0.55, limit = 4) {
+// A cart now at (x0, z0) drives straight to (x1, z1) at speed v (m/s); with v0 (its speed now) it gets there
+// accelerating or braking like a cart. How many seconds must it wait before setting off so that the whole
+// crossing of this object is safe? 0 = go now; up to `limit` (nothing safe sooner); -1 = not on that path.
+export function passDelay(ob, x0, z0, x1, z1, v, t, pad = 0.55, limit = 4, v0) {
   const dx = x1 - x0, dz = z1 - z0, len = Math.hypot(dx, dz), n = Math.max(1, Math.ceil(len / 0.35));
   const hits = [];
   const near = ob.kind === 'patrol' ? ob.len / 2 + 3 : ob.kind === 'tiles' ? (ob.nc + ob.nr) * OT / 2 + 1 : ob.reach + 2;
   const cx = ob.kind === 'patrol' ? (ob.pts[0][0] + ob.pts[ob.pts.length - 1][0]) / 2 : ob.x, cz = ob.kind === 'patrol' ? (ob.pts[0][1] + ob.pts[ob.pts.length - 1][1]) / 2 : ob.z;
   for (let i = 0; i <= n; i++) {
     const px = x0 + dx * i / n, pz = z0 + dz * i / n;
-    if (Math.abs(px - cx) < near + pad && Math.abs(pz - cz) < near + pad) hits.push([px, pz, len * i / n / Math.max(v, 0.5)]);
+    if (Math.abs(px - cx) < near + pad && Math.abs(pz - cz) < near + pad) hits.push([px, pz, v0 === undefined ? len * i / n / Math.max(v, 0.5) : timeTo(len * i / n, v0, Math.max(v, 0.5))]);
   }
   if (!hits.length) return -1;
   for (let d = 0; d <= limit; d += 0.05) {
@@ -199,6 +199,15 @@ export function passDelay(ob, x0, z0, x1, z1, v, t, pad = 0.55, limit = 4) {
     if (safe) return d;
   }
   return limit;
+}
+
+// Seconds to cover s metres starting at speed v0 and settling at speed v (accelerating at 10 m/s2, braking at 18).
+function timeTo(s, v0, v) {
+  v0 = Math.max(0, v0);
+  if (Math.abs(v - v0) < 0.05) return s / v;
+  const a = v > v0 ? 10 : -18, d1 = (v * v - v0 * v0) / (2 * a);
+  if (s <= d1) return (-v0 + Math.sqrt(Math.max(0, v0 * v0 + 2 * a * s))) / a;
+  return (v - v0) / a + (s - d1) / v;
 }
 
 // The hazards (wipe and push kinds) whose area a straight path from (x0, z0) to (x1, z1) comes near.
@@ -241,7 +250,7 @@ export function stepObjects(sim, dt) {
         case 'tiles': {
           if (!ground || k.popT > 0) break;
           const i = tileIndex(ob, k.x, k.z);
-          if (i >= 0 && tilePop(ob, i, t) === 2) { k.popT = 0.5; sim.pop(k, ob, (ob.c0 + i % ob.nc + 0.5) * OT, (ob.r0 + Math.floor(i / ob.nc) + 0.5) * OT); }
+          if (i >= 0 && tilePop(ob, i, t) === 2) { sim.pop(k, ob, (ob.c0 + i % ob.nc + 0.5) * OT, (ob.r0 + Math.floor(i / ob.nc) + 0.5) * OT); }
           break;
         }
         case 'patrol': {

@@ -33,12 +33,31 @@ async function worker() {
   const limit = Math.ceil((sim.timer + 2) / CFG.STEP);
   let hash = 2166136261, steps = 0;
   const stuck = new Map(); let worst = 0, who = '';
+  // the pace rule: the longest stretch of the player's run with nothing near it (an object, loot, a piece) and no turn
+  const world = sim.world, near = [];
+  for (const o of world.objs) near.push([o.x, o.z, o.kind === 'tiles' ? 6 : 5]);
+  for (const q of world.pieces) near.push([q.x, q.z, 4]);
+  for (const l of world.lanes) near.push([l.x, l.z, 4]);
+  let dead = 0, deadMax = 0, deadAt = null, lx = sim.player.x, lz = sim.player.z, lh = 0, lastT = 0;
   const mix = (v) => { hash = Math.imul(hash ^ (v | 0), 16777619) >>> 0; };
   while (sim.phase !== 'done' && sim.phase !== 'closed' && steps++ < limit) {
     stepSim(sim);
     for (const e of sim.events) { mix(e.type.length * 131 + e.type.charCodeAt(0)); mix(Math.round(sim.t * 120)); mix(Math.round((e.value || 0) * 100)); }
     sim.events.length = 0;
     if (sim.phase !== 'run') continue;
+    if (bot === 'expert' && sim.t - lastT >= 0.25) {
+      lastT = sim.t;
+      const p = sim.player, step = Math.hypot(p.x - lx, p.z - lz), h = Math.atan2(p.vx, p.vz);
+      let busy = Math.abs(Math.atan2(Math.sin(h - lh), Math.cos(h - lh))) > 0.35 || p.wipeT > 0 || world.belt[Math.floor(p.z / 2) * world.cols + Math.floor(p.x / 2)] > 0;   // riding a conveyor counts
+      if (!busy) for (const [x, z, r] of near) if (Math.abs(p.x - x) < r && Math.abs(p.z - z) < r) { busy = true; break; }
+      if (!busy) for (const it of world.items) if (!it.taken && Math.abs(p.x - it.x) < 4.5 && Math.abs(p.z - it.z) < 4.5) { busy = true; break; }
+      if (!busy) for (const d of world.drops) if (d.live && Math.abs(p.x - d.x) < 4.5 && Math.abs(p.z - d.z) < 4.5) { busy = true; break; }
+      if (!busy) for (const k of sim.carts) if (k !== p && !k.done && Math.abs(p.x - k.x) < 5 && Math.abs(p.z - k.z) < 5) { busy = true; break; }   // a rival alongside
+      if (!busy) for (const sh of sim.shoppers) if (sh.state >= 0 && Math.abs(p.x - sh.x) < 4.5 && Math.abs(p.z - sh.z) < 4.5) { busy = true; break; }   // shoppers are moving obstacles
+      dead = busy || step > 6 ? 0 : dead + step;          // (a respawn is a jump, not a drive)
+      if (dead > deadMax) { deadMax = dead; deadAt = [Math.floor(p.x / 2), Math.floor(p.z / 2)]; }
+      lx = p.x; lz = p.z; lh = h;
+    }
     for (const k of sim.carts) {
       if (k.player || k.done) continue;
       const ai = k.ai, waiting = (ai && (ai.hold || ai.photoT > 0 && ai.photoT < 1.4 || ai.warnT > 0)) || k.stunT > 0 || k.air > 0 || k.wipeT > 0 || k.wait;
@@ -49,7 +68,7 @@ async function worker() {
   }
   const p = sim.player;
   parentPort.postMessage({ level, seed, bot, finished: sim.phase === 'done', time: +sim.t.toFixed(2), receipt: p.receipt ? p.receipt.total : -1,
-    hash, stuck: +worst.toFixed(2), stuckWho: who, wipeouts: sim.stats.wipeouts || 0 });
+    hash, stuck: +worst.toFixed(2), stuckWho: who, wipeouts: sim.stats.wipeouts || 0, passes: sim.stats.passes || {}, dead: +deadMax.toFixed(1), deadAt, timer: sim.timer });
 }
 
 // ---- main -----------------------------------------------------------------------------------------
@@ -139,27 +158,44 @@ if (!skip.has('sim')) {
     if (!LEVELS[li].rivals || !LEVELS[li].rivals.length) continue;      // the test course has no rivals and no author run
     for (const seed of SEEDS) jobs.push({ level: li, seed, bot: 'expert' });
     jobs.push({ level: li, seed: 1, bot: 'expert', repeat: true });
+    if (LEVELS[li].v3) for (const seed of SEEDS) jobs.push({ level: li, seed, bot: 'beginner' });
   }
   const run = (job) => new Promise((ok, no) => { const wk = new Worker(fileURLToPath(import.meta.url), { workerData: job }); wk.on('message', (m) => ok({ ...m, repeat: job.repeat })); wk.on('error', no); });
   const results = [], pool = Math.min(8, jobs.length);
   let next = 0;
   await Promise.all(Array.from({ length: pool }, async () => { while (next < jobs.length) { const j = jobs[next++]; results.push(await run(j)); } }));
   let worst = 0;
+  const levelNotes = [];
   for (let li = 0; li < LEVELS.length; li++) {
     const mine = results.filter((r) => r.level === li);
     if (!mine.length) continue;
     const tag = `level ${li}`;
+    const def = LEVELS[li], experts = mine.filter((r) => r.bot === 'expert' && !r.repeat), begs = mine.filter((r) => r.bot === 'beginner');
     for (const r of mine) {
-      if (!r.finished) fail('sim', `${tag} seed ${r.seed}: the expert bot did not finish (t ${r.time} s)`);
+      if (r.bot === 'expert' && !r.finished) fail('sim', `${tag} seed ${r.seed}: the expert bot did not finish (t ${r.time} s)`);
       if (r.stuck > 1) fail('sim', `${tag} seed ${r.seed}: ${r.stuckWho} stood stuck for ${r.stuck} s`);
       worst = Math.max(worst, r.stuck);
     }
-    const a1 = mine.find((r) => r.seed === 1 && !r.repeat), a2 = mine.find((r) => r.repeat);
+    if (def.v3) {
+      // QUALITY.md section 2: the expert near the author time with at most one wipeout a run on average, the
+      // beginner home in two runs of three, every rival past its hazards, the pace of the author route
+      const mean = experts.reduce((s, r) => s + r.time, 0) / experts.length, wipes = experts.reduce((s, r) => s + r.wipeouts, 0) / experts.length;
+      if (def.author && Math.abs(mean - def.author) > def.author * 0.2) fail('sim', `${tag}: the expert's mean time ${mean.toFixed(1)} s is not within 20% of the author time ${def.author} s`);
+      if (wipes > 1) fail('sim', `${tag}: the expert wipes out ${wipes.toFixed(1)} times a run on average`);
+      if (begs.filter((r) => r.finished).length < 2) fail('sim', `${tag}: the beginner bot finished ${begs.filter((r) => r.finished).length} of 3`);
+      let pass = 0, miss = 0;
+      const keys = new Set(), runs = [...experts, ...begs];
+      for (const r of runs) for (const [key, [p, f]] of Object.entries(r.passes)) { pass += p; miss += f; keys.add(key); }
+      if (pass + miss > 0 && pass / (pass + miss) < 0.8) fail('sim', `${tag}: the rivals pass ${Math.round(pass / (pass + miss) * 100)}% of the hazards (at least 80%)`);
+      for (const key of keys) if (runs.every((r) => r.passes[key] && r.passes[key][1] > 0)) fail('sim', `${tag}: ${key.split(':')[0]} fails object ${key.split(':')[1]} in every run`);
+      const dead = Math.max(...experts.map((r) => r.dead));
+      if (dead > 15) { const r = experts.find((x) => x.dead === dead); fail('levels', `${tag}: ${dead} m of the author route with nothing on it (near ${r.deadAt})`); }
+      levelNotes.push(`L${li} ${mean.toFixed(1)}s/${def.author || '?'} wipes ${wipes.toFixed(1)} beginner ${begs.filter((r) => r.finished).length}/3 rivals ${pass + miss ? Math.round(pass / (pass + miss) * 100) : 100}%`);
+    }
+    const a1 = mine.find((r) => r.seed === 1 && !r.repeat && r.bot === 'expert'), a2 = mine.find((r) => r.repeat);
     if (a1 && a2 && (a1.receipt !== a2.receipt || a1.hash !== a2.hash)) fail('sim', `${tag}: seed 1 played twice differs (receipt ${a1.receipt} / ${a2.receipt})`);
   }
-  const times = LEVELS.map((d, li) => results.filter((r) => r.level === li && !r.repeat)).filter((r) => r.length)
-    .map((r) => `L${r[0].level} ${(r.reduce((s, x) => s + x.time, 0) / r.length).toFixed(1)}s`);
-  summary.push(`sim      ${results.length} runs: expert ${times.join(' ')}, worst rival stand ${worst.toFixed(2)} s, deterministic`);
+  summary.push(`sim      ${results.length} runs: ${levelNotes.join('; ')}, worst rival stand ${worst.toFixed(2)} s, deterministic`);
 }
 
 // 4. browser smoke test

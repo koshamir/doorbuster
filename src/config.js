@@ -168,11 +168,11 @@ export const POOLS = {
 // aggro = appetite for ramming.
 export const CHARS = {
   player: { name: 'You',          color: PAL.player,    skill: 1,    pace: 1,    greed: 1,    aggro: 1 },
-  granny: { name: 'Granny Tank',  color: PAL.rivals[0], skill: 0.6,  pace: 0.84, greed: 1,    aggro: 0.1 },
+  granny: { name: 'Granny Tank',  color: PAL.rivals[0], skill: 0.6,  pace: 0.84, greed: 1,    aggro: 0.1, mass: 2 },
   selfie: { name: 'Selfie Star',  color: PAL.rivals[1], skill: 0.7,  pace: 0.95, greed: 0.85, aggro: 0.3 },
   queen:  { name: 'Coupon Queen', color: PAL.rivals[2], skill: 0.8,  pace: 0.96, greed: 1,    aggro: 0.4 },
   dad:    { name: 'Sprint Dad',   color: PAL.rivals[3], skill: 0.95, pace: 1,    greed: 0.9,  aggro: 0.6 },
-  bro:    { name: 'Bulk Bro',     color: PAL.rivals[4], skill: 0.65, pace: 0.92, greed: 0.9,  aggro: 0.9 },
+  bro:    { name: 'Big Bubba',    color: PAL.rivals[4], skill: 0.65, pace: 0.92, greed: 0.9,  aggro: 0.9, mass: 3 },
 };
 
 // ---- Math helpers --------------------------------------------------------------------------------
