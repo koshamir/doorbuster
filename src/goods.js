@@ -184,7 +184,7 @@ export function makeGoods(root) {
     mesh.count = 0; mesh.frustumCulled = false;
     root.add(mesh); view.meshes.push(mesh);
   });
-  const hotMat = celMaterial({ rim: 0.7 }), hull = hullMaterial(2.5);
+  const hotMat = celMaterial({ rim: 0.7, creases: false }), hull = hullMaterial(2.5);
   view.hotMats = [hotMat, hull];
   HOT.forEach((name) => {
     const B = builder(); HOT_BUILD[name](B);

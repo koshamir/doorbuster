@@ -116,7 +116,7 @@ export function buildScene(sim) {
   const bb = builder(); bind(bb, 0, [0, 0, 0, 0]); cyl(bb, 0.32, 0.32, 5, PAL.hot, { seg: 10, top: false });
   const beamGeo = toGeometry(bb, { groups: false, hull: false }), beamMat = flatMat(0.32, true);
   const hb = builder(); bind(hb, 0, [0, 0, 1, 0.7]); ring(hb, 0.5, 0.5, 0.06, 0.1, PAL.hot, { seg: 20 });
-  const haloGeo = toGeometry(hb, {}), haloMat = [celMaterial({ rim: 0.5 }), hullMaterial(2.5)];
+  const haloGeo = toGeometry(hb, {}), haloMat = [celMaterial({ rim: 0.5, creases: false }), hullMaterial(2.5)];
   view.own.push(beamMat, haloMat[0]);
   for (const p of world.pieces) {
     if (!LOOSE[p.type]) continue;

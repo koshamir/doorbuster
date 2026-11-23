@@ -300,7 +300,7 @@ export function pieceMesh(type, kit) {
     g = { geo: toGeometry(B, {}), labels: type === 'pyramid' };
     pieceCache.set(type + kit.id, g);
   }
-  const mats = g.labels ? (pieceMats.L || (pieceMats.L = [celMaterial({ mapB: labelAtlas(), rim: 0.3 }), hullMaterial(2.5)])) : (pieceMats.K || (pieceMats.K = [celMaterial({ mapB: kitAtlas(kit), rim: 0.3 }), hullMaterial(2.5)]));
+  const mats = g.labels ? (pieceMats.L || (pieceMats.L = [celMaterial({ mapB: labelAtlas(), rim: 0.3, creases: false }), hullMaterial(2.5)])) : (pieceMats.K || (pieceMats.K = [celMaterial({ mapB: kitAtlas(kit), rim: 0.3, creases: false }), hullMaterial(2.5)]));
   return new THREE.Mesh(g.geo, mats);
 }
 const pieceMats = {};

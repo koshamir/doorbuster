@@ -11,7 +11,8 @@
 // Colour: palette values are display colours and every shader writes them unchanged (no tone mapping,
 // no colour management): a hex in the config is the colour on screen in the lit band.
 // Every material writes two targets: colour (alpha = emissive strength, which feeds bloom) and aux
-// (view normal xy, flags: floor 0.5 + halftone 0.25, ink weight). The crease pass reads aux and depth.
+// (view normal xy, flags: floor 0.5 + halftone 0.25, ink: above 0.5 creases from normals and depth with weight
+// (a - 0.5) * 2, up to 0.5 depth only with weight a * 2). The crease pass reads aux and depth.
 
 import { TUNE, CFG, PAL, rgb, clamp, lerp, wrapAngle } from './config.js';
 
@@ -177,7 +178,7 @@ void main() {
   // (no half-strength greys that break into dots), and lines fade out by alpha in the distance
   float ink = 0.0;
   if (uLines > 0.0 && ac.a > 0.01 && floorM < 0.5) {
-    float e = 0.0, dd[8];
+    float e = 0.0, dd[8]; bool cr = ac.a > 0.5;
     for (int i = 0; i < 8; i++) {
       dd[i] = lin(texture2D(tDepth, vUv + nb(i) * uTexel * uScale).r);
       e = max(e, smoothstep(0.025, 0.04, (dd[i] - dc) / dc));
@@ -186,12 +187,13 @@ void main() {
     // creases: the normals on opposite sides of this pixel (the blend MSAA leaves on the edge pixel
     // itself never decides), so a straight crease is one unbroken line
     for (int i = 0; i < 8; i += 2) {
+      if (!cr) break;
       vec2 o = nb(i) * uTexel * uScale;
       vec4 a1 = texture2D(tAux, vUv + o), a2 = texture2D(tAux, vUv - o);
-      if (a1.a > 0.01 && a2.a > 0.01 && abs(dd[i] - dd[i + 1]) / dc < 0.06) e = max(e, smoothstep(0.78, 0.72, dot(dn(a1), dn(a2))));
+      if (a1.a > 0.5 && a2.a > 0.5 && abs(dd[i] - dd[i + 1]) / dc < 0.06) e = max(e, smoothstep(0.78, 0.72, dot(dn(a1), dn(a2))));
     }
 #endif
-    ink = e * ac.a * (1.0 - smoothstep(28.0, 70.0, dc));
+    ink = e * (cr ? ac.a * 2.0 - 1.0 : ac.a * 2.0) * (1.0 - smoothstep(28.0, 70.0, dc));
   }
   // halftone dots in environment shadows (under the ink, never on it)
   if (uHalfK > 0.0 && ht > 0.5) {
@@ -339,7 +341,7 @@ export function celMaterial(o = {}) {
     uniforms: {
       uLight: u.uLight, uShade: u.uShade, uKey: u.uKey, uTint: u.uTint, uTintAmt: u.uTintAmt, uShadowMap: u.uShadowMap, uShadowOn: u.uShadowOn,
       uShadowTexel: u.uShadowTexel, uShadowMat: u.uShadowMat, uFlat: o.flat === false ? { value: 0 } : u.uFlat, uInk: u.uInk,
-      uRim: { value: o.rim || 0 }, uGlow: { value: new T.Vector3() }, uInkW: { value: o.ink === undefined ? 1 : o.ink }, uHalftone: { value: o.halftone ? 1 : 0 },
+      uRim: { value: o.rim || 0 }, uGlow: { value: new T.Vector3() }, uInkW: { value: o.creases === false ? (o.ink === undefined ? 1 : o.ink) * 0.49 : 0.5 + (o.ink === undefined ? 1 : o.ink) * 0.5 }, uHalftone: { value: o.halftone ? 1 : 0 },
       uFace: { value: new T.Vector2() }, uMapA: { value: o.mapA || null }, uMapB: { value: o.mapB || null }, uBones: { value: o.bones || null },
     },
   });

@@ -68,7 +68,7 @@ void main() {
   c = mix(c, c * uTint, uTintAmt);
   if (uFlat > 0.5) c = uInk;
   gl_FragColor = vec4(c, 0.0);
-  oAux = vec4(encN(n), 0.002, 1.0);
+  oAux = vec4(encN(n), 0.002, 0.49);      // depth silhouettes only (they have a hull outline)
 }`;
 const CROWD_HULL_VS = `${CROWD_VS}
 attribute vec3 onormal;

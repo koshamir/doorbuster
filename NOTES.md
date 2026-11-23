@@ -1,8 +1,8 @@
 ## STATUS (at most 10 lines)
-Phase: P1 LOOK (prompts/P1_LOOK.md) — in progress
-Done: housekeeping; tools; items 1-6 (render, characters, cart, products, supermarket kit, title and checkout close-up)
-Next: art-director review fixes, final lineup / kit:supermarket / level:1 shots, tag p1, report, then P2
-Open problems: levels are v2 placeholders until P2; lane lamps and some props are simple
+Phase: P2 PLAY (prompts/P2_PLAY.md) — starting; P1 LOOK done and tagged p1 (23 Nov)
+Done: P1 items 1-6, art-director review applied (D16-D20)
+Next: P2 item 1, object system (objects.js) and levels 1-2
+Open problems: levels are v2 placeholders until P2; the full spill fountain on a dash ram comes with P2
 
 ## Owner feedback (verbatim, latest first, last 3 rounds)
 
@@ -17,11 +17,15 @@ D7 2026-11-22 Captures run Playwright's own Chromium 1228 in new headless mode w
 D8 2026-11-22 The interface runs on game time; in manual mode the page's CSS animations are put on the game clock.
 D9 2026-11-22 The single-file build strips imports into one script and parses it once: top-level names must be unique across modules.
 D10 2026-11-23 Hosted bundle (lib/three.min.js, r185 "mb3d 4") adds: GLTFLoader, MeshoptDecoder, RoomEnvironment, BufferGeometryUtils, mergeGeometries, RoundedBoxGeometry, EffectComposer, RenderPass, ShaderPass, OutputPass, UnrealBloomPass, SMAAPass, FilmPass, GlitchPass, AfterimagePass, RenderPixelatedPass, VignetteShader, ColorCorrectionShader, RGBShiftShader. No FXAA: ours is written in render.js.
-
 D11 2026-11-23 The canvas is created with premultipliedAlpha false: three premultiplies the clear colour by its alpha, and the scene alpha is the glow mask.
 D12 2026-11-23 A character and its cart are one rigidly skinned mesh (26 bones): two draw calls per racer, hands solved onto the cart grips by two-bone IK.
 D13 2026-11-23 Goods keep their v2 gameplay ids and prices; their look is a variant chosen from a position hash, so the game plays as before with 46 products.
 D14 2026-11-23 Shelf stock is written once into the goods instance buffers as a locked prefix; moving goods are rewritten after it every frame.
 D15 2026-11-23 Triangle budgets count the main pass only; the shadow pass skips the ink hulls.
+D16 2026-11-23 Review 1 (blank loot): label front and back, fixed prints from label cell 32 up (carton top, side panel, boxed appliances), tower labels face the camera. Fixed.
+D17 2026-11-23 Review 2 (blank frames): overstock cartons on every wall top and a dim backroom ring round the plan instead of the void. Fixed.
+D18 2026-11-23 Review 3 (rams): world-anchored halftone stickers, hitstop, ink flash, camera kick, the victim looks shocked at the camera. The 8-15 goods fountain is skipped in P1: it is the P2 spill rule.
+D19 2026-11-23 Review 4 (title, close-up): the whole cast as a group photo at the glass (Granny on foot), START below; a front three-quarter close-up without the tower. Fixed.
+D20 2026-11-23 Review 5 (dotted ink): creases from opposite neighbours, ink after the halftone, FXAA keeps ink pixels; hull-inked things take depth silhouettes only (aux alpha <= 0.5). Fixed.
 
 ## Known issues (at most 10)

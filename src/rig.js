@@ -32,7 +32,7 @@ export function makeCharacter(id, cartFn, o = {}) {
   const mapA = faceAtlas(faces, CROWD_FACES.map((f) => f)), mapB = patternAtlas();
   const nb = cart ? NBR : NB;
   const bones = new Float32Array(nb * 12);
-  const cel = celMaterial({ skinned: nb, mapA, mapB, rim: 0.6, faceCell: 0.125, bones });
+  const cel = celMaterial({ skinned: nb, mapA, mapB, rim: 0.6, faceCell: 0.125, bones, creases: false });
   const hull = hullMaterial(o.thin ? 2.5 : 3, nb);
   hull.uniforms.uBones.value = bones;
   const mesh = new THREE.Mesh(geo, [cel, hull]);
