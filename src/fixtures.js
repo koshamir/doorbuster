@@ -422,10 +422,10 @@ function freezerRun(B, s, F, view, stock) {
 const CARD = [0xD9B98A, 0xC9A574, 0xE4C99B, 0xCDAE7E];
 function overstock(W, x, z, dc, dr, ry, seed, kit) {
   const h = (k) => { const v = Math.sin(seed * 12.9898 + k * 78.233) * 43758.5453; return v - Math.floor(v); };
-  const n = 1 + (h(1) < 0.6 ? 1 : 0), pal = kit.palette;
+  const n = h(1) < 0.45 ? 1 : 0, pal = kit.palette;          // a carton on less than half the wall edges, so the tops never read as a second floor
   for (let i = 0; i < n; i++) {
     const along = (n === 1 ? 0 : (i - 0.5) * 1.0) + (h(2 + i) - 0.5) * 0.3, back = 0.45 + h(4 + i) * 0.35;
-    const w = 0.7 + h(6 + i) * 0.35, ht = 0.35 + h(8 + i) * 0.45, d = 0.6 + h(10 + i) * 0.3;
+    const w = 0.7 + h(6 + i) * 0.35, ht = 0.25 + h(8 + i) * 0.3, d = 0.6 + h(10 + i) * 0.3;
     const tx = -dr, tz = dc;     // along the edge
     const coloured = h(12 + i) < 0.18, col = coloured ? [pal.a, pal.b, pal.c, pal.d][Math.floor(h(14 + i) * 4)] : CARD[Math.floor(h(16 + i) * 4)];
     at(W, x + dc * back + tx * along, CFG.WALL_H, z + dr * back + tz * along, ry + (h(18 + i) - 0.5) * 0.25);

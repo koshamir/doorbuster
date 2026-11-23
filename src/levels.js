@@ -53,8 +53,8 @@ export const LEVELS = [
     // slow zigzag round them), east along the fish counter on the conveyor to the bell button that raises the deli
     // shutter (the cheese wheel waits by it behind a ribbon), south down freezer alley between two signs out of
     // phase (Granny Tank is in there), into the one open checkout with a boost.
-    id: 'price', name: 'PRICE PANIC', mode: 'rush', kit: 'supermarket', v3: true, timer: 60, author: 27, heading: Math.PI,
-    rivals: ['granny', 'dad'], rivalValue: 0.5, crowd: 12, rush: 6, maxRams: 2, hotGood: 'console', authorReceipt: 4422, medals: [3100, 4000, 4423], firstFail: { granny: 'tiles' },
+    id: 'price', name: 'PRICE PANIC', mode: 'rush', kit: 'supermarket', v3: true, timer: 54, closing: 24, author: 27, heading: Math.PI,
+    rivals: ['granny', 'dad'], rivalValue: 0.5, crowd: 12, rush: 6, maxRams: 2, hotGood: 'console', authorReceipt: 4332, medals: [3000, 3900, 4333], firstFail: { granny: 'tiles' },
     zones: [{ pool: 'market', color: 0, name: 'PRICE PANIC' }],
     objects: [
       ['sign', 6, 27, { across: 'x', period: 3.0, amp: 40 }],
@@ -194,8 +194,8 @@ export const LEVELS = [
     // path; the stockroom's sliding panels over the pit with robot vacuums on the walkways; the corridor south over
     // more panels with blue at its entry and red at its exit (flip while crossing; the long way round has a vacuum); the
     // VR zone's laser turret with the GIGA TV in its glass case inside the sweep; two checkouts behind red and blue.
-    id: 'gadget', name: 'GADGET GOBLIN', mode: 'rush', kit: 'electronics', v3: true, timer: 70, author: 29, heading: Math.PI,
-    rivals: ['selfie', 'dad'], crowd: 12, rush: 4, maxRams: 2, hotGood: 'tv', authorReceipt: 9020, medals: [6300, 8100, 9021],
+    id: 'gadget', name: 'GADGET GOBLIN', mode: 'rush', kit: 'electronics', v3: true, timer: 50, closing: 18, author: 29, heading: Math.PI,
+    rivals: ['selfie', 'dad'], crowd: 12, rush: 4, maxRams: 2, hotGood: 'tv', authorReceipt: 8720, medals: [6100, 7800, 8721],
     zones: [{ pool: 'gadget', color: 0, name: 'GADGET GOBLIN' }],
     objects: [
       ['barrier', 3, 27, { c1: 5, color: 'red' }],
@@ -275,8 +275,8 @@ export const LEVELS = [
     // (mannequins fly, clothes racks to sweep); along the runway: a narrow catwalk over clearance-bin pits with two
     // pairs of giant scissors on it, or the walkways round the pits; the GOLDEN HANDBAG on its pedestal on the stage.
     // Taking it lets the giant yarn ball go: it rolls after you down the shoe department's serpentine to the checkouts.
-    id: 'dress', name: 'DRESS TO DISTRESS', mode: 'rush', kit: 'boutique', v3: true, timer: 70, author: 29, heading: Math.PI,
-    rivals: ['granny'], rivalValue: 0.55, crowd: 12, rush: 4, maxRams: 2, hotGood: 'goldbag', authorReceipt: 2386, medals: [1700, 2100, 2387],
+    id: 'dress', name: 'DRESS TO DISTRESS', mode: 'rush', kit: 'boutique', v3: true, timer: 49, closing: 18, author: 29, heading: Math.PI,
+    rivals: ['granny'], rivalValue: 0.55, crowd: 12, rush: 4, maxRams: 2, hotGood: 'goldbag', authorReceipt: 1334, medals: [900, 1200, 1335],
     zones: [{ pool: 'boutique', color: 0, name: 'DRESS TO DISTRESS' }],
     objects: [
       ['glove', 2.5, 29, { from: [1.5, 27.6], dir: 'e', reach: 3.6, pw: 2 }],
@@ -344,9 +344,9 @@ export const LEVELS = [
     // SWIM RING island, or the trampoline over the water), the TRACK (a treadmill against you, hurdles, the BASKETBALL
     // cage) and the PITCH (four rows of giant foosball players, cones round behind the defence for GOLAZO, the GOALIE
     // GLOVES in the net).
-    id: 'gameon', name: 'GAME ON', mode: 'list', kit: 'sports', v3: true, timer: 120, author: 47, heading: Math.PI, cpAny: true,
+    id: 'gameon', name: 'GAME ON', mode: 'list', kit: 'sports', v3: true, timer: 73, closing: 18, author: 47, heading: Math.PI, cpAny: true,
     list: ['basketball', 'dumbbell', 'swimring', 'goalgloves'],
-    rivals: ['dad'], roam: { dad: [18, 18, 33, 31] }, roamUntil: 38, crowd: 12, rush: 3, maxRams: 2, hotGood: 'bear', authorReceipt: 4173, medals: [2900, 3800, 4174], rampDir: { '37,23': 'e' },
+    rivals: ['dad'], roam: { dad: [18, 18, 33, 31] }, roamUntil: 38, crowd: 12, rush: 3, maxRams: 2, hotGood: 'bear', authorReceipt: 3478, medals: [2400, 3100, 3479], rampDir: { '37,23': 'e' },
     zones: [{ pool: 'sports', color: 0, name: 'GAME ON' }, { pool: 'sports', rect: [20, 0, 31, 17], surface: 'wood' }, { pool: 'sports', rect: [34, 12, 51, 36], surface: 'deck' },
       { pool: 'sports', rect: [0, 15, 17, 32], surface: 'track' }, { pool: 'sports', rect: [16, 32, 35, 47], surface: 'turf' }],
     objects: [
@@ -433,9 +433,9 @@ export const LEVELS = [
     // back kitchen, boxes at both ends), south through the dessert court of flying tables, spilled soda and the cake
     // tower (or jump the crates from the court's corner), west down the home stretch to the checkouts. Gramps takes the
     // long safe line and never rubber-bands; Big Bubba eats his way up and down grill alley.
-    id: 'food', name: 'FOOD FIGHT', mode: 'race', kit: 'food', v3: true, timer: 90, author: 27, heading: Math.PI,
+    id: 'food', name: 'FOOD FIGHT', mode: 'race', kit: 'food', v3: true, timer: 54, closing: 18, author: 27, heading: Math.PI,
     rivals: ['gramps', 'bro'], racer: 'gramps', roam: { bro: [12, 4, 56, 12] }, crowd: 10, rush: 4, maxRams: 1, hotGood: 'console',
-    authorReceipt: 3682, medals: [2600, 3300, 3683], rampDir: { '45,39': 'w' },
+    authorReceipt: 3142, medals: [2200, 2800, 3143], rampDir: { '45,39': 'w' },
     zones: [{ pool: 'food', color: 0, name: 'FOOD FIGHT' }, { pool: 'food', rect: [1, 14, 12, 44], surface: 'warm' }, { pool: 'food', rect: [11, 0, 57, 13], surface: 'steel' }, { pool: 'food', rect: [45, 13, 59, 44], surface: 'dessert' }],
     objects: [
       ['cp', 18, 8, { across: 'z', w: 9 }],

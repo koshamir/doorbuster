@@ -4,7 +4,7 @@
 //          arrow to the current event, the ram warning, key hints, countdown), touch controls, the
 //          title with the loyalty card, receipt, "store closed" and pause screens, and the debug
 //          panel (?debug=1). It only shows state; decisions stay in main.js.
-// Exports: initUI, ui, money, updateHud, popWord, announce, floatText, sticker, updateStickers, bubble, emote, chainText, setList, setArrow, setWarn,
+// Exports: initUI, ui, money, updateHud, resetHud, popWord, announce, floatText, sticker, updateStickers, bubble, emote, chainText, setList, setArrow, setWarn,
 //          setHint, showTouch, showTitle, showReceipt, showClosed, showPause, hideScreens, hurryUI,
 //          initDebug, updateDebug
 // Depends on: config.js, audio.js (interface sounds). Browser only. All styles live in index.html.
@@ -67,6 +67,11 @@ export function initUI(root) {
 
 // Called every frame with the simulation; cheap string work only when something changed.
 let lastSec = -1, lastTotal = -1, lastCount = '', lastMult = '', lastPlace = '', lastMad = -1, lastGot = -1;
+// A new run starts from a clean HUD: no number of the last run may linger on the receipt tag.
+export function resetHud() {
+  lastSec = lastTotal = lastMad = lastGot = -1; lastCount = lastMult = lastPlace = '';
+  if (ui.total) ui.total.textContent = '$0';
+}
 export function updateHud(sim, dt) {
   const p = sim.player, left = Math.max(0, Math.ceil(sim.timer - Math.max(0, sim.t)));
   if (left !== lastSec) {
@@ -74,7 +79,7 @@ export function updateHud(sim, dt) {
     ui.timer.textContent = Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0');
     ui.timer.parentNode.classList.toggle('hot', left <= 15);
   }
-  const total = Math.round(p.value + p.stunts);
+  const total = Math.round(p.value + p.stunts + (sim.mode === 'smash' ? p.smash : 0));      // SMASH: the smash money counts as it happens
   if (total !== lastTotal) {
     const up = total > lastTotal;
     lastTotal = total;

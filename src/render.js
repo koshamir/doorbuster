@@ -504,8 +504,8 @@ export function updateCamera(k, alpha, dt, towerHeight, world, orbit, intro = 0,
     hidden = c < 0 || r < 0 || c >= world.cols || r >= world.rows || !world.floor[r * world.cols + c];
   }
   cam.lift += ((hidden || aside !== undefined ? 1 : 0) - cam.lift) * (1 - Math.exp(-dt * 6));
-  const height = title ? (cam.near ? 2.3 : 4.4) : (TUNE.camheight * (0.95 + 0.05 * Math.min(cam.zoom, 1) + 0.16 * fast) + cam.tower * 0.45) * (1 + 0.4 * cam.lift + 3.2 * intro);
-  const pitch = title ? 0.5 : TUNE.campitch * Math.PI / 180 + 0.45 * cam.lift + 0.42 * intro;
+  const height = title ? (cam.near ? 2.3 : 4.4) : (TUNE.camheight * (0.95 + 0.05 * Math.min(cam.zoom, 1) + 0.16 * fast) + cam.tower * 0.45) * (1 + 0.4 * cam.lift + 1.3 * intro);
+  const pitch = title ? 0.5 : TUNE.campitch * Math.PI / 180 + 0.45 * cam.lift + 0.26 * intro;
   const back = height / Math.tan(pitch);
   const desk = aside !== undefined ? cam.lift : 0;
   const lead = title ? cam.lead || 0.5 : (back - height / Math.tan(pitch + 0.2) - 1.1 * cam.punch) * (1 - 0.7 * desk);

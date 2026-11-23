@@ -467,6 +467,7 @@ export function kitAtlas(store) {
         else { g.fillStyle = '#FFFFFF'; g.fillRect(X + 6, y0 + inset + 10, w - 12, 12); }
       }
     }
+    g.fillStyle = 'rgba(46,34,58,0.34)'; g.fillRect(0, 0, 256, 256);      // muted: the store's floor is the bright thing in the frame
   });
   // the level objects (LEVELS.md section 4): a giant price tag (top half), the bell plate, a stopwatch face, the
   // checkpoint arch's banner (top half), a pop-up tile's top, a forklift's side
@@ -538,7 +539,7 @@ export function kitAtlas(store) {
   cell(KIT.backroom, () => {
     g.drawImage(cv, (KIT.walltop % 8) * 256, Math.floor(KIT.walltop / 8) * 256, 256, 256, 0, 0, 256, 256);
     g.globalCompositeOperation = 'saturation'; g.fillStyle = 'rgba(128,128,128,0.6)'; g.fillRect(0, 0, 256, 256);
-    g.globalCompositeOperation = 'source-over'; g.fillStyle = 'rgba(36,26,48,0.58)'; g.fillRect(0, 0, 256, 256);
+    g.globalCompositeOperation = 'source-over'; g.fillStyle = 'rgba(30,22,42,0.74)'; g.fillRect(0, 0, 256, 256);
   });
   return (cache[key] = atlasTex(cv));
 }

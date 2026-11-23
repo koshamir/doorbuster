@@ -26,7 +26,7 @@ import { UPGRADES, PAINTS, HATS } from './cartart.js';
 import { kitOf } from './kits.js';
 import { audio, unlockAudio, setSound, setVolumes, audioEvent, audioCue, audioFrame, objectSound, loadVoices } from './audio.js';
 import { chatterReset, chatterEvent, chatterFrame } from './chatter.js';
-import { ui, initUI, updateHud, popWord, announce, floatText, sticker, updateStickers, chainText, setList, setArrow, setWarn, setHint, showTouch, showTitle, showReceipt,
+import { ui, initUI, updateHud, resetHud, popWord, announce, floatText, sticker, updateStickers, chainText, setList, setArrow, setWarn, setHint, showTouch, showTitle, showReceipt,
   showClosed, showPause, hideScreens, hurryUI, money, initDebug, updateDebug } from './ui.js';
 
 const query = new URLSearchParams(location.search);
@@ -74,6 +74,7 @@ function startLevel(quick) {
   R.cam.shake = 0;
 }
 function play(quick) {
+  resetHud();
   startLevel(quick);
   hideScreens();
   game.state = 'play';
@@ -83,13 +84,16 @@ function play(quick) {
   if (!quick && !query.has('manual') || query.get('screen') === 'intro') showIntro(def, [P.a, P.b, P.c, P.d], def.rivals || [], ui.root, portraitShot);
 }
 // The stores as the Mall Directory shows them (every store is open).
+const hotPics = {};
+const hotPic = (h) => hotPics[h] || (hotPics[h] = goodIcon(0, 160, h));      // the store's hot item, rendered once for its shop window
 function storeCards() {
   return LEVELS.slice(1).map((d) => { const P = kitOf(d).palette; return { name: d.name, mode: d.mode || 'rush', medal: save.medals[d.id] || 0, best: save.best[d.id] || 0, pal: [P.a, P.b, P.c, P.d], hot: kitOf(d).hot }; });
 }
 function openDirectory() {
   if (game.turntable) { game.turntable.dispose(); game.turntable = null; if (game.view) game.view.root.visible = true; }
   game.state = 'directory';
-  showDirectory(storeCards(), save.wallet, (i) => { game.level = i + 1; play(false); }, openCustoms, null);
+  const cards = storeCards(); for (const c of cards) c.pic = hotPic(c.hot);
+  showDirectory(cards, save.wallet, (i) => { game.level = i + 1; play(false); }, openCustoms, null);
 }
 // Cart Customs: the turntable replaces the store behind the catalogue page.
 function openCustoms() {

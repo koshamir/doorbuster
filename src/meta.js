@@ -51,7 +51,7 @@ export function showDirectory(cards, wallet, onPick, onCustoms, onBack) {
     mel('span', 'mode', MODE_NAME[c.mode] || 'RUSH', f);
     mel('span', 'medal m' + c.medal, MEDAL_NAME[c.medal] || 'NEW', f);
     mel('span', 'sbest', c.best ? money(c.best) : 'not yet shopped', f);
-    const win = mel('span', 'window', undefined, f); win.style.setProperty('--f', c.pal[0]); mel('b', '', HOT_NAME[c.hot] || 'HOT DEALS', win);
+    const win = mel('span', 'window', undefined, f); win.style.setProperty('--f', c.pal[0]); if (c.pic) mel('img', '', undefined, win).src = c.pic; mel('b', '', HOT_NAME[c.hot] || 'HOT DEALS', win);
     if (i === rec) mel('span', 'next', 'NEXT!', f);
   });
   const row = mel('div', 'btn-row', undefined, ui.screen);

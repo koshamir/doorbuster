@@ -171,8 +171,10 @@
   .front .medal { font: 900 .7em 'Arial Black', Impact, sans-serif; }
   .front .sbest { font: 700 .7em var(--mono); }
   .front .window { position: absolute; right: .7em; bottom: .7em; width: 42%; height: 58%; border: .14em solid var(--night); border-radius: .3em; display: flex; align-items: flex-end; justify-content: center;
-    background: linear-gradient(transparent 55%, #1E1B2Ecc), repeating-conic-gradient(var(--f) 0 25%, var(--a) 0 50%) 0 0 / 1.4em 1.4em; box-shadow: inset 0 .3em 0 #fff6; }
-  .front .window b { font: 900 .62em 'Arial Black', Impact, sans-serif; color: var(--sale); padding: .3em; text-align: center; }
+    background: radial-gradient(ellipse 55% 50% at 50% 42%, #fff9 0, #fff0 70%), linear-gradient(transparent 62%, #1E1B2Ecc), linear-gradient(var(--a) 0 66%, transparent 66%),
+      repeating-conic-gradient(var(--f) 0 25%, #fff 0 50%) 0 0 / 1em 1em; box-shadow: inset 0 .3em 0 #fff6; overflow: hidden; }
+  .front .window img { position: absolute; left: 50%; top: 36%; height: 104%; transform: translate(-50%, -50%); filter: drop-shadow(0 .15em 0 #0005); }
+  .front .window b { position: relative; font: 900 .62em 'Arial Black', Impact, sans-serif; color: var(--sale); padding: .15em .5em; margin-bottom: .25em; text-align: center; background: var(--night); border-radius: .3em; }
   .front .next { position: absolute; right: -.2em; top: 1.2em; font: 900 .7em 'Arial Black', Impact, sans-serif; color: #fff; background: var(--danger); padding: .15em .5em; transform: rotate(12deg); border: .12em solid var(--night); }
   .front.rec { animation: recpulse .7s infinite alternate; }
   @keyframes recpulse { from { box-shadow: 0 .2em 0 var(--night), 0 0 0 .1em var(--sale); } to { box-shadow: 0 .2em 0 var(--night), 0 0 0 .5em var(--sale); } }

@@ -285,13 +285,14 @@ export function endGoods(view) {
   view.hot.forEach((m, i) => { m.count = view.hotN[i]; m.visible = m.count > 0; m.instanceMatrix.needsUpdate = true; });
 }
 
-// A small picture of one gameplay good for the interface (the list icons), drawn once into a canvas.
+// A small picture of one gameplay good for the interface (the list icons), drawn once into a canvas; with hot (a name
+// from HOT), the store's hot item instead (the Mall Directory's shop windows).
 let iconView = null;
-export function goodIcon(kind, size = 96) {
-  const T = THREE, ren = R.renderer, rt = new T.WebGLRenderTarget(size, size), scene = new T.Scene(), d = GOODS[kind].dims;
+export function goodIcon(kind, size = 96, hot = null) {
+  const T = THREE, ren = R.renderer, rt = new T.WebGLRenderTarget(size, size), scene = new T.Scene(), d = hot ? [1.5, 1.25, 1.5] : GOODS[kind].dims;
   if (!iconView) { const root = new T.Group(); iconView = { root, v: makeGoods(root) }; }
   scene.add(iconView.root);
-  beginGoods(iconView.v); putGood(iconView.v, kind, 0, 0, 0, 0, 0.55, 1, 0, 0); endGoods(iconView.v);
+  beginGoods(iconView.v); if (hot) putHot(iconView.v, hot, 0, 0, 0, hot === 'gigatv' ? 0.55 : -0.45, ({ goldcan: 1.9, handbag: 1.35, trophy: 1.15, gigatv: 0.85 })[hot] || 1, 0, 0); else putGood(iconView.v, kind, 0, 0, 0, 0, 0.55, 1, 0, 0); endGoods(iconView.v);
   const r = Math.max(d[0], d[1], d[2]) * 0.8, cam = new T.OrthographicCamera(-r, r, r, -r, 0.1, 30);
   cam.position.set(3, 3.4 + d[1] / 2, 5); cam.lookAt(0, d[1] / 2, 0);
   const px = new Uint8Array(size * size * 4), cc = ren.getClearColor(new T.Color()), ca = ren.getClearAlpha();
