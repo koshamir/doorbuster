@@ -33,7 +33,7 @@ export const CAST = {
     shoe: { w: 0.062, l: 0.23, h: 0.1, color: 0x7A4E34, sole: 0x5A3A26, trim: 0x7A4E34, style: 'loafer' },
     hair: { style: 'curlers', color: 0xD9D2E9, accent: 0xFF7AB0 },
     extras: ['bottleGlasses', 'handbag', 'pearls'],
-    face: { row: 1, iris: 0x6F8FC2, lash: 0, blush: 0xFF7A9A, wrinkles: 0xC99A86, brow: 0xB8B0CC, browW: 9, eyeW: 33, eyeH: 37, eyeGap: 49, lips: 0xD84A7A, browInk: 1 },
+    face: { row: 1, iris: 0x6F8FC2, lash: 0, blush: 0xFF7A9A, wrinkles: 0xC99A86, brow: 0xB8B0CC, browW: 10, eyeW: 37, eyeH: 41, eyeGap: 49, lips: 0xD84A7A, browInk: 1, browUp: 14 },
     idle: 'glasses', victory: 'bagSwing', defeat: 'fist', voice: 'granny',
   },
   dad: {
@@ -58,7 +58,7 @@ export const CAST = {
     shoe: { w: 0.052, l: 0.22, h: 0.1, color: 0xE63946, sole: 0x2A2440, trim: 0xE63946, style: 'heel' },
     hair: { style: 'teased', color: 0xD9542C, accent: 0xFFD23F },
     extras: ['catEyes', 'megaphone', 'couponFan', 'earrings'],
-    face: { row: 3, iris: 0x2FA35A, lash: 1, brow: 0x5A2A14, browW: 9, lips: 0xE0243A, shadow: 0x9B5DE5 },
+    face: { row: 3, iris: 0x2FA35A, lash: 1, brow: 0x5A2A14, browW: 10, lips: 0xE0243A, shadow: 0x9B5DE5, browUp: 12 },
     idle: 'fan', victory: 'fanCoupons', defeat: 'tearCoupon', voice: 'coupon',
   },
   selfie: {
@@ -109,14 +109,14 @@ export const CROWD = {
   caneGrandpa: { h: 1.5, build: 'thin', face: 2, hair: 'bald', prop: 'cane', hat: 'flat', hunch: 0.2, idle: 'tap', line: 'Whippersnapper!' },
   strollerMom: { h: 1.62, build: 'mid', face: 1, hair: 'pony', prop: 'stroller', idle: 'rock', line: 'Watch the baby!' },
   toddler: { h: 0.82, build: 'kid', face: 3, hair: 'tuft', prop: 'leash', idle: 'hop', line: 'WAAAH' },
-  phoneTeen: { h: 1.66, build: 'thin', face: 3, hair: 'fringe', prop: 'phone', hood: 1, idle: 'scroll', line: 'Literally?!' },
+  phoneTeen: { h: 1.66, build: 'thin', face: 3, hair: 'fringe', prop: 'phone', hood: 1, hunch: 0.45, idle: 'scroll', line: 'Literally?!' },
   gymBro: { h: 1.84, build: 'buff', face: 0, hair: 'buzz', prop: 'shaker', idle: 'flex', line: 'Do you even lift?' },
   jogger: { h: 1.72, build: 'thin', face: 0, hair: 'band', prop: 'bottle', idle: 'jog', line: 'On your left!' },
   bellyBro: { h: 1.78, build: 'belly', face: 0, hair: 'cap', prop: 'hotdog', idle: 'munch', line: 'Is that a hot dog?' },
-  staff: { h: 1.72, build: 'mid', face: 0, hair: 'short', prop: 'box', apron: 1, idle: 'stock', line: 'Clean-up on aisle YOU!' },
+  staff: { h: 1.72, build: 'mid', face: 0, hair: 'short', prop: 'ladder', apron: 1, idle: 'stock', line: 'Clean-up on aisle YOU!' },
   fashionista: { h: 1.74, build: 'thin', face: 1, hair: 'long', prop: 'bags', shades: 1, idle: 'pose', line: 'Darling, NO!' },
   gamer: { h: 1.7, build: 'mid', face: 3, hair: 'messy', prop: 'headset', idle: 'button', line: 'LAG!' },
-  mascot: { h: 2.05, build: 'mascot', face: 0, hair: 'none', prop: 'bun', idle: 'dance', line: 'Free hugs!' },
+  mascot: { h: 2.3, build: 'mascot', face: 0, hair: 'none', prop: 'bun', idle: 'dance', line: 'Free hugs!' },
   scooterElder: { h: 1.3, build: 'round', face: 2, hair: 'bald', prop: 'scooter', seated: 1, idle: 'donut', line: 'Beep beep!' },
 };
 export const CROWD_ORDER = Object.keys(CROWD);

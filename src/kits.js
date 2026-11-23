@@ -17,7 +17,7 @@ export const KITS = {
     id: 'supermarket', name: 'PRICE PANIC', palette: { a: '#FFF6EA', b: '#8EE3C8', c: '#FF5A4E', d: '#FFD23F' }, sign: '#3D2C5E', top: '#6E5C96',
     signs: ['SNACKS', 'DRINKS', 'CANNED', 'BAKERY', 'DAIRY', 'FROZEN', 'PRODUCE', 'CEREAL'],
     shelves: { S: 'gondola', M: 'produce', L: 'freezer' }, fixture: { body: 0xFFF6EA, accent: 0x8EE3C8, trim: 0xFF5A4E, dark: 0x3D2C5E },
-    floor: { a: 0xFFF3E2, b: 0xA9EBD5, grout: 0xD9CBB6, checker: 1, paint: 0xFF5A4E, arrow: 0xFFFFFF, vary: 0.035, wet: 0x7CC6FE },
+    floor: { a: 0xFFF3E2, b: 0xA9EBD5, grout: 0xD9CBB6, checker: 1, paint: 0x2E8C7C, arrow: 0xFFFFFF, vary: 0.035, wet: 0x1FA2FF },     // route chevrons in deep mint: red is for hazards
     walls: { face: 0xFFF6EA, band: 0x8EE3C8, stripe: 0xFF5A4E, top: 0x6E5C96, base: 0xE3D3BD },
     pools: { grid: 10, r: 2.9, warm: [1.0, 0.94, 0.78], k: 0.12 },
     grade: { shade: [0.66, 0.6, 0.82], key: [1, 0.96, 0.86], light: [0.42, 0.8, 0.43], sat: 1.06, contrast: 1.04, lift: [0.012, 0.0, 0.03], gain: [1, 0.99, 0.97], vignette: 0.2, bloom: 1, halftone: 0.16 },
@@ -31,7 +31,7 @@ export const KITS = {
     id: 'warehouse', name: 'CAN-DEMONIUM', palette: { a: '#D9D2C5', b: '#FFC800', c: '#E63946', d: '#3A6EA5' }, sign: '#2B2F3A', top: '#5A6274',
     signs: ['BULK', 'CANS', 'BEANS', 'SOUP', 'PALLETS', 'LOADING', 'AISLE 9', 'OVERSTOCK'],
     shelves: { S: 'rack', M: 'rack', L: 'rack' }, fixture: { body: 0x3A6EA5, accent: 0xFF8A1E, trim: 0xFFC800, dark: 0x2B2F3A },
-    floor: { a: 0xD6CFC2, b: 0xCBC3B4, grout: 0xA69D8D, checker: 1, paint: 0xFFC800, arrow: 0x2B2F3A, vary: 0.07, wet: 0x7CC6FE, lines: 0xFFC800 },
+    floor: { a: 0xD6CFC2, b: 0xCBC3B4, grout: 0xA69D8D, checker: 1, paint: 0xFFC800, arrow: 0x2B2F3A, vary: 0.07, wet: 0x1FA2FF, lines: 0xFFC800 },
     walls: { face: 0xC9C2B4, band: 0x3A6EA5, stripe: 0xFFC800, top: 0x5A6274, base: 0x8E8676 },
     pools: { grid: 12, r: 3.4, warm: [1.0, 0.88, 0.66], k: 0.15 },
     grade: { shade: [0.52, 0.6, 0.8], key: [0.9, 0.96, 1.0], light: [0.34, 0.84, 0.42], sat: 1.05, contrast: 1.07, lift: [0.0, 0.01, 0.035], gain: [0.98, 1, 1.02], vignette: 0.24, bloom: 1, halftone: 0.18 },
@@ -59,7 +59,7 @@ export const KITS = {
     id: 'boutique', name: 'DRESS TO DISTRESS', palette: { a: '#FFF3E8', b: '#FFD6E0', c: '#E9B949', d: '#C2185B' }, sign: '#5A2340', top: '#8A4A6E',
     signs: ['DRESSES', 'SHOES', 'BAGS', 'SCARVES', 'COATS', 'PERFUME', 'RUNWAY', 'SALE'],
     shelves: { S: 'clothes', M: 'foldtable', L: 'shoewall' }, fixture: { body: 0xFFF3E8, accent: 0xE9B949, trim: 0xC2185B, dark: 0x5A2340 },
-    floor: { a: 0xFBF4EC, b: 0xF4EAE0, grout: 0xE9B949, checker: 1, paint: 0xC2185B, arrow: 0xE9B949, vary: 0.03, wet: 0x7CC6FE, groutW: 0.482, marble: 0.35, vein: 0xD9C4CF, gloss: 0.7, glossMode: 1 },
+    floor: { a: 0xFBF4EC, b: 0xF4EAE0, grout: 0xE9B949, checker: 1, paint: 0xC2185B, arrow: 0xE9B949, vary: 0.03, groutW: 0.482, marble: 0.35, vein: 0xD9C4CF, gloss: 0.7, glossMode: 1, wet: 0x1FA2FF },
     walls: { face: 0xFFD6E0, band: 0xFFF3E8, stripe: 0xE9B949, top: 0x8A4A6E, base: 0xC9A0B4, bulbs: [0xFFF1C4], booths: true }, posters: [54, 54, 54],
     pools: { grid: 10, r: 3.0, warm: [1.06, 0.92, 0.86], k: 0.12 },
     grade: { shade: [0.84, 0.6, 0.76], key: [1.0, 0.95, 0.92], light: [0.4, 0.82, 0.42], sat: 1.04, contrast: 1.02, lift: [0.03, 0.01, 0.025], gain: [1.02, 0.98, 0.98], vignette: 0.18, bloom: 1.1, halftone: 0.12 },
@@ -85,7 +85,7 @@ export const KITS = {
     id: 'food', name: 'FOOD FIGHT', palette: { a: '#FFF1DE', b: '#F4A261', c: '#D62828', d: '#E07A5F' }, sign: '#5C2A1E', top: '#7A3B2A',
     signs: ['SUSHI', 'GRILL', 'BURGERS', 'NOODLES', 'DESSERT', 'TACOS', 'PIZZA', 'SODA'],
     shelves: { S: 'stall', M: 'stall', L: 'stall' }, fixture: { body: 0xFFF1DE, accent: 0xF4A261, trim: 0xD62828, dark: 0x5C2A1E },
-    floor: { a: 0xE58F72, b: 0xDB8166, grout: 0xB9634B, checker: 2, paint: 0xFFF1DE, arrow: 0xFFF1DE, vary: 0.06, wet: 0x7CC6FE },
+    floor: { a: 0xE58F72, b: 0xDB8166, grout: 0xB9634B, checker: 2, paint: 0xFFF1DE, arrow: 0xFFF1DE, vary: 0.06, wet: 0x1FA2FF },
     walls: { face: 0xFFF1DE, band: 0xF4A261, stripe: 0xD62828, top: 0x7A3B2A, base: 0xB9634B },
     pools: { grid: 10, r: 3.0, warm: [1.08, 0.92, 0.78], k: 0.13 },
     grade: { shade: [0.78, 0.56, 0.66], key: [1, 0.94, 0.84], light: [0.42, 0.8, 0.43], sat: 1.12, contrast: 1.05, lift: [0.03, 0.0, 0.01], gain: [1.03, 0.98, 0.95], vignette: 0.2, bloom: 1.1, halftone: 0.15 },
@@ -206,8 +206,9 @@ void main() {
     c = mix(c, uInk, step(0.44, across) * 0.8);
   } else if (d > 11.5 && d < 12.5) {                                 // wet floor: a blue puddle with hard glints
     float pd = length((f - 0.5) * vec2(1.0, 1.3)) + 0.06 * sin(f.x * 9.0 + f.y * 7.0);
-    float pud = 1.0 - smoothstep(0.43, 0.43 + w.x, pd);
-    c = mix(c, uWet, pud * 0.75);
+    float pud = 1.0 - smoothstep(0.43, 0.43 + w.x, pd), edg = 1.0 - smoothstep(0.465, 0.465 + w.x, pd), lip = 1.0 - smoothstep(0.51, 0.51 + w.x, pd);
+    c = mix(c, vec3(1.0), (lip - edg) * far * 0.9); c = mix(c, uInk, (edg - pud) * far);      // a white rim and an ink edge: a hazard reads at a glance
+    c = mix(c, uWet, pud * 0.92);
     float glint = step(0.92, sin((g.x + g.y) * 7.0 + uTime * 1.6) * sin((g.x - g.y) * 5.0 - uTime));
     c = mix(c, vec3(1.0), glint * pud * far);
   } else if (d > 13.5) {

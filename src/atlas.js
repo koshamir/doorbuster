@@ -42,7 +42,8 @@ export function faceAtlas(faces, crowd) {
 // One face in a 256 px cell. f: { skin, iris, lash, brow, browW, blush, freckles, wrinkles, lips, shadow, eyeY,
 // eyeGap, eyeW, eyeH, mouthY, mouthW, hideEyes (behind sunglasses: brows only), dots (far LOD) }.
 function drawFace(g, f, e) {
-  const ink = INK, ey = f.eyeY || 112, gap = f.eyeGap || 47, ew = f.eyeW || 29, eh = f.eyeH || 34, my = f.mouthY || 188, mw = (f.mouthW || 1);
+  // the named cast's brows and mouths are drawn big enough to read at a 40 px head (ART.md section 3, the size test)
+  const ink = INK, ey = f.eyeY || 112, gap = f.eyeGap || 47, ew = f.eyeW || 29, eh = f.eyeH || 34, my = f.mouthY || 188, mw = (f.mouthW || 1) * (f.row !== undefined ? 1.35 : 1);
   if (f.dots) { g.fillStyle = ink; for (const s of [-1, 1]) { g.beginPath(); g.ellipse(128 + s * 40, 120, 14, 18, 0, 0, 7); g.fill(); } return; }
   // cheeks: blush, freckles, wrinkles
   if (f.blush) { g.fillStyle = hex(f.blush); g.globalAlpha = e === 3 ? 0.55 : 0.38; for (const s of [-1, 1]) { g.beginPath(); g.ellipse(128 + s * 74, ey + 54, 24, 13, 0, 0, 7); g.fill(); } g.globalAlpha = 1; }
@@ -51,7 +52,7 @@ function drawFace(g, f, e) {
   // eyes
   for (const s of [-1, 1]) if (!f.hideEyes) eye(g, 128 + s * gap, ey, ew, eh, s, f, e);
   if (f.shadow && !f.hideEyes && e !== 1 && e !== 5 && e !== 7) { g.globalAlpha = 0.5; g.fillStyle = hex(f.shadow); for (const s of [-1, 1]) { g.beginPath(); g.ellipse(128 + s * gap, ey - eh * 0.9, ew * 1.1, eh * 0.45, 0, Math.PI, 0); g.fill(); } g.globalAlpha = 1; }
-  brows(g, ey - eh - (f.hideEyes ? 26 : 14), gap, ew, s => s, f, e);
+  brows(g, ey - eh - (f.hideEyes ? 26 : 14) - (f.browUp || 0), gap, ew, s => s, f, e);      // browUp: clear of a pair of glasses
   mouth(g, 128, my, mw, f, e);
   if (e === 5) {                                   // tears: two streams down the cheeks
     g.fillStyle = '#7CC6FE'; g.strokeStyle = ink; g.lineWidth = 3.5;
@@ -114,17 +115,19 @@ function eye(g, x, y, ew, eh, s, f, e) {
 
 function brows(g, y, gap, ew, _, f, e) {
   if (f.brow === false) return;
-  g.strokeStyle = hex(f.brow || INK); g.lineWidth = f.browW || 11; g.lineCap = 'round';
+  const big = f.row !== undefined ? 1.5 : 1, bw = (f.browW || 11) * big;
+  g.strokeStyle = hex(f.brow || INK); g.lineWidth = bw; g.lineCap = 'round';
   for (const s of [-1, 1]) {
     const x = 128 + s * gap, w = ew * 1.05;
     let inner = 0, outer = 0, lift = 0;
     if (e === 2) lift = -14; else if (e === 3) { inner = 14; outer = -8; } else if (e === 5) { inner = -12; outer = 6; } else if (e === 6) { if (s > 0) lift = -10; else { inner = 4; } }
     else if (e === 4) { inner = s * 6; outer = -s * 6; } else if (e === 1) lift = -6;
+    inner *= big; outer *= big; lift *= big;
     g.beginPath();
     g.moveTo(x - s * w * 0.95, y + inner + lift);
     g.quadraticCurveTo(x, y - 7 + lift + (inner + outer) * 0.3, x + s * w * 0.95, y + outer + lift + 3);
     g.stroke();
-    if (f.browInk) { g.strokeStyle = INK; g.lineWidth = 3; g.stroke(); g.strokeStyle = hex(f.brow); g.lineWidth = f.browW || 11; }
+    if (f.browInk) { g.strokeStyle = INK; g.lineWidth = 3; g.stroke(); g.strokeStyle = hex(f.brow); g.lineWidth = bw; }
   }
 }
 
@@ -467,7 +470,7 @@ export function kitAtlas(store) {
         else { g.fillStyle = '#FFFFFF'; g.fillRect(X + 6, y0 + inset + 10, w - 12, 12); }
       }
     }
-    g.fillStyle = 'rgba(46,34,58,0.34)'; g.fillRect(0, 0, 256, 256);      // muted: the store's floor is the bright thing in the frame
+    g.fillStyle = 'rgba(79,69,119,0.5)'; g.fillRect(0, 0, 256, 256);      // muted toward the backroom's violet: the store's floor is the bright thing in the frame
   });
   // the level objects (LEVELS.md section 4): a giant price tag (top half), the bell plate, a stopwatch face, the
   // checkpoint arch's banner (top half), a pop-up tile's top, a forklift's side
@@ -536,10 +539,11 @@ export function kitAtlas(store) {
   cell(KIT.stripe, () => { g.fillStyle = '#FFD23F'; g.fillRect(0, 0, 256, 256); g.fillStyle = INK; for (let x = -256; x < 512; x += 64) { g.beginPath(); g.moveTo(x, 256); g.lineTo(x + 32, 256); g.lineTo(x + 288, 0); g.lineTo(x + 256, 0); g.fill(); } });
   (STORE_ART[store.id] || (() => {}))(cell, g, text, burst, P);
   // the backroom round the store: the same overstock, dim and grey, so the lit store stands out from it
+  // calm and low in contrast (not dark): flat violet rack tops with soft gaps and the faintest cartons, under the halftone
   cell(KIT.backroom, () => {
-    g.drawImage(cv, (KIT.walltop % 8) * 256, Math.floor(KIT.walltop / 8) * 256, 256, 256, 0, 0, 256, 256);
-    g.globalCompositeOperation = 'saturation'; g.fillStyle = 'rgba(128,128,128,0.6)'; g.fillRect(0, 0, 256, 256);
-    g.globalCompositeOperation = 'source-over'; g.fillStyle = 'rgba(30,22,42,0.74)'; g.fillRect(0, 0, 256, 256);
+    g.fillStyle = '#4F4577'; g.fillRect(0, 0, 256, 256);
+    g.fillStyle = '#544A7E'; for (let y = 0; y < 256; y += 64) for (let x = (y / 64) % 2 * 16; x < 256; x += 32) g.fillRect(x + 3, y + 8, 26, 40);
+    g.fillStyle = '#433A66'; for (let y = 0; y < 256; y += 64) g.fillRect(0, y + 54, 256, 10);
   });
   return (cache[key] = atlasTex(cv));
 }

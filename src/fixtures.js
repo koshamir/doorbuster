@@ -42,12 +42,13 @@ export function buildStore(view, sim, kit, shadow) {
     for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
       if (isFloor(c + dc, r + dr)) continue;
       const x = (c + 0.5 + dc * 0.5) * T2, z = (r + 0.5 + dr * 0.5) * T2, ry = dc ? (dc > 0 ? -Math.PI / 2 : Math.PI / 2) : (dr > 0 ? Math.PI : 0);
+      // the skirting, the band and the stripe are paint: flat strips a centimetre off the face, so the ink never doubles them
       bind(W, 0, PL(0));
-      at(W, x - dc * 0.02, 0, z - dr * 0.02, ry); box(W, T2, 0.28, 0.06, kit.walls.base, { bevel: 0, mid: false });
-      if (kit.walls.neon) bind(W, 0, PL(0.3, 0.75));
-      at(W, x - dc * 0.025, kit.walls.neon ? 1.35 : 1.15, z - dr * 0.025, ry); box(W, T2, kit.walls.neon ? 0.1 : 0.5, 0.06, kit.walls.band, { bevel: 0 });
-      bind(W, 0, PL(0));
-      at(W, x - dc * 0.025, 1.78, z - dr * 0.025, ry); box(W, T2, 0.1, 0.06, kit.walls.stripe, { bevel: 0 });
+      at(W, x - dc * 0.012, 0, z - dr * 0.012, ry);
+      const paint = (y0, y1, col, tex) => quad(W, [-T2 / 2, y0, 0], [T2 / 2, y0, 0], [T2 / 2, y1, 0], [-T2 / 2, y1, 0], col, tex);
+      paint(0, 0.28, kit.walls.base, PL(0));
+      paint(kit.walls.neon ? 1.35 : 1.15, kit.walls.neon ? 1.45 : 1.65, kit.walls.band, kit.walls.neon ? PL(0.3, 0.75) : PL(0));
+      paint(1.78, 1.88, kit.walls.stripe, PL(0));
       if (kit.walls.booths && (c + r) % 2 === 0) { bind(W, 0, K(KIT.s0 + 1, 0.2)); at(W, x - dc * 0.06, 0.06, z - dr * 0.06, ry); box(W, T2 - 0.25, 2.3, 0.05, 0xFFFFFF, { bevel: 0, front: K(KIT.s0 + 1, 0.2) }); bind(W, 0, PL(0.9)); at(W, x - dc * 0.1, 2.4, z - dr * 0.1, ry); box(W, T2 - 0.1, 0.07, 0.07, 0xE9B949, { bevel: 0.3 }); bind(W, 0, PL(0)); }
       else if ((c * 7 + r * 3) % 9 === 0) { face++; const pc = (kit.posters || [KIT.sale, KIT.poster2, KIT.poster3])[face % 3]; bind(W, 0, K(pc, 0.1)); at(W, x - dc * 0.05, 0.55, z - dr * 0.05, ry); box(W, 1.1, 1.1, 0.03, 0xFFFFFF, { bevel: 0, front: K(pc, 0.1) }); }
       if ((c + r) % 2 === 0) bulbs.push([x - dc * 0.1, z - dr * 0.1]);

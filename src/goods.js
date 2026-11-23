@@ -9,7 +9,7 @@
 // Depends on: config.js, shapes.js, atlas.js, render.js and the global THREE.
 
 import { GOODS, mix } from './config.js';
-import { builder, at, bind, box, cyl, ellipsoid, lathe, tube, ring, toGeometry } from './shapes.js';
+import { builder, at, bind, box, cyl, ellipsoid, lathe, tube, ring, quad, toGeometry } from './shapes.js';
 import { labelAtlas, PRINT0 } from './atlas.js';
 import { R, celMaterial, hullMaterial } from './render.js';
 
@@ -178,10 +178,21 @@ export function variantAt(x, z) { return Math.abs(Math.floor(x * 7.31 + z * 3.17
 export const HOT = ['cheese', 'goldcan', 'gigatv', 'handbag', 'trophy', 'cake', 'octopus', 'toaster'];
 const G_GOLD = 0xFFC83D;
 const HOT_BUILD = {
-  cheese(B) {
-    bind(B, 0, FIX(0.25)); at(B, 0, 0, 0); cyl(B, 0.62, 0.62, 0.42, 0xFFD23F, { seg: 24, top: 0xFFE27A, bottom: true });
-    for (const y of [0, 0.36]) { at(B, 0, y, 0); cyl(B, 0.635, 0.635, 0.06, 0xE63946, { seg: 24, top: false }); }
-    for (const [x, z, r] of [[0.2, 0.15, 0.09], [-0.25, -0.1, 0.12], [0.05, -0.32, 0.07], [-0.12, 0.3, 0.06], [0.36, -0.2, 0.06]]) { at(B, x, 0.425, z); cyl(B, r, r, 0.01, 0xE0A81E, { seg: 10 }); }
+  cheese(B) {                 // a red-waxed wheel with a 60-degree wedge cut out: the pale paste and its holes show in the cut
+    const R = 0.62, H = 0.42, N = 20, cut = Math.PI / 3, P = (a, r, y) => [Math.cos(a) * r, y, Math.sin(a) * r], T = FIX(0.25);
+    bind(B, 0, T); at(B, 0, 0, 0);
+    for (let i = 0; i < N; i++) {
+      const a0 = cut + (2 * Math.PI - cut) * i / N, a1 = cut + (2 * Math.PI - cut) * (i + 1) / N;
+      quad(B, P(a1, R, 0), P(a0, R, 0), P(a0, R, H), P(a1, R, H), 0xE63946, T);
+      quad(B, P(a1, R, H), P(a0, R, H), [0, H, 0], [0, H, 0], 0xFFD23F, T);
+    }
+    quad(B, [0, 0, 0], P(0, R, 0), P(0, R, H), [0, H, 0], 0xFFE9A6, T);
+    quad(B, [0, 0, 0], [0, H, 0], P(cut, R, H), P(cut, R, 0), 0xFFE9A6, T);
+    for (const [u, y, r] of [[0.3, 0.2, 0.07], [0.5, 0.3, 0.05], [0.18, 0.09, 0.04]]) {
+      at(B, u * R, y, 0.006, 0, Math.PI / 2); cyl(B, r, r, 0.01, 0xE0A81E, { seg: 10, mid: true });
+      at(B, Math.cos(cut) * (u + 0.1) * R, y + 0.04, Math.sin(cut) * (u + 0.1) * R, Math.PI - cut, Math.PI / 2); cyl(B, r, r, 0.01, 0xE0A81E, { seg: 10, mid: true });
+    }
+    for (const [x, z, r] of [[-0.25, -0.1, 0.12], [0.05, -0.32, 0.07], [-0.12, 0.3, 0.06], [0.36, -0.2, 0.06]]) { at(B, x, 0.425, z); cyl(B, r, r, 0.01, 0xE0A81E, { seg: 10 }); }
     at(B, 0.42, 0.18, 0.42, 0.785); box(B, 0.34, 0.06, 0.04, G_W, { bevel: 0.3, mid: true });
   },
   goldcan(B) { bind(B, 0, FIX(1)); at(B, 0, 0, 0); cyl(B, 0.26, 0.26, 0.5, G_GOLD, { seg: 16, top: 0xFFE9A6 }); for (const y of [0.03, 0.47]) { at(B, 0, y, 0, 0, Math.PI / 2); ring(B, 0.26, 0.26, 0.025, 0.05, 0xE9B949, { seg: 16 }); } },
