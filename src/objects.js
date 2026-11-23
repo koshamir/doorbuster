@@ -111,7 +111,10 @@ export function buildObjects(world, def) {
       ob.reach = ob.span / 2;
     } else if (kind === 'glove') {
       const [fc, fr] = o.from || [c, r], d = O_DIRS[o.dir || 'e'];
-      ob = { x, z, gx: OM(fc), gz: OM(fr), dx: Math.sin(d), dz: Math.cos(d), reach: o.reach || 3, fireAt: -9, armed: true };
+      // the plate is pw tiles wide (across x); drivers' routes keep off it
+      ob = { x, z, gx: OM(fc), gz: OM(fr), dx: Math.sin(d), dz: Math.cos(d), reach: o.reach || 3, fireAt: -9, armed: true, pw: (o.pw || 1) * OT / 2 };
+      for (let cc = Math.round(c - ((o.pw || 1) - 1) / 2); cc <= Math.round(c + ((o.pw || 1) - 1) / 2); cc++) world.block[Math.floor(z / OT) * world.cols + cc] = 1;
+      (world.noGo || (world.noGo = [])).push({ x, z, hx: ob.pw + 0.25, hz: 1.5 });
     } else if (kind === 'barrier') {
       const c1 = o.c1 ?? c, r1 = o.r1 ?? r;
       // a wall across the way: as wide as its tiles, thin the other way (the drivers' route treats all its tiles as shut)
@@ -206,20 +209,29 @@ export function startChaser(sim) {
     if (bc === c && br === r) break;
     c = bc; r = br; path.push([(c + 0.5) * OT, (r + 0.5) * OT]);
   }
-  ob.path = path; ob.len = 0; ob.seg = [];
-  for (let i = 1; i < path.length; i++) { const l = Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]); ob.seg.push(l); ob.len += l; }
-  ob.active = true; ob.s = 0; ob.t0 = sim.t;
+  // a time table along the path: the ball drops for a second, then rolls; it slows where the way turns sharply
+  // (it bounces off the walls there), as a loaded cart does
+  ob.path = path; ob.len = 0; ob.seg = []; ob.at = [0];
+  for (let i = 1; i < path.length; i++) {
+    const l = Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]); ob.seg.push(l); ob.len += l;
+    let turn = 0;
+    for (let j = Math.max(1, i - 2); j <= Math.min(path.length - 2, i + 1); j++) { const a = Math.atan2(path[j][0] - path[j - 1][0], path[j][1] - path[j - 1][1]), b = Math.atan2(path[j + 1][0] - path[j][0], path[j + 1][1] - path[j][1]); turn = Math.max(turn, Math.abs(Math.atan2(Math.sin(b - a), Math.cos(b - a)))); }
+    ob.at.push(ob.at[i - 1] + l / (ob.speed * (turn > 1 ? 0.62 : turn > 0.5 ? 0.82 : 1)));
+  }
+  ob.active = true; ob.s = 0; ob.t0 = sim.t + 0.8;
   sim.emit('chaser', null, 1, ob);
 }
 // Where the ball is at time t (null when it is not rolling then).
 export function chaserAt(ob, t, out) {
   if (!ob.active) return null;
-  let s = (t - ob.t0) * ob.speed;
-  if (s > ob.len) return null;
+  const u = Math.max(0, t - ob.t0);
+  if (u > ob.at[ob.at.length - 1]) return null;
   let i = 0;
-  while (i < ob.seg.length - 1 && s > ob.seg[i]) { s -= ob.seg[i]; i++; }
-  const a = ob.path[i], b = ob.path[i + 1] || a, f = ob.seg[i] ? Math.min(1, s / ob.seg[i]) : 0;
-  out.x = a[0] + (b[0] - a[0]) * f; out.z = a[1] + (b[1] - a[1]) * f; out.h = Math.atan2(b[0] - a[0], b[1] - a[1]); out.d = (t - ob.t0) * ob.speed;
+  while (i < ob.seg.length - 1 && u > ob.at[i + 1]) i++;
+  const a = ob.path[i], b = ob.path[i + 1] || a, f = ob.at[i + 1] > ob.at[i] ? Math.min(1, (u - ob.at[i]) / (ob.at[i + 1] - ob.at[i])) : 0;
+  out.x = a[0] + (b[0] - a[0]) * f; out.z = a[1] + (b[1] - a[1]) * f; out.h = Math.atan2(b[0] - a[0], b[1] - a[1]);
+  let d = f * (ob.seg[i] || 0); for (let j = 0; j < i; j++) d += ob.seg[j];
+  out.d = d; out.drop = Math.max(0, ob.t0 - t);
   return out;
 }
 const OC = { x: 0, z: 0, h: 0, d: 0 };
@@ -433,7 +445,7 @@ export function stepObjects(sim, dt) {
           break;
         }
         case 'glove': {
-          if (ob.armed && ground && Math.hypot(dx, dz) < 1.1) { ob.armed = false; ob.fireAt = t + 0.3; sim.emit('plate', k, 0, ob); }
+          if (ob.armed && ground && Math.abs(dx) < ob.pw && Math.abs(dz) < 1.0) { ob.armed = false; ob.fireAt = t + 0.3; sim.emit('plate', k, 0, ob); }
           if (!ob.armed && t > ob.fireAt + 1.2) ob.armed = true;
           if (gloveReach(ob, t) > 0.3 && dangerAt(ob, k.x, k.z, t, CFG.CART_R * 0.8)) sim.shove(k, ob, ob.dx, ob.dz);
           break;

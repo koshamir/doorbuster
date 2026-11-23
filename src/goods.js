@@ -95,6 +95,18 @@ const BUILD = {
     bind(B, 0, FIX(0.4)); at(B, 0, 0, 0); tube(B, [[-0.2, 0.9, 0], [-0.15, 1.04, 0], [0.15, 1.04, 0], [0.2, 0.9, 0]], 0.05, G_INK, { seg: 6 });
     for (const x of [-0.3, 0.3]) { at(B, x, 0, 0); box(B, 0.06, 0.92, 1.02, mix(G_W, G_INK, 0.35), { bevel: 0 }); }
   },
+  folded(B) {                // a folded sweater, two soft layers with a band
+    bind(B, 0, TINT(0.1)); box(B, 1, 0.5, 1, G_W, { bevel: 0.32 }); at(B, 0, 0.48, 0); box(B, 0.96, 0.52, 0.96, G_W, { bevel: 0.36 });
+    bind(B, 0, FIX(0.1)); at(B, 0, 0.3, 0); box(B, 1.02, 0.14, 1.02, G_W, { bevel: 0.3 });
+  },
+  purse(B) {                 // a small handbag with a gold handle and clasp
+    bind(B, 0, TINT(0.45)); box(B, 1, 0.72, 0.6, G_W, { bevel: 0.32 });
+    bind(B, 0, FIX(0.8)); at(B, 0, 0.62, 0); ring(B, 0.3, 0.26, 0.05, 0.06, 0xE9B949, { seg: 14 }); at(B, 0, 0.5, 0.31); box(B, 0.16, 0.1, 0.03, 0xE9B949, { bevel: 0.3 });
+  },
+  coat(B) {                  // a coat in a garment bag on its hanger
+    bind(B, 0, TINT(0.3)); box(B, 1, 0.9, 0.5, G_W, { bevel: 0.22 }); bind(B, 0, FIX(0.2)); at(B, 0, 0.1, 0.26); box(B, 0.04, 0.75, 0.02, G_INK, { bevel: 0 });
+    bind(B, 0, FIX(0.8)); at(B, 0, 0, 0); tube(B, [[0, 0.9, 0], [0, 1.0, 0], [0.08, 1.06, 0], [0.04, 1.12, 0]], 0.025, 0xDDE3EA, { seg: 5 });
+  },
   speaker(B) {
     bind(B, 0, TINT(0.3)); box(B, 1, 1, 1, G_W, { bevel: 0.08 });
     bind(B, 0, FIX(0.6)); for (const [y, r] of [[0.68, 0.22], [0.3, 0.32]]) { at(B, 0, y, 0.5, 0, Math.PI / 2); cyl(B, r, r * 0.8, 0.05, 0x2A2440, { seg: 14, mid: true, top: 0x5A5468 }); }
@@ -119,12 +131,15 @@ export const PRODUCTS = [
   ['ball', 22, 0xFF7F11, [0.5, 0.5, 0.5]], ['ball', 22, 0xFFFFFF, [0.44, 0.44, 0.44]], ['ball', 22, 0x3A86FF, [0.5, 0.5, 0.5]],
   ['carton', PRINT0 + 2, 0xE9D3A8, [0.92, 0.6, 0.7]], ['carton', PRINT0 + 3, 0xE9D3A8, [0.66, 0.9, 0.62]],      // 45, 46: boxed microwave and speaker
   ['box', 25, 0xFFF6EA, [0.86, 0.36, 0.66]], ['jar', 11, 0xFF6FA0, [0.62, 0.62, 0.62]], ['jar', 26, 0x9B2D5A, [0.62, 0.62, 0.62]],   // 47-49: a frozen family pizza, ice cream tubs
+  ['folded', 0, 0xFF8FC7, [0.46, 0.26, 0.4]], ['folded', 0, 0x7CC6FE, [0.46, 0.26, 0.4]], ['folded', 0, 0xE9B949, [0.46, 0.26, 0.4]],     // 50-52: sweaters and scarves
+  ['bottle', 29, 0xFF8FC7, [0.3, 0.46, 0.3]], ['bottle', 28, 0x9B5DE5, [0.3, 0.46, 0.3]],                                                // 53-54: perfume
+  ['purse', 0, 0xE63946, [0.6, 0.5, 0.34]], ['purse', 0, 0x2A2440, [0.6, 0.5, 0.34]], ['coat', 0, 0xC9A0DC, [0.7, 1.0, 0.5]],           // 55-57
 ];
 // The products each gameplay good may look like (its variants).
 const LOOK = { can: [4, 5, 6], soda: [8, 9, 10, 11, 12], chips: [13, 14, 15, 16], roll: [25], cereal: [0, 1, 2], phone: [31, 32], game: [33], toaster: [34],
-  melon: [27, 28], pizza: [26], headset: [36], shoes: [38, 39], microwave: [45], speaker: [46, 40], suitcase: [41], frozenpizza: [47], icecream: [48, 49] };
+  scarf: [50, 51, 52], perfume: [53, 54], purse: [55, 56], coat: [57], melon: [27, 28], pizza: [26], headset: [36], shoes: [38, 39], microwave: [45], speaker: [46, 40], suitcase: [41], frozenpizza: [47], icecream: [48, 49] };
 // What a store stocks on its shelves as decor (product indices).
-export const STORE_STOCK = { electronics: [31, 32, 33, 36, 37, 40, 18, 19, 34, 31, 33, 36], warehouse: [4, 5, 6, 7, 0, 1, 2, 36, 37, 45, 46, 43, 44], supermarket: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 27, 28, 29, 30] };
+export const STORE_STOCK = { boutique: [50, 51, 52, 53, 54, 55, 56, 38, 39, 50, 52, 55], electronics: [31, 32, 33, 36, 37, 40, 18, 19, 34, 31, 33, 36], warehouse: [4, 5, 6, 7, 0, 1, 2, 36, 37, 45, 46, 43, 44], supermarket: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 27, 28, 29, 30] };
 export function productSize(i) { return PRODUCTS[i][3]; }
 export function variantAt(x, z) { return Math.abs(Math.floor(x * 7.31 + z * 3.17) * 2654435761) >>> 0; }
 

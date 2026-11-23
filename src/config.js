@@ -152,6 +152,11 @@ export const GOODS = [
   { id: 'robovac',   size: 'H', w: 8, price: 560, dims: [1.04, 0.40, 1.04] },
   { id: 'frozenpizza', size: 'L', w: 4, price: 95, dims: [0.86, 0.36, 0.66] },
   { id: 'icecream',  size: 'L', w: 4, price: 85,  dims: [0.62, 0.62, 0.62] },
+  { id: 'scarf',     size: 'S', w: 1, price: 14,  dims: [0.46, 0.26, 0.4] },
+  { id: 'perfume',   size: 'S', w: 1, price: 22,  dims: [0.3, 0.46, 0.3] },
+  { id: 'purse',     size: 'M', w: 2, price: 70,  dims: [0.6, 0.5, 0.34] },
+  { id: 'coat',      size: 'L', w: 4, price: 160, dims: [0.7, 1.0, 0.5] },
+  { id: 'goldbag',   size: 'H', w: 8, price: 650, dims: [1.0, 0.9, 0.5] },
 ];
 export const GOOD = {};            // id -> index into GOODS
 GOODS.forEach((g, i) => { GOOD[g.id] = i; g.slots = g.size === 'S' ? 1 : g.size === 'M' ? 2 : g.size === 'L' ? 4 : 8; });
@@ -161,6 +166,7 @@ export const POOLS = {
   market: { S: ['can', 'soda', 'chips', 'cereal', 'roll'], M: ['melon', 'pizza', 'toaster'], L: ['frozenpizza', 'icecream'] },
   bulk: { S: ['can', 'soda', 'chips'], M: ['toaster', 'pizza', 'headset'], L: ['microwave', 'speaker'] },
   gadget: { S: ['phone', 'game', 'soda'], M: ['headset', 'toaster', 'shoes'], L: ['speaker', 'microwave'] },
+  boutique: { S: ['scarf', 'perfume'], M: ['purse', 'shoes'], L: ['coat', 'suitcase'] },
   atrium: { S: ['chips', 'soda', 'roll', 'game'], M: ['shoes', 'pizza', 'melon'], L: ['suitcase', 'speaker'] },
 };
 

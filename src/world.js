@@ -428,11 +428,21 @@ export function navDistAt(world, x, z, field) {
   return best;
 }
 
-// True if the segment keeps clear of every no-go disc (a turnstile's sweep): drivers never cut a corner through one.
-function clearOf(discs, x0, z0, x1, z1) {
-  if (!discs) return true;
-  const vx = x1 - x0, vz = z1 - z0, l2 = vx * vx + vz * vz || 1;
-  for (const d of discs) { const t = Math.max(0, Math.min(1, ((d.x - x0) * vx + (d.z - z0) * vz) / l2)); if (Math.hypot(d.x - x0 - vx * t, d.z - z0 - vz * t) < d.r) return false; }
+// True if the segment keeps clear of every no-go area (a turnstile's sweep, a glove's plate: discs r or boxes hx, hz)
+// and of the pits (with a cart's half width to spare): drivers never cut a corner through one.
+function clearOf(world, x0, z0, x1, z1) {
+  const discs = world.noGo, vx = x1 - x0, vz = z1 - z0, l2 = vx * vx + vz * vz || 1;
+  if (discs) for (const d of discs) {
+    const t = Math.max(0, Math.min(1, ((d.x - x0) * vx + (d.z - z0) * vz) / l2)), px = x0 + vx * t - d.x, pz = z0 + vz * t - d.z;
+    if (d.r ? Math.hypot(px, pz) < d.r : Math.abs(px) < d.hx && Math.abs(pz) < d.hz) return false;
+  }
+  if (world.pits) {
+    const l = Math.sqrt(l2), n = Math.ceil(l / 0.5), ox = -vz / l * 0.85, oz = vx / l * 0.85;
+    for (let i = 1; i <= n; i++) for (const s of [-1, 1]) {
+      const x = x0 + vx * i / n + ox * s, z = z0 + vz * i / n + oz * s, c = Math.floor(x / T), r = Math.floor(z / T);
+      if (c >= 0 && r >= 0 && c < world.cols && r < world.rows && world.pit[r * world.cols + c]) return false;
+    }
+  }
   return true;
 }
 
@@ -476,7 +486,7 @@ export function navAim(world, x, z, steps, rad, out, reach, field) {
     const px = (c + 0.5) * T, pz = (r + 0.5) * T;
     out.fx = px; out.fz = pz;
     // The next tile is always reachable; anything further must be in plain sight (never round a corner).
-    if (s < 1 || (len <= reach && clearPath(world, x, z, px, pz, rad) && clearOf(world.noGo, x, z, px, pz))) { out.x = px; out.z = pz; }
+    if (s < 1 || (len <= reach && clearPath(world, x, z, px, pz, rad) && clearOf(world, x, z, px, pz))) { out.x = px; out.z = pz; }
   }
   return true;
 }

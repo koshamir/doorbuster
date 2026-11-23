@@ -305,7 +305,7 @@ function fountain(sim, k) {
 }
 // Whether a cart passed an object or was caught by it, per rival and object (the smoke test reads it).
 function record(sim, k, ob, passed) {
-  if (k.player || !ob || ob.kind === 'barrier') return;           // a barrier rising under a rival is the player's doing, not a miss
+  if (k.player || !ob || ob.kind === 'barrier' || ob.kind === 'chaser') return;      // (the yarn ball rolling over Granny is part of the show)           // a barrier rising under a rival is the player's doing, not a miss
   const roll = k.ai && k.ai.rolls.get(ob);
   if (!passed && roll && roll.scripted) return;      // a level's scripted failure (Granny's first go at the tiles) is not a miss
   const key = k.char + ':' + sim.world.objs.indexOf(ob), p = sim.stats.passes[key] || (sim.stats.passes[key] = [0, 0]);

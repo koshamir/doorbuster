@@ -53,6 +53,20 @@ export const KITS = {
     hot: 'gigatv',
     crowd: CROWD_MIX.electronics,
   },
+  // DRESS TO DISTRESS: cream marble with gold inlays and veins, blush walls, racks of patterned clothes, mannequins,
+  // velvet fitting rooms, a runway of bulbs, walls of shoe boxes, warm soft light under chandeliers.
+  boutique: {
+    id: 'boutique', name: 'DRESS TO DISTRESS', palette: { a: '#FFF3E8', b: '#FFD6E0', c: '#E9B949', d: '#C2185B' }, sign: '#5A2340', top: '#8A4A6E',
+    signs: ['DRESSES', 'SHOES', 'BAGS', 'SCARVES', 'COATS', 'PERFUME', 'RUNWAY', 'SALE'],
+    shelves: { S: 'clothes', M: 'foldtable', L: 'shoewall' }, fixture: { body: 0xFFF3E8, accent: 0xE9B949, trim: 0xC2185B, dark: 0x5A2340 },
+    floor: { a: 0xFBF4EC, b: 0xF4EAE0, grout: 0xE9B949, checker: 1, paint: 0xC2185B, arrow: 0xE9B949, vary: 0.03, wet: 0x7CC6FE, groutW: 0.482, marble: 0.35, vein: 0xD9C4CF, gloss: 0.7, glossMode: 1 },
+    walls: { face: 0xFFD6E0, band: 0xFFF3E8, stripe: 0xE9B949, top: 0x8A4A6E, base: 0xC9A0B4, bulbs: [0xFFF1C4] },
+    pools: { grid: 10, r: 3.0, warm: [1.06, 0.92, 0.86], k: 0.12 },
+    grade: { shade: [0.84, 0.6, 0.76], key: [1.0, 0.95, 0.92], light: [0.4, 0.82, 0.42], sat: 1.04, contrast: 1.02, lift: [0.03, 0.01, 0.025], gain: [1.02, 0.98, 0.98], vignette: 0.18, bloom: 1.1, halftone: 0.12 },
+    void: 0x3A1F33,
+    hot: 'handbag',
+    crowd: CROWD_MIX.boutique,
+  },
 };
 export function kitOf(def) { return KITS[def.kit || 'supermarket'] || KITS.supermarket; }
 
