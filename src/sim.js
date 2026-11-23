@@ -161,6 +161,7 @@ export function createSim(def, seed, opts = {}) {
       sim.carts.push(r);
       if (id === 'granny') giveGoods(sim, r, 16, true, 2);
       if (id === 'gramps') giveGoods(sim, r, 6, false);
+      if (id === 'gramps') giveGoods(sim, r, 6, false);
       if (id === 'gramps') giveGoods(sim, r, 6, false);   // Granny Tank arrives with her tower already built (at x2): a slow treasure chest
     });
     spawnCrowd(sim);

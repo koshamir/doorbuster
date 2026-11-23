@@ -37,7 +37,7 @@ async function worker() {
   const world = sim.world, near = [];
   for (const o of world.objs) near.push([o.x, o.z, o.kind === 'tiles' ? 6 : 5]);
   for (const q of world.pieces) near.push([q.x, q.z, 4]);
-  for (const l of world.lanes) near.push([l.x, l.z, 4]);
+  for (const l of world.lanes) near.push([l.x, l.z, 8]);       // (the run into a lane is the finish beat)
   let dead = 0, deadMax = 0, deadAt = null, lx = sim.player.x, lz = sim.player.z, lh = 0, lastT = 0;
   const mix = (v) => { hash = Math.imul(hash ^ (v | 0), 16777619) >>> 0; };
   while (sim.phase !== 'done' && sim.phase !== 'closed' && steps++ < limit) {
@@ -48,7 +48,7 @@ async function worker() {
     if (bot === 'expert' && sim.t - lastT >= 0.25) {
       lastT = sim.t;
       const p = sim.player, step = Math.hypot(p.x - lx, p.z - lz), h = Math.atan2(p.vx, p.vz);
-      let busy = Math.abs(Math.atan2(Math.sin(h - lh), Math.cos(h - lh))) > 0.35 || p.wipeT > 0 || world.belt[Math.floor(p.z / 2) * world.cols + Math.floor(p.x / 2)] > 0;   // riding a conveyor counts
+      let busy = Math.abs(Math.atan2(Math.sin(h - lh), Math.cos(h - lh))) > 0.35 || p.wipeT > 0 || world.belt[Math.floor(p.z / 2) * world.cols + Math.floor(p.x / 2)] > 0 || world.wet[Math.floor(p.z / 2) * world.cols + Math.floor(p.x / 2)] > 0;   // riding a conveyor or crossing spilled soda counts
       if (!busy) for (const [x, z, r] of near) if (Math.abs(p.x - x) < r && Math.abs(p.z - z) < r) { busy = true; break; }
       if (!busy) for (const it of world.items) if (!it.taken && Math.abs(p.x - it.x) < 4.5 && Math.abs(p.z - it.z) < 4.5) { busy = true; break; }
       if (!busy) for (const d of world.drops) if (d.live && Math.abs(p.x - d.x) < 4.5 && Math.abs(p.z - d.z) < 4.5) { busy = true; break; }
