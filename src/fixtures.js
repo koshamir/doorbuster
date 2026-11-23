@@ -5,13 +5,14 @@
 //          the store logo, wet-floor signs); and the meshes of the pieces that break, fly or open
 //          (can pyramids, gift piles, standees, hot-item podiums, shop windows, light props).
 // Exports: buildStore, pieceMesh, fixtureDemo, LOOSE
-// Depends on: config.js, shapes.js, atlas.js, goods.js, render.js and the global THREE.
+// Depends on: config.js, shapes.js, atlas.js, goods.js, render.js, kits.js and the global THREE.
 
 import { CFG, mix } from './config.js';
 import { builder, at, bind, box, cyl, ellipsoid, lathe, tube, ring, quad, toGeometry } from './shapes.js';
 import { KIT, kitAtlas, labelAtlas } from './atlas.js';
 import { putProduct, lockGoods, STORE_STOCK, productSize, PRODUCTS } from './goods.js';
 import { celMaterial, hullMaterial, blendMaterial, MRT_OUT } from './render.js';
+import { screenMaterial } from './kits.js';
 
 const T2 = CFG.TILE, F_INK = 0x2A1A3A;
 const K = (cell, g = 0, e = 0) => [3, cell, g, e], KW = (cell, g = 0, e = 0) => [4, cell, g, e], PL = (g = 0, e = 0) => [0, 0, g, e];
@@ -29,7 +30,7 @@ export function buildStore(view, sim, kit, shadow) {
   const isFloor = (c, r) => c >= 0 && r >= 0 && c < cols && r < world.rows && world.floor[r * cols + c] === 1;
   const mat = celMaterial({ mapB: atlas, halftone: true, shadow: true, ink: 1 });
   view.own.push(mat);
-  const B = builder(), W = builder(), D = builder();
+  const B = builder(), W = builder(), D = builder(), S = builder();      // S: TV screens (they play their channels)
   // walls: blocks with a plinth, a band, a stripe and a dark cap; posters on some faces; bulbs along the top
   bind(W, 0, PL(0));
   for (const w of world.walls) { at(W, w.x, 0, w.z); box(W, w.hx * 2, CFG.WALL_H, w.hz * 2, kit.walls.face, { bevel: 0, top: 0xFFFFFF, lid: KW(Math.min(w.hx, w.hz) > 2.5 ? KIT.backroom : KIT.walltop), uvs: [w.hx * 2 / 4, w.hz * 2 / 4] }); }
@@ -42,9 +43,11 @@ export function buildStore(view, sim, kit, shadow) {
       const x = (c + 0.5 + dc * 0.5) * T2, z = (r + 0.5 + dr * 0.5) * T2, ry = dc ? (dc > 0 ? -Math.PI / 2 : Math.PI / 2) : (dr > 0 ? Math.PI : 0);
       bind(W, 0, PL(0));
       at(W, x - dc * 0.02, 0, z - dr * 0.02, ry); box(W, T2, 0.28, 0.06, kit.walls.base, { bevel: 0, mid: false });
-      at(W, x - dc * 0.025, 1.15, z - dr * 0.025, ry); box(W, T2, 0.5, 0.06, kit.walls.band, { bevel: 0 });
+      if (kit.walls.neon) bind(W, 0, PL(0.3, 0.75));
+      at(W, x - dc * 0.025, kit.walls.neon ? 1.35 : 1.15, z - dr * 0.025, ry); box(W, T2, kit.walls.neon ? 0.1 : 0.5, 0.06, kit.walls.band, { bevel: 0 });
+      bind(W, 0, PL(0));
       at(W, x - dc * 0.025, 1.78, z - dr * 0.025, ry); box(W, T2, 0.1, 0.06, kit.walls.stripe, { bevel: 0 });
-      if ((c * 7 + r * 3) % 9 === 0) { face++; bind(W, 0, K([KIT.sale, KIT.poster2, KIT.poster3][face % 3], 0.1)); at(W, x - dc * 0.05, 0.55, z - dr * 0.05, ry); box(W, 1.1, 1.1, 0.03, 0xFFFFFF, { bevel: 0, front: K([KIT.sale, KIT.poster2, KIT.poster3][face % 3], 0.1) }); }
+      if ((c * 7 + r * 3) % 9 === 0) { face++; const pc = (kit.posters || [KIT.sale, KIT.poster2, KIT.poster3])[face % 3]; bind(W, 0, K(pc, 0.1)); at(W, x - dc * 0.05, 0.55, z - dr * 0.05, ry); box(W, 1.1, 1.1, 0.03, 0xFFFFFF, { bevel: 0, front: K(pc, 0.1) }); }
       if ((c + r) % 2 === 0) bulbs.push([x - dc * 0.1, z - dr * 0.1]);
       overstock(W, x, z, dc, dr, ry, c * 31 + r * 17 + dc * 5 + dr * 3, kit);
     }
@@ -55,16 +58,22 @@ export function buildStore(view, sim, kit, shadow) {
     at(W, (x0 + x1) / 2, 0, (z0 + z1) / 2); box(W, x1 - x0, CFG.WALL_H, z1 - z0, kit.walls.face, { bevel: 0, top: 0xFFFFFF, lid: KW(KIT.backroom), uvs: [(x1 - x0) / 4, (z1 - z0) / 4] });
   }
   bind(W, 0, PL(0.5, 0.9));
-  for (const [x, z] of bulbs) { at(W, x, CFG.WALL_H + 0.06, z); ellipsoid(W, 0.09, 0.09, 0.09, 0xFFF1C4, { seg: 6, rings: 4 }); }
+  bulbs.forEach(([x, z], i) => { at(W, x, CFG.WALL_H + 0.06, z); ellipsoid(W, 0.09, 0.09, 0.09, kit.walls.bulbs ? kit.walls.bulbs[i % kit.walls.bulbs.length] : 0xFFF1C4, { seg: 6, rings: 4 }); });
   // shelf runs
   const stock = STORE_STOCK[kit.id] || STORE_STOCK.supermarket;
   world.shelves.forEach((s, i) => {
     const style = (kit.shelves || {})[s.kind] || 'gondola';
-    if (style === 'produce') produceRun(B, s, F, view, stock); else if (style === 'freezer') freezerRun(B, s, F, view, stock); else if (style === 'rack') rackRun(B, s, F, view, stock); else gondolaRun(B, s, F, view, stock, i, kit);
+    if (style === 'produce') produceRun(B, s, F, view, stock); else if (style === 'freezer') freezerRun(B, s, F, view, stock); else if (style === 'rack') rackRun(B, s, F, view, stock);
+    else if (style === 'tech') techRun(B, S, s, F, view, stock); else if (style === 'techtable') techTable(B, S, s, F, view, stock); else if (style === 'tvwall') tvWall(B, S, s, F, view, stock); else gondolaRun(B, s, F, view, stock, i, kit);
     shadow(s.x, s.z, s.hx + 0.25, s.hz + 0.25, 0);
   });
   // static single-tile pieces
   for (const p of world.pieces) {
+    if (p.type === 'case') {              // the glass case's pedestal stays when the glass is smashed
+      bind(B, 0, PL(0.5)); at(B, p.x, 0, p.z); box(B, 1.6, 0.5, 1.6, F.dark, { bevel: 0.1, top: 0xE8ECF6 });
+      bind(B, 0, PL(0.7, 0.85)); at(B, p.x, 0.42, p.z); box(B, 1.64, 0.05, 1.64, F.accent, { bevel: 0 });
+      shadow(p.x, p.z, 1.0, 1.0, 0);
+    }
     if (LOOSE[p.type]) continue;
     const rad = p.solid.r || Math.max(p.solid.hx, p.solid.hz);
     staticPiece(B, p, F, view, stock, world);
@@ -83,6 +92,8 @@ export function buildStore(view, sim, kit, shadow) {
     at(B, l.x + ox / 2, 2.98, l.z + oz / 2); box(B, ox + 0.06, 0.06, oz + 0.06, 0xDDE3EA, { bevel: 0 });
     at(B, l.x, 3.04, l.z); cyl(B, 0.4, 0.34, 0.12, F.dark, { seg: 14 });
   }
+  // the pits (clearance bins, the stockroom under the sliding panels): walls down, stock at the bottom, striped rims
+  pits(B, world, kit);
   // floor decals on open floor: stickers, rings, the store logo by the doors
   floorDecals(D, world, kit);
   lockGoods(view.gv);
@@ -90,9 +101,10 @@ export function buildStore(view, sim, kit, shadow) {
   mesh(W, mat); mesh(B, mat);
   const dmesh = mesh(D, decalMat(atlas));
   dmesh.renderOrder = 1;
+  if (S.used) { const sm = screenMaterial(atlas); view.own.push(sm); mesh(S, sm); }
   return { mat };
 }
-export const LOOSE = { pyramid: 1, mega: 1, gifts: 1, stand: 1, podium: 1, glass: 1, table: 1, boxes: 1, mannequin: 1 };
+export const LOOSE = { pyramid: 1, mega: 1, gifts: 1, stand: 1, podium: 1, glass: 1, table: 1, boxes: 1, mannequin: 1, case: 1 };
 
 // Floor decals blend over the floor (alpha from the atlas) and never write the glow mask.
 const DECAL_VS = 'attribute vec4 tex; varying vec2 vUv; varying vec4 vTex; varying vec3 vColor; void main() { vUv = uv; vTex = tex; vColor = color; gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0); }';
@@ -180,6 +192,114 @@ function gondolaRun(B, s, F, view, stock, idx, kit) {
       bind(B, 0, K(cell)); quad(B, a, d, c, b, 0xFFFFFF, K(cell), [[0, 0], [0, 0.5], [1, 0.5], [1, 0]]);
     }
     bind(B, 0, PL(0.5)); for (const e of [-1, 1]) { put(e * (w2 / 2 - 0.1), tall, 0); cyl(B, 0.02, 0.02, 0.28, 0xDDE3EA, { seg: 6 }); }
+  }
+}
+
+// ---- the electronics store (GADGET GOBLIN) ----------------------------------------------------------------------
+// A screen quad at (x, y, z) facing ry, w x h, with its own channel clock (seed 0..1).
+export function screen(S, x, y, z, ry, w, h, seed) {
+  S.used = true;
+  at(S, x, y, z, ry); bind(S, 0, [0, 0, seed, 0]);
+  quad(S, [-w / 2, h / 2, 0], [-w / 2, -h / 2, 0], [w / 2, -h / 2, 0], [w / 2, h / 2, 0], 0xFFFFFF, [0, 0, seed, 0], [[0, 0], [0, 1], [1, 1], [1, 0]]);
+}
+const frac = (v) => v - Math.floor(v);
+// A tech gondola: a navy plinth lit by a cyan strip (the sweepable goods stand on it), a back panel of tablets
+// playing their channels, boxed gadgets on a glass shelf above, end caps edged in magenta neon.
+function techRun(B, S, s, F, view, stock) {
+  const along = s.horiz ? s.hx * 2 : s.hz * 2, depth = s.horiz ? s.hz * 2 : s.hx * 2, both = s.sides[0] && s.sides[1];
+  const P = runFrame(s), ry = s.horiz ? 0 : Math.PI / 2, put = (u, y, w) => at(B, ...P(u, y, w), ry);
+  const backW = both ? 0 : (s.sides[0] ? 1 : -1) * (depth / 2 - 0.08);
+  bind(B, 0, PL(0.35)); put(0, 0, 0); box(B, along, 0.5, depth, F.body, { bevel: 0.08, top: 0xE8ECF6 });
+  bind(B, 0, PL(0.2)); put(0, 0.5, backW); box(B, along - 0.06, 1.3, 0.14, 0x20254A, { bevel: 0.1, top: F.dark });
+  for (const side of [-1, 1]) {
+    if (!s.sides[side < 0 ? 0 : 1]) continue;
+    bind(B, 0, PL(0.6, 0.85)); put(0, 0.36, side * (depth / 2 + 0.012)); box(B, along - 0.08, 0.06, 0.03, F.accent, { bevel: 0 });
+    const n = Math.max(1, Math.floor(along / 0.9)), face = (s.horiz ? (side > 0 ? 0 : Math.PI) : (side > 0 ? Math.PI / 2 : -Math.PI / 2));
+    for (let j = 0; j < n; j++) {
+      const u = -along / 2 + (j + 0.5) * along / n, [x, , z] = P(u, 0, backW + side * 0.075);
+      bind(B, 0, PL(0.3)); at(B, x, 0.86, z, face); box(B, 0.7, 0.46, 0.02, 0x0D0F22, { bevel: 0.15, mid: true });
+      screen(S, x + Math.sin(face) * 0.012, 0.86, z + Math.cos(face) * 0.012, face, 0.62, 0.38, frac(s.x * 0.37 + s.z * 0.71 + j * 0.29 + side * 0.5));
+    }
+    bind(B, 0, PL(0.9, 0.05)); put(0, 1.48, backW + side * 0.22); box(B, along - 0.12, 0.03, 0.36, 0xBFE9FF, { bevel: 0 });
+    const m = Math.max(1, Math.floor((along - 0.3) / 0.46));
+    for (let j = 0; j < m; j++) {
+      const u = -along / 2 + 0.3 + (j + 0.5) * (along - 0.6) / m, p = stock[fhash(s.x * 3 + u, s.z + side * 7) % stock.length], sz = productSize(p), sc = Math.min(0.85, 0.36 / sz[1], 0.44 / sz[0]);
+      const [x, , z] = P(u, 0, backW + side * 0.22);
+      putProduct(view.gv, p, x, 1.51, z, face, sc);
+    }
+  }
+  bind(B, 0, PL(0.5, 0.9)); for (const e of [-1, 1]) { put(e * (along / 2 - 0.04), 0, 0); box(B, 0.06, 1.84, depth + 0.02, F.trim, { bevel: 0 }); }
+}
+// A display table: a low navy plinth under a white top (the goods along its edges), open laptops in the middle
+// with their screens on, headphones on little stands.
+function techTable(B, S, s, F, view, stock) {
+  const along = s.horiz ? s.hx * 2 : s.hz * 2, depth = s.horiz ? s.hz * 2 : s.hx * 2;
+  const P = runFrame(s), ry = s.horiz ? 0 : Math.PI / 2, put = (u, y, w) => at(B, ...P(u, y, w), ry);
+  bind(B, 0, PL(0.3)); put(0, 0, 0); box(B, along - 0.1, 0.42, depth - 0.3, F.dark, { bevel: 0.1 });
+  bind(B, 0, PL(0.7, 0.85)); put(0, 0.05, 0); box(B, along - 0.06, 0.04, depth - 0.26, F.accent, { bevel: 0 });
+  bind(B, 0, PL(0.7, 0.8)); put(0, 0.4, 0); box(B, along + 0.04, 0.03, depth + 0.04, F.accent, { bevel: 0 });
+  bind(B, 0, PL(0.8)); put(0, 0.42, 0); box(B, along, 0.08, depth, 0x343A68, { bevel: 0.2, top: 0x3D4472 });
+  const n = Math.max(1, Math.round(along / 1.6));
+  for (let j = 0; j < n; j++) {
+    const u = -along / 2 + (j + 0.5) * along / n, [x, , z] = P(u, 0, 0), k = fhash(s.x + j, s.z) % 3;
+    if (k < 2) {        // an open laptop facing one side or the other
+      const face = (s.horiz ? 0 : Math.PI / 2) + (j % 2 ? Math.PI : 0), fx = Math.sin(face), fz = Math.cos(face);
+      bind(B, 0, PL(0.7)); at(B, x, 0.5, z, face); box(B, 0.66, 0.04, 0.46, 0xDDE3EA, { bevel: 0.2 });
+      at(B, x - fx * 0.23, 0.52, z - fz * 0.23, face); box(B, 0.66, 0.44, 0.03, 0xDDE3EA, { bevel: 0.2 });
+      bind(B, 0, PL(0.4)); at(B, x + fx * 0.05, 0.54, z + fz * 0.05, face); box(B, 0.5, 0.01, 0.2, 0x2B2F3A, { bevel: 0 });
+      screen(S, x - fx * 0.21, 0.745, z - fz * 0.21, face, 0.58, 0.36, frac(x * 0.13 + z * 0.29));
+    } else {            // headphones on a stand
+      bind(B, 0, PL(0.5)); at(B, x, 0.5, z); cyl(B, 0.12, 0.14, 0.04, F.dark, { seg: 10 }); at(B, x, 0.54, z); cyl(B, 0.025, 0.025, 0.3, 0xDDE3EA, { seg: 6 });
+      at(B, x, 0.84, z, ry, 0, Math.PI / 2); ring(B, 0.2, 0.2, 0.05, 0.08, [0xFF4FD8, 0x00E5FF, 0xFFD23F][j % 3], { seg: 14 });
+      for (const e of [-1, 1]) { at(B, x + (s.horiz ? e * 0.2 : 0), 0.66, z + (s.horiz ? 0 : e * 0.2)); ellipsoid(B, 0.08, 0.11, 0.08, 0x2A2F5A, { seg: 8, rings: 6 }); }
+    }
+  }
+  void stock; void view;
+}
+// A TV wall: two rows of big screens in black bezels on a navy frame (both faces when it stands free), a lit
+// plinth with the goods, the GIGAVISION sign on top.
+function tvWall(B, S, s, F, view, stock) {
+  const along = s.horiz ? s.hx * 2 : s.hz * 2, depth = s.horiz ? s.hz * 2 : s.hx * 2;
+  const P = runFrame(s), ry = s.horiz ? 0 : Math.PI / 2, put = (u, y, w) => at(B, ...P(u, y, w), ry);
+  bind(B, 0, PL(0.35)); put(0, 0, 0); box(B, along, 0.5, depth, F.body, { bevel: 0.08, top: 0xE8ECF6 });
+  bind(B, 0, PL(0.2)); put(0, 0.5, 0); box(B, along - 0.06, 2.2, 0.3, 0x1A1E3D, { bevel: 0.06, top: F.dark });
+  const bays = Math.max(1, Math.round(along / 1.9));
+  for (const side of [-1, 1]) {
+    if (!s.sides[side < 0 ? 0 : 1]) continue;
+    bind(B, 0, PL(0.6, 0.85)); put(0, 0.36, side * (depth / 2 + 0.012)); box(B, along - 0.08, 0.06, 0.03, F.accent, { bevel: 0 });
+    const face = (s.horiz ? (side > 0 ? 0 : Math.PI) : (side > 0 ? Math.PI / 2 : -Math.PI / 2));
+    for (let b = 0; b < bays; b++) for (const [y, hh] of [[1.05, 0.8], [1.98, 0.8]]) {
+      const u = -along / 2 + (b + 0.5) * along / bays, w = along / bays - 0.22, [x, , z] = P(u, 0, side * 0.16);
+      bind(B, 0, PL(0.4)); at(B, x, y, z, face); box(B, w, hh, 0.05, 0x0D0F22, { bevel: 0.1, mid: true });
+      screen(S, x + Math.sin(face) * 0.03, y, z + Math.cos(face) * 0.03, face, w - 0.1, hh - 0.1, frac(s.x * 0.53 + s.z * 0.31 + b * 0.37 + y + side * 0.5));
+    }
+    if (along >= 3.5) { const [x, , z] = P(0, 0, side * 0.17); bind(B, 0, K(KIT.s0, 0.2, 0.25)); at(B, x, 2.75, z, face); box(B, Math.min(3.2, along - 0.4), 0.62, 0.04, 0xFFFFFF, { bevel: 0, mid: true, front: K(KIT.s0, 0.2, 0.25) }); }
+  }
+  void stock; void view;
+}
+
+// The pits: for each pit tile (a '_' in the plan, or a tile under sliding panels) walls go down 2.2 m on the sides
+// that border floor, a dark bottom with the store's spill-over on it (cartons; clothes in the boutique), and a
+// hazard-striped rim on the floor round the edge.
+function pits(B, world, kit) {
+  const { cols, rows } = world, pitAt = new Uint8Array(cols * rows);
+  for (let i = 0; i < pitAt.length; i++) pitAt[i] = world.pit[i];
+  for (const ob of world.objs || []) if (ob.kind === 'panels') for (let j = 0; j < ob.nr; j++) for (let i = 0; i < ob.nc; i++) pitAt[(ob.r0 + j) * cols + ob.c0 + i] = 2;
+  const isPit = (c, r) => c >= 0 && r >= 0 && c < cols && r < rows && pitAt[r * cols + c] > 0, D = 2.2, cloth = kit.id === 'boutique';
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    if (!isPit(c, r)) continue;
+    const x0 = c * T2, z0 = r * T2;
+    bind(B, 0, PL(0)); at(B, x0 + 1, -D - 0.05, z0 + 1); box(B, T2, 0.05, T2, cloth ? 0x5A2E4A : 0x1C1A2E, { bevel: 0 });
+    for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      if (isPit(c + dc, r + dr)) continue;
+      const ry = dc ? Math.PI / 2 : 0;
+      bind(B, 0, PL(0)); at(B, x0 + 1 + dc * 0.98, -D, z0 + 1 + dr * 0.98, ry); box(B, T2, D, 0.04, cloth ? 0x8A4A6E : 0x2E3150, { bevel: 0, top: 0x8E96A8 });
+      bind(B, 0, KW(KIT.stripe, 0.1)); at(B, x0 + 1 + dc * 1.12, -0.035, z0 + 1 + dr * 1.12, ry); box(B, T2 + 0.24, 0.05, 0.24, 0xFFFFFF, { bevel: 0, lid: KW(KIT.stripe, 0.1), uvs: [T2 / 0.6, 0.4] });
+    }
+    // what lies at the bottom
+    const h = (k) => frac(Math.sin((c * 31 + r * 17 + k) * 12.9898) * 43758.5453);
+    if (cloth) { for (let k = 0; k < 6; k++) { bind(B, 0, PL(0.1)); at(B, x0 + 0.3 + h(k) * 1.4, -D, z0 + 0.3 + h(k + 9) * 1.4, h(k + 3) * 6); ellipsoid(B, 0.45 + h(k + 5) * 0.3, 0.22 + h(k + 7) * 0.2, 0.35, [0xFF8FC7, 0xE9B949, 0x7CC6FE, 0xFFFFFF, 0x9B5DE5, 0xE63946][k], { seg: 8, rings: 5 }); } }
+    else for (let k = 0; k < 3; k++) { bind(B, 0, PL(0.1)); const sz = 0.5 + h(k) * 0.4; at(B, x0 + 0.4 + h(k + 2) * 1.2, -D, z0 + 0.4 + h(k + 4) * 1.2, h(k + 6) * 3); box(B, sz, sz * 0.8, sz, [0xB89A6E, 0xA88A60, 0xC4A574][k], { bevel: 0.04, top: 0x9C8158 }); }
   }
 }
 
@@ -373,6 +493,13 @@ const PIECE = {
     bind(B, 0, PL(1, 0.05)); at(B, 0, 0.2, 0); box(B, 1.96, 1.8, 0.08, 0xEAF6FF, { bevel: 0 });
     bind(B, 0, K(KIT.glare, 1)); for (const zz of [0.045, -0.045]) { at(B, 0, 0.2, zz); box(B, 1.9, 1.75, 0.005, 0xEAF6FF, { bevel: 0, front: K(KIT.glare, 1), mid: false }); }
     bind(B, 0, K(KIT.pct)); for (const zz of [0.05, -0.05]) { at(B, 0.35, 0.95, zz, zz < 0 ? Math.PI : 0); box(B, 0.6, 0.6, 0.006, 0xFFFFFF, { bevel: 0, front: K(KIT.pct) }); }
+  },
+  case(B) {                             // the GIGA TV's glass case: four panes with glare, a steel rim, a sale tag
+    bind(B, 0, PL(0.6)); at(B, 0, 0.5, 0); box(B, 1.5, 0.08, 1.5, 0xDDE3EA, { bevel: 0.2 }); at(B, 0, 2.02, 0); box(B, 1.5, 0.1, 1.5, 0xDDE3EA, { bevel: 0.2 });
+    // glass drawn the cartoon way: steel corner posts and the glints on its panes (you see the TV through it)
+    bind(B, 0, PL(0.8)); for (const x of [-0.72, 0.72]) for (const z of [-0.72, 0.72]) { at(B, x, 0.56, z); box(B, 0.07, 1.48, 0.07, 0xDDE3EA, { bevel: 0.3 }); }
+    bind(B, 0, PL(1, 0.6)); for (const [x, z, ry] of [[0, 0.73, 0], [0, -0.73, Math.PI], [0.73, 0, Math.PI / 2], [-0.73, 0, -Math.PI / 2]]) for (const [o, w] of [[-0.3, 0.09], [-0.12, 0.04]]) { at(B, x + Math.cos(ry) * o, 0.75, z - Math.sin(ry) * o, ry, 0, 0.55); box(B, w, 1.0, 0.01, 0xFFFFFF, { bevel: 0, mid: true }); }
+    bind(B, 0, K(KIT.pct)); at(B, 0.45, 1.7, 0.76); box(B, 0.5, 0.5, 0.006, 0xFFFFFF, { bevel: 0, front: K(KIT.pct) });
   },
   table(B, F) { bind(B, 0, PL(0.3)); at(B, 0, 0.5, 0); cyl(B, 0.6, 0.6, 0.08, F.body, { seg: 14, top: F.accent }); at(B, 0, 0, 0); cyl(B, 0.12, 0.2, 0.5, 0xDDE3EA, { seg: 8 }); },
   boxes(B) {

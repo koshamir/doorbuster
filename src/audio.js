@@ -234,6 +234,10 @@ export function audioEvent(e, sim) {
     case 'checkpoint': if (mine) { chime(t, [79, 84]); arp(t + 0.1, [84, 88, 91], 'triangle', 0.16, 0.05, 0.18); } break;
     case 'respawn': if (mine) { whoosh(t, 2000, 400, 0.25, 0.25); tone(A.sfx, 'triangle', hz(72), hz(84), t + 0.05, 0.15, 0.2); } break;
     case 'watch': arp(t, [84, 91, 96], 'square', 0.12, 0.05, 0.2); click(t, 0.4); click(t + 0.12, 0.4); break;
+    case 'flip': boom(t, 0.7, 85); tone(A.sfx, 'sawtooth', e.value ? 190 : 150, e.value ? 95 : 75, t, 0.26, 0.17); tone(A.sfx, 'square', e.value ? 1320 : 990, 0, t + 0.03, 0.07, 0.07); hiss(A.sfx, 'highpass', 3500, 0, 2, t, 0.14, 0.09); break;   // ka-CHUNK: the barriers swap
+    case 'vacuum': tone(A.sfx, 'sawtooth', 220, 900, t, 0.45, 0.09); for (let i = 0; i < 3; i++) click(t + 0.12 + i * 0.07, 0.3); break;   // a vacuum spins up and spits
+    case 'plate': click(t, 0.5); tone(A.sfx, 'triangle', 320, 640, t, 0.1, 0.14); break;
+    case 'chaser': if (e.value) { boom(t, 1, 55); tone(A.sfx, 'sawtooth', 48, 34, t, 1.8, 0.22); } break;      // the yarn ball sets off
     case 'boostpad': whoosh(t, 500, 6000, 0.45, 0.4 * far); tone(A.sfx, 'sawtooth', 200, 900, t, 0.3, 0.12 * far); break;
     case 'fountain': boom(t, 1, 140); for (let i = 0; i < 7; i++) tone(A.sfx, 'triangle', hz(84 + i * 2), hz(72 + i), t + 0.04 + i * 0.05, 0.12, 0.16); clang(t + 0.05, 10, 0.14); break;
     case 'cans': if (soon('cans', 0.08)) { for (let i = 0; i < 6; i++) clang(t + i * 0.035, 4 + i, 0.1 * far); } break;
@@ -247,7 +251,11 @@ export function audioEvent(e, sim) {
 export function objectSound(kind, vol) {
   if (!A.ctx || !A.on || vol <= 0.02) return;
   const t = A.ctx.currentTime;
-  if (kind === 'creak') { tone(A.sfx, 'sawtooth', 110 + Math.random() * 30, 70, t, 0.32, 0.07 * vol); hiss(A.sfx, 'bandpass', 600, 300, 4, t, 0.3, 0.06 * vol); }
+  if (kind === 'zip') { tone(A.sfx, 'sawtooth', 2400, 600, t, 0.22, 0.05 * vol); tone(A.sfx, 'sine', 160, 150, t, 0.3, 0.12 * vol); }      // the laser sweeps past
+  else if (kind === 'clank') { clang(t, 3, 0.1 * vol); tone(A.sfx, 'square', 120, 60, t, 0.12, 0.1 * vol); }                        // trapdoors drop open
+  else if (kind === 'snip') { hiss(A.sfx, 'highpass', 6000, 0, 3, t, 0.08, 0.2 * vol); tone(A.sfx, 'triangle', 2600, 1800, t + 0.05, 0.07, 0.12 * vol); }   // scissors shut
+  else if (kind === 'boing') { }
+  else if (kind === 'creak') { tone(A.sfx, 'sawtooth', 110 + Math.random() * 30, 70, t, 0.32, 0.07 * vol); hiss(A.sfx, 'bandpass', 600, 300, 4, t, 0.3, 0.06 * vol); }
   else if (kind === 'beep' && soon('beep', 0.4)) tone(A.sfx, 'square', 1250, 0, t, 0.14, 0.07 * vol);
 }
 // The announcer's "ding-dong": bell-like notes (a sine with an octave partial), long tails.

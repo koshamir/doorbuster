@@ -129,7 +129,7 @@ export function buildScene(sim) {
     if (p.type === 'glass' && isFloor(p.c - 1, p.r) && isFloor(p.c + 1, p.r)) mesh.rotation.y = Math.PI / 2;   // across the way through
     view.root.add(mesh);
     const item = { p, mesh, beam: null, star: null, vx: 0, vy: 0, vz: 0, fly: 0, rad };
-    if (p.type === 'podium') {
+    if (p.type === 'podium' || p.type === 'case') {
       item.beam = new THREE.Mesh(beamGeo, beamMat); item.beam.position.set(p.x, 0.3, p.z); view.root.add(item.beam);
       item.star = new THREE.Mesh(haloGeo, haloMat); item.star.rotation.x = Math.PI / 2; view.root.add(item.star);
     }
@@ -461,7 +461,7 @@ export function syncScene(view, sim, alpha, dt) {
       it.beam.visible = it.star.visible = hot;
       if (hot) {
         const top = GOODS[it.p.good].dims[1];
-        putGood(view.gv, it.p.good, 0, it.p.x, 0.36 + 0.06 * Math.sin(view.time * 3), it.p.z, view.time * 1.2, 1, 0, 0, view.hot);
+        putGood(view.gv, it.p.good, 0, it.p.x, (it.p.type === 'case' ? 0.62 : 0.36) + 0.06 * Math.sin(view.time * 3), it.p.z, view.time * 1.2, it.p.type === 'case' ? 1.15 : 1, 0, 0, view.hot);
         putGlow(view, it.p.x, it.p.z, 1.5 + 0.1 * Math.sin(view.time * 4), PAL.hot);
         it.star.position.set(it.p.x, top + 1.5 + 0.18 * Math.sin(view.time * 3.3), it.p.z);
         it.star.rotation.y = view.time * 2.2;

@@ -6,12 +6,14 @@
 //          arches. Built once per level; posed every frame from the simulation's clock, so what the player sees
 //          is exactly what the objects do.
 // Exports: buildProps, syncProps, propEvent
-// Depends on: config.js, objects.js, render.js, shapes.js, atlas.js and the global THREE.
+// Depends on: config.js, objects.js, render.js, shapes.js, atlas.js, kits.js, fixtures.js and the global THREE.
 
 import { CFG } from './config.js';
-import { SIGN, signAngle, tilePop, patrolAt } from './objects.js';
+import { SIGN, signAngle, tilePop, patrolAt, armAngle, laserAngle } from './objects.js';
+import { screenMaterial } from './kits.js';
+import { screen } from './fixtures.js';
 import { R, celMaterial, hullMaterial, blendMaterial, MRT_OUT, AUX_NONE } from './render.js';
-import { builder, at, bind, box, cyl, ellipsoid, tube, toGeometry } from './shapes.js';
+import { builder, at, bind, box, cyl, ellipsoid, tube, ring, toGeometry } from './shapes.js';
 import { KIT, kitAtlas } from './atlas.js';
 
 const PT = CFG.TILE;
@@ -45,7 +47,7 @@ const PROP_FLASH_VS = 'varying vec2 vUv; varying vec3 vColor; void main() { vUv 
 
 // ---- building -------------------------------------------------------------------------------------------
 export function buildProps(view, sim, kit) {
-  const world = sim.world, atlas = kitAtlas(kit), P = view.props = { signs: [], fields: [], patrols: [], buttons: [], gates: [], pads: [], watches: [], arches: [], t: 0 };
+  const world = sim.world, atlas = kitAtlas(kit), P = view.props = { signs: [], fields: [], patrols: [], buttons: [], gates: [], pads: [], watches: [], arches: [], bars: [], spins: [], lasers: [], t: 0 };
   const cel = celMaterial({ mapB: atlas, rim: 0.35 }), hull = hullMaterial(2.5);
   view.own.push(cel, hull);
   const mesh = (B, mats) => { const m = new THREE.Mesh(toGeometry(B, {}), mats || [cel, hull]); m.frustumCulled = false; m.layers.enable(1); return m; };
@@ -79,10 +81,28 @@ export function buildProps(view, sim, kit) {
       fl.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(n * 3), 3); fl.frustumCulled = false; fl.renderOrder = 2;
       view.root.add(fl);
       P.fields.push({ ob, im, fl, d: new THREE.Object3D() });
+    } else if (ob.kind === 'panels') {
+      // steel trapdoors over the pit, hinged on their west edge; each flashes before it drops open
+      const n = ob.nc * ob.nr, B = builder();
+      bind(B, 0, PPL(0.4)); at(B, 0, -0.12, 0); box(B, PT - 0.06, 0.12, PT - 0.06, 0x7E889C, { bevel: 0.05, lid: PK(KIT.panel, 0.35), mid: false });
+      const im = new THREE.InstancedMesh(toGeometry(B, {}), [cel, hull], n);
+      im.frustumCulled = false; im.layers.enable(1); view.root.add(im);
+      const fm = blendMaterial(new THREE.ShaderMaterial({ vertexShader: PROP_FLASH_VS, fragmentShader: PROP_FLASH_FS, depthWrite: false }), true, true);
+      view.own.push(fm);
+      const fl = new THREE.InstancedMesh(new THREE.PlaneGeometry(PT - 0.1, PT - 0.1).rotateX(-Math.PI / 2), fm, n);
+      fl.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(n * 3), 3); fl.frustumCulled = false; fl.renderOrder = 2;
+      view.root.add(fl);
+      P.fields.push({ ob, im, fl, d: new THREE.Object3D(), trap: true });
+    } else if (ob.kind === 'barrier') {
+      P.bars.push(barrierModel(view, ob, mesh, atlas, hull));
+    } else if (ob.kind === 'turnstile') {
+      P.spins.push(turnstileModel(view, ob, mesh, atlas));
+    } else if (ob.kind === 'laser') {
+      P.lasers.push(laserModel(view, ob, mesh, flat));
     } else if (ob.kind === 'patrol') {
       const g = new THREE.Group(), lamp = celMaterial({ mapB: atlas, rim: 0.35 });
       view.own.push(lamp);
-      g.add(ob.type === 'jack' ? jackModel(mesh, lamp, hull) : forkModel(mesh, lamp, hull));
+      g.add(ob.type === 'jack' ? jackModel(mesh, lamp, hull) : ob.type === 'vacuum' ? vacModel(mesh, lamp, hull) : forkModel(mesh, lamp, hull));
       view.root.add(g);
       P.patrols.push({ ob, g, lamp, pos: { x: 0, z: 0, h: 0 }, beep: 0 });
     } else if (ob.kind === 'button' || ob.kind === 'plate') {
@@ -189,6 +209,124 @@ function forkModel(mesh, lamp, hull) {
   const light = new THREE.Mesh(toGeometry(L, {}), [lamp, hull]); light.frustumCulled = false;
   const g = new THREE.Group(); g.add(body, light); return g;
 }
+// ---- level 3 objects -----------------------------------------------------------------------------------------
+// The floor strip of a smart barrier: stripes and a rim in its colour, bright while it stands, dim while it lies.
+const STRIP_VS = 'attribute float along; varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0); }';
+const STRIP_FS = `uniform vec3 uC; uniform float uA; varying vec2 vUv; ${MRT_OUT}
+void main() { vec2 e = abs(vUv - 0.5) * 2.0; float rim = step(0.84, max(e.x, e.y)), st = step(0.5, fract((vUv.x - vUv.y) * 5.0));
+  float a = max(rim, st * 0.5) * uA; gl_FragColor = vec4(uC * a, a * 0.7); ${AUX_NONE} }`;
+// The barrier's wall of light: its colour, a hex lattice, bright rails top and bottom, a scan running up it.
+const WALL_FS = `uniform vec3 uC; uniform float uA; uniform float uS; uniform float uTime; varying vec2 vUv; varying float vAlong; ${MRT_OUT}
+float hx(vec2 p) { p = abs(p); return max(dot(p, vec2(0.5, 0.866)), p.x); }
+void main() {
+  vec2 p = vUv * vec2(uS, 1.6) * 2.6, r = vec2(1.0, 1.732), h = r * 0.5, a = mod(p, r) - h, b = mod(p - h, r) - h, g = dot(a, a) < dot(b, b) ? a : b;
+  float line = smoothstep(0.4, 0.46, hx(g)), edge = max(smoothstep(0.9, 0.98, vUv.y), smoothstep(0.08, 0.0, vUv.y)), scan = smoothstep(0.85, 1.0, sin(vUv.y * 9.0 - uTime * 5.0));
+  vec3 col = uC * (0.75 + 0.5 * line + 0.3 * scan) + edge * 0.5;
+  gl_FragColor = vec4(col, (0.62 + 0.25 * line + 0.3 * edge) * uA); ${AUX_NONE} }`;
+// A smart barrier: two dark posts with lamps in its colour, a wall of glowing hex light between them that rises out
+// of the floor while its colour is up, and the strip on the floor that always shows where it stands.
+function barrierModel(view, ob, mesh, atlas, hull) {
+  const red = ob.color === 'red', hex = red ? 0xE8261A : 0x1F62D8, col = red ? [1.0, 0.13, 0.06] : [0.12, 0.42, 1.0];
+  const g = new THREE.Group(), span = (ob.wide ? ob.hx : ob.hz) * 2, mat = celMaterial({ mapB: atlas, rim: 0.3 });
+  view.own.push(mat);
+  g.position.set(ob.x, 0, ob.z); g.rotation.y = ob.wide ? 0 : Math.PI / 2;
+  const Bp = builder(); bind(Bp, 0, PPL(0.4));
+  for (const s of [1, -1]) { at(Bp, s * (span / 2 + 0.08), 0, 0); cyl(Bp, 0.13, 0.16, 1.95, 0x2B2F3A, { seg: 10, top: 0x2B2F3A }); }
+  bind(Bp, 0, [0, 0, 0.3, -1]);
+  for (const s of [1, -1]) for (const y of [0.5, 1.95]) { at(Bp, s * (span / 2 + 0.08), y, 0); cyl(Bp, 0.17, 0.17, 0.12, hex, { seg: 10 }); }
+  g.add(mesh(Bp, [mat, hull]));
+  const B = builder();
+  bind(B, 0, PPL(0.5)); at(B, 0, 1.6, 0); box(B, span + 0.04, 0.09, 0.22, 0x2B2F3A, { bevel: 0.1 });
+  bind(B, 0, [0, 0, 0.3, -1]); at(B, 0, 1.69, 0); box(B, span - 0.1, 0.04, 0.1, hex, { bevel: 0 });
+  const panel = mesh(B, [mat, hull]); g.add(panel);
+  const wm = blendMaterial(new THREE.ShaderMaterial({ vertexShader: STRIP_VS, fragmentShader: WALL_FS, side: THREE.DoubleSide, uniforms: { uC: { value: new THREE.Vector3(...col) }, uA: { value: 1 }, uS: { value: span }, uTime: R.u.uTime }, depthWrite: false }), false, true);
+  view.own.push(wm);
+  const wall = new THREE.Mesh(new THREE.PlaneGeometry(span, 1.6).translate(0, 0.8, 0), wm); wall.frustumCulled = false; wall.renderOrder = 2; panel.add(wall);
+  const sm = blendMaterial(new THREE.ShaderMaterial({ vertexShader: STRIP_VS, fragmentShader: STRIP_FS, uniforms: { uC: { value: new THREE.Vector3(...col) }, uA: { value: 0.9 } }, depthWrite: false }), true, true);
+  view.own.push(sm);
+  const strip = new THREE.Mesh(new THREE.PlaneGeometry((ob.c1 - ob.c0 + 1) * PT - 0.12, (ob.r1 - ob.r0 + 1) * PT - 0.12).rotateX(-Math.PI / 2), sm);
+  strip.position.set(ob.x, 0.018, ob.z); strip.renderOrder = 1; strip.frustumCulled = false;
+  view.root.add(g, strip);
+  return { ob, g, panel, mat, col, strip: sm, up: ob.solid.on ? 1 : 0 };
+}
+const RING_FS = `uniform float uTime; varying vec2 vUv; ${MRT_OUT}
+void main() { float d = step(0.5, fract(atan(vUv.y - 0.5, vUv.x - 0.5) * 7.0 / 3.14159 + uTime * 0.4)); float a = 0.35 + 0.35 * d; gl_FragColor = vec4(vec3(1.0, 0.31, 0.85) * a, a * 0.5); ${AUX_NONE} }`;
+// A turnstile display: a column in the store's colours turning three chrome arms, a TV at the end of each (on its
+// own channel, both faces) and a tray of phones half way out; it never stops.
+function turnstileModel(view, ob, mesh, atlas) {
+  const g = new THREE.Group(), B = builder(), S = builder(), R2 = ob.R;
+  g.position.set(ob.x, 0, ob.z);
+  bind(B, 0, PPL(0.4)); cyl(B, 0.78, 0.84, 0.2, 0x2B2F3A, { seg: 20, top: 0x3D4466 });
+  bind(B, 0, PPL(0.5)); at(B, 0, 0.2, 0); cyl(B, 0.42, 0.42, 1.95, 0x262B52, { seg: 16, top: 0xFF4FD8 });
+  bind(B, 0, PKW(KIT.s0 + 2, 0.3)); at(B, 0, 1.25, 0); cyl(B, 0.445, 0.445, 0.55, 0xFFFFFF, { seg: 16, top: false, side: PKW(KIT.s0 + 2, 0.3), uRep: 3 });
+  bind(B, 0, PPL(0.3, 0.85)); at(B, 0, 2.15, 0); cyl(B, 0.47, 0.47, 0.06, 0x00E5FF, { seg: 16 });
+  for (let i = 0; i < ob.arms; i++) {
+    const a = i * 2 * Math.PI / ob.arms, sx = Math.sin(a), sz = Math.cos(a), mid = 0.4 + (R2 - 0.4) / 2;
+    bind(B, 0, PPL(0.85)); at(B, sx * mid, 1.0, sz * mid, a); box(B, 0.12, 0.12, R2 - 0.4, 0xDDE3EA, { bevel: 0.3, mid: true });
+    at(B, sx * mid, 0.42, sz * mid, a); box(B, 0.08, 0.08, R2 - 0.4, 0xC9CED8, { bevel: 0.3, mid: true });
+    const tx = sx * (R2 - 0.3), tz = sz * (R2 - 0.3), face = a + Math.PI / 2;
+    bind(B, 0, PPL(0.4)); at(B, tx, 1.2, tz, face); box(B, 1.3, 0.8, 0.1, 0x0D0F22, { bevel: 0.1, mid: true });
+    at(B, tx, 0.42, tz); cyl(B, 0.05, 0.05, 0.4, 0x2B2F3A, { seg: 6 });
+    screen(S, tx + Math.sin(face) * 0.056, 1.2, tz + Math.cos(face) * 0.056, face, 1.18, 0.68, (i * 0.31 + ob.x * 0.07) % 1);
+    screen(S, tx - Math.sin(face) * 0.056, 1.2, tz - Math.cos(face) * 0.056, face + Math.PI, 1.18, 0.68, (i * 0.53 + ob.z * 0.05) % 1);
+    bind(B, 0, PPL(0.3)); at(B, sx * 1.25, 1.06, sz * 1.25, a); box(B, 0.56, 0.06, 0.5, 0xFF4FD8, { bevel: 0.2 });
+    for (let k = 0; k < 3; k++) { bind(B, 0, PPL(0.7)); const o = (k - 1) * 0.16; at(B, sx * 1.25 + Math.cos(a) * o, 1.12, sz * 1.25 - Math.sin(a) * o, a, -0.25); box(B, 0.12, 0.2, 0.03, [0x1B1F3B, 0xFFFFFF, 0x00E5FF][k], { bevel: 0.2 }); }
+  }
+  g.add(mesh(B));
+  const sm = screenMaterial(atlas); view.own.push(sm);
+  const sc = new THREE.Mesh(toGeometry(S, { groups: false, hull: false }), sm); sc.frustumCulled = false; g.add(sc);
+  // its reach painted on the floor: a dashed magenta circle
+  const rm = blendMaterial(new THREE.ShaderMaterial({ vertexShader: STRIP_VS, fragmentShader: RING_FS, uniforms: { uTime: R.u.uTime }, depthWrite: false }), true, true);
+  view.own.push(rm);
+  const rg = new THREE.RingGeometry(R2 + 0.05, R2 + 0.3, 64, 1).rotateX(-Math.PI / 2); rg.setAttribute('along', new THREE.Float32BufferAttribute(new Float32Array(rg.attributes.position.count), 1));
+  const ringMesh = new THREE.Mesh(rg, rm); ringMesh.position.set(ob.x, 0.02, ob.z); ringMesh.renderOrder = 1; ringMesh.frustumCulled = false;
+  view.root.add(g, ringMesh);
+  return { ob, g };
+}
+// The laser beam and its trail: a hot red bar, the line it throws on the floor, a wedge of afterglow fading behind it.
+const BEAM_FS = `uniform float uTime; varying vec2 vUv; varying float vAlong; ${MRT_OUT}
+void main() { float f = 0.85 + 0.15 * sin(uTime * 47.0); gl_FragColor = vec4(vec3(1.0, 0.22, 0.32) * 1.7 * f, 1.0); ${AUX_NONE} }`;
+const TRAIL_FS = `varying vec2 vUv; varying float vAlong; ${MRT_OUT}
+void main() { float a = (1.0 - vAlong) * (1.0 - vAlong) * 0.55; gl_FragColor = vec4(vec3(1.0, 0.2, 0.35) * a, a * 0.6); ${AUX_NONE} }`;
+// The laser turret: a pedestal banded in magenta, a head turning with its beam (it sweeps once every few seconds).
+function laserModel(view, ob, mesh, flat) {
+  const B = builder();
+  bind(B, 0, PPL(0.4)); at(B, ob.x, 0, ob.z); cyl(B, 0.64, 0.72, 0.25, 0x2B2F3A, { seg: 18, top: 0x3D4466 });
+  at(B, ob.x, 0.25, ob.z); cyl(B, 0.42, 0.52, 0.32, 0x262B52, { seg: 16, top: 0x1B1F3B });
+  bind(B, 0, PPL(0.5, 0.8)); at(B, ob.x, 0.4, ob.z); cyl(B, 0.53, 0.53, 0.06, 0xFF4FD8, { seg: 16 });
+  view.root.add(mesh(B));
+  const H = builder();
+  bind(H, 0, PPL(0.7)); at(H, 0, 0.66, 0); ellipsoid(H, 0.36, 0.26, 0.36, 0xDDE3EA, { seg: 14, rings: 8 });
+  bind(H, 0, PPL(0.4)); at(H, 0, 0.62, 0.3, 0, Math.PI / 2); cyl(H, 0.1, 0.12, 0.3, 0x2B2F3A, { seg: 10, mid: true });
+  bind(H, 0, PPL(0.3, 1)); at(H, 0, 0.62, 0.46, 0, Math.PI / 2); cyl(H, 0.08, 0.08, 0.04, 0xFF3B4E, { seg: 10, mid: true });
+  const head = mesh(H); head.position.set(ob.x, 0, ob.z); view.root.add(head);
+  const withAlong = (geo, fn) => { const n = geo.attributes.position.count, a = new Float32Array(n); for (let i = 0; i < n; i++) a[i] = fn ? fn(i, geo.attributes.position) : 0; geo.setAttribute('along', new THREE.Float32BufferAttribute(a, 1)); return geo; };
+  const beam = new THREE.Mesh(withAlong(new THREE.BoxGeometry(0.1, 0.1, ob.L - 0.5).translate(0, 0.62, (ob.L - 0.5) / 2 + 0.5)), flat(BEAM_FS, { uTime: R.u.uTime }, true));
+  const line = new THREE.Mesh(withAlong(new THREE.PlaneGeometry(0.34, ob.L - 0.6).rotateX(-Math.PI / 2).translate(0, 0.022, (ob.L - 0.6) / 2 + 0.6)), beam.material);
+  beam.add(line);
+  // the afterglow: a fan from the beam back 50 degrees (it has just swept there)
+  const n = 16, pos = [0, 0.02, 0], idx = [], al = [0];
+  for (let i = 0; i <= n; i++) { const f = i / n, a = -f * 0.9; pos.push(Math.sin(a) * ob.L, 0.02, Math.cos(a) * ob.L); al.push(f); if (i > 0) idx.push(0, i, i + 1); }
+  const fg = new THREE.BufferGeometry(); fg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); fg.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(al.length * 2), 2)); fg.setAttribute('along', new THREE.Float32BufferAttribute(al, 1)); fg.setIndex(idx);
+  const trail = new THREE.Mesh(fg, flat(TRAIL_FS, {}, true)); trail.material.side = THREE.DoubleSide;
+  for (const m of [beam, trail]) { m.position.set(ob.x, 0, ob.z); m.frustumCulled = false; m.renderOrder = 3; view.root.add(m); }
+  line.renderOrder = 2; line.frustumCulled = false;
+  return { ob, head, beam, trail };
+}
+// A robot vacuum: a white disc under a navy lid, a cyan light ring, a bumper, two LED eyes, a yellow side brush.
+function vacModel(mesh, lamp, hull) {
+  const B = builder();
+  bind(B, 0, PPL(0.5)); cyl(B, 0.52, 0.55, 0.15, 0xF4F7FB, { seg: 22, top: 0x2A2F5A });
+  bind(B, 0, PPL(0.2)); at(B, 0, 0.01, 0); cyl(B, 0.57, 0.57, 0.07, 0x2B2F3A, { seg: 22, top: false });
+  bind(B, 0, PPL(0.6)); at(B, 0, 0.15, -0.08); cyl(B, 0.16, 0.18, 0.06, 0xDDE3EA, { seg: 12 });
+  bind(B, 0, PPL(0.3, 1)); for (const s of [-1, 1]) { at(B, s * 0.15, 0.09, 0.51); ellipsoid(B, 0.05, 0.06, 0.03, 0xFFFFFF, { seg: 8, rings: 6 }); }
+  bind(B, 0, PPL(0.2)); for (let i = 0; i < 3; i++) { const a = i * 2.1; at(B, 0.38 + Math.sin(a) * 0.12, 0.01, 0.34 + Math.cos(a) * 0.12, a); box(B, 0.04, 0.012, 0.24, 0xFFD23F, { bevel: 0 }); }
+  const body = mesh(B);
+  const L = builder(); bind(L, 0, P_GLOWV); at(L, 0, 0.16, 0, 0, Math.PI / 2); ring(L, 0.42, 0.42, 0.035, 0.03, 0x00E5FF, { seg: 22 });
+  const light = new THREE.Mesh(toGeometry(L, {}), [lamp, hull]); light.frustumCulled = false;
+  const g = new THREE.Group(); g.add(body, light); return g;
+}
+
 // A pallet jack: a low yellow frame with forks under a pallet of shrink-wrapped cans, a handle, a flashing light.
 function jackModel(mesh, lamp, hull) {
   const B = builder();
@@ -226,21 +364,51 @@ export function syncProps(view, sim, dt, draw) {
       const u = ((t - ob.ph[i]) % ob.period + ob.period) % ob.period, st = tilePop(ob, i, t);
       const x = (ob.c0 + i % ob.nc + 0.5) * PT, z = (ob.r0 + Math.floor(i / ob.nc) + 0.5) * PT;
       const up = st === 2 ? Math.sin(Math.min(1, u / ob.up) * Math.PI) : 0;
-      d.position.set(x, -0.18, z); d.scale.set(1 - up * 0.08, 1 + up * 4.4, 1 - up * 0.08); d.rotation.set(0, 0, 0); d.updateMatrix();
+      if (f.trap) {              // a trapdoor: swings down on its west hinge while open, back up before it closes
+        const k = st === 2 ? Math.min(1, u / 0.18, (ob.up - u) / 0.25) : 0, th = Math.max(0, k) * 1.75;
+        d.position.set(x - PT / 2 + Math.cos(th) * PT / 2, -Math.sin(th) * PT / 2, z); d.rotation.set(0, 0, -th); d.scale.set(1, 1, 1); d.updateMatrix();
+      } else { d.position.set(x, -0.18, z); d.scale.set(1 - up * 0.08, 1 + up * 4.4, 1 - up * 0.08); d.rotation.set(0, 0, 0); d.updateMatrix(); }
       f.im.setMatrixAt(i, d.matrix);
-      d.position.set(x, 0.035 + up * 0.88, z); d.scale.set(1, 1, 1); d.updateMatrix(); f.fl.setMatrixAt(i, d.matrix);
+      d.position.set(x, 0.035 + (f.trap ? 0 : up * 0.88), z); d.scale.set(1, 1, 1); d.rotation.set(0, 0, 0); d.updateMatrix(); f.fl.setMatrixAt(i, d.matrix);
       // the warning: the tile flashes red in the 0.6 s before it pops, faster and faster
       const warn = st === 1 ? (u - (ob.period - ob.lead)) / ob.lead : 0, blink = warn > 0 ? (Math.sin(warn * warn * 40) > -0.2 ? 0.6 + warn * 0.4 : 0.15) : st === 2 ? 0.5 : 0;
       col[i * 3] = blink; col[i * 3 + 1] = blink * 0.15; col[i * 3 + 2] = blink * 0.12;
     }
+    const open = tilePop(ob, 0, t) === 2;
+    if (open && !f.open) f.clank = true;
+    f.open = open;
     f.im.instanceMatrix.needsUpdate = true; f.fl.instanceMatrix.needsUpdate = true; f.fl.instanceColor.needsUpdate = true;
   }
   for (const p of P.patrols) {
     patrolAt(p.ob, t, p.pos);
-    p.g.position.set(p.pos.x, 0, p.pos.z); p.g.rotation.y = p.pos.h;
-    const on = Math.sin(P.t * 9) > 0 ? 1 : 0.15;
-    p.lamp.uniforms.uGlow.value.set(1.4 * on, 0.7 * on, 0.1 * on);
+    p.g.position.set(p.pos.x, 0, p.pos.z); p.g.rotation.y = p.pos.h + (p.ob.spinT > t ? (p.ob.spinT - t) * 14 : 0);   // a dashed vacuum spins
+    const on = p.ob.loop ? 0.75 + 0.25 * Math.sin(P.t * 4) : Math.sin(P.t * 9) > 0 ? 1 : 0.15;
+    if (p.ob.loop) p.lamp.uniforms.uGlow.value.set(0, 0.9 * on, 1.0 * on); else p.lamp.uniforms.uGlow.value.set(1.4 * on, 0.7 * on, 0.1 * on);
     draw.shadow(p.pos.x, p.pos.z, p.ob.hx + 0.25, p.ob.hz + 0.35, p.pos.h);
+  }
+  // smart barriers: the solid colour stands tall and glows; the other lies in the floor and throbs while the player's
+  // dash is ready (that is what a dash would raise)
+  const ready = sim.player && sim.player.dashCd <= 0 && !sim.player.done;
+  for (const b of P.bars) {
+    const want = b.ob.solid.on ? 1 : 0;
+    b.up += Math.sign(want - b.up) * Math.min(Math.abs(want - b.up), dt / 0.16);
+    const e = b.up * b.up * (3 - 2 * b.up);
+    b.panel.position.y = -1.62 * (1 - e); b.panel.visible = e > 0.01;
+    const pulse = !want && ready ? 0.35 + 0.35 * Math.sin(P.t * 9) : 0, glow = want ? 1 : pulse;
+    const gl = 0.12 + glow * 0.5;
+    b.mat.uniforms.uGlow.value.set(b.col[0] * gl, b.col[1] * gl, b.col[2] * gl);
+    b.strip.uniforms.uA.value = want ? 0.9 : 0.25 + pulse;
+  }
+  for (const s of P.spins) {
+    s.g.rotation.y = armAngle(s.ob, t, 0);
+    for (let i = 0; i < s.ob.arms; i++) { const a = armAngle(s.ob, t, i); draw.shadow(s.ob.x + Math.sin(a) * s.ob.R * 0.55, s.ob.z + Math.cos(a) * s.ob.R * 0.55, 0.32, s.ob.R * 0.5, a); }
+  }
+  for (const l of P.lasers) {
+    const a = laserAngle(l.ob, t), p = sim.player, pa = Math.atan2(p.x - l.ob.x, p.z - l.ob.z), side = Math.sin(a - pa);
+    if (Math.hypot(p.x - l.ob.x, p.z - l.ob.z) < l.ob.L + 3 && l.side !== undefined && Math.sign(side) !== Math.sign(l.side) && Math.cos(a - pa) > 0) l.zip = true;
+    l.side = side;
+    l.head.rotation.y = a; l.beam.rotation.y = a;
+    l.trail.rotation.y = a;
   }
   for (const b of P.buttons) {
     const ob = b.ob, since = ob.pressed ? t - ob.pressT : -1;

@@ -2,11 +2,12 @@
 // Purpose: store kits as reusable data (ART.md section 6) and what builds them: the floor material
 //          (tiles with grout and per-tile variation, painted graphics, light pools, shadows), the walls,
 //          fixtures, signs and decor of a store, and the store's light and grade.
-// Exports: KITS, kitOf, floorMaterial, floorMap
-// Depends on: config.js, render.js and the global THREE (inside functions only).
+// Exports: KITS, kitOf, floorMaterial, floorMap, screenMaterial
+// Depends on: config.js, render.js, atlas.js and the global THREE (inside functions only).
 
 import { CFG, PAL, CROWD_MIX } from './config.js';
 import { R, MRT_OUT, CEL_COMMON, v3 } from './render.js';
+import { KIT } from './atlas.js';
 
 // ---- the kits -----------------------------------------------------------------------------------------
 // floor: two tile colours (a checker of `checker` tiles per 2 m plan tile), grout, the painted-graphics
@@ -44,8 +45,8 @@ export const KITS = {
     id: 'electronics', name: 'GADGET GOBLIN', palette: { a: '#1B1F3B', b: '#00E5FF', c: '#FF4FD8', d: '#FFD23F' }, sign: '#11142A', top: '#2A2F5A',
     signs: ['PHONES', 'AUDIO', 'GAMING', 'LAPTOPS', 'CAMERAS', 'SMART HOME', 'TV & VIDEO', 'VR ZONE'],
     shelves: { S: 'tech', M: 'techtable', L: 'tvwall' }, fixture: { body: 0x2A2F5A, accent: 0x00E5FF, trim: 0xFF4FD8, dark: 0x11142A },
-    floor: { a: 0x20264D, b: 0x1B1F3B, grout: 0x00E5FF, checker: 1, paint: 0xFF4FD8, arrow: 0x00E5FF, vary: 0.06, wet: 0x7CC6FE, grid: 0.55, gloss: 0.5 },
-    walls: { face: 0x262B52, band: 0x00E5FF, stripe: 0xFF4FD8, top: 0x2A2F5A, base: 0x11142A },
+    floor: { a: 0x222850, b: 0x1C2042, grout: 0x2FC8E8, checker: 1, paint: 0xFF4FD8, arrow: 0x00E5FF, vary: 0.05, wet: 0x7CC6FE, grid: 0.3, groutW: 0.487, gloss: 0.9 },
+    walls: { face: 0x262B52, band: 0x00E5FF, stripe: 0xFF4FD8, top: 0x2A2F5A, base: 0x11142A, neon: true, bulbs: [0x00E5FF, 0xFF4FD8] }, posters: [54, 55, 57],
     pools: { grid: 10, r: 2.6, warm: [0.8, 0.95, 1.12], k: 0.1 },
     grade: { shade: [0.5, 0.52, 0.92], key: [0.92, 0.96, 1.05], light: [0.3, 0.85, 0.45], sat: 1.12, contrast: 1.1, lift: [0.01, 0.0, 0.05], gain: [0.97, 1, 1.05], vignette: 0.28, bloom: 1.5, halftone: 0.14 },
     void: 0x0D0F22,
@@ -54,6 +55,32 @@ export const KITS = {
   },
 };
 export function kitOf(def) { return KITS[def.kit || 'supermarket'] || KITS.supermarket; }
+
+// ---- TV screens ---------------------------------------------------------------------------------------------
+// Every screen plays the store's four channels (atlas cells KIT.ch0..+3) on its own clock (tex.z is its seed):
+// a scrolling platformer, a bouncing cartoon, the match, a music show with live equalizer bars; scanlines, a
+// vignette, a burst of static at each channel change. Screens glow (they bloom).
+const SCREEN_VS = 'attribute vec4 tex; varying vec2 vUv; varying vec4 vTex; void main() { vUv = uv; vTex = tex; gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0); }';
+const SCREEN_FS = `uniform sampler2D uMap; uniform float uTime; uniform float uCh0; varying vec2 vUv; varying vec4 vTex; ${MRT_OUT}
+vec4 cell(float k, vec2 uv) { vec2 o = vec2(mod(k, 8.0), floor(k / 8.0)) / 8.0; return texture2D(uMap, o + (0.004 + clamp(uv, 0.0, 1.0) * 0.992) / 8.0); }
+void main() {
+  float seed = vTex.z, t = uTime + seed * 37.0, slot = t / 6.0 + seed * 3.0, ch = mod(floor(slot) + floor(seed * 4.0), 4.0), since = fract(slot) * 6.0;
+  vec2 uv = vUv;
+  if (ch < 0.5) uv.x = fract(uv.x + t * 0.12);
+  else if (ch < 1.5) uv.y += sin(t * 7.0) * 0.035;
+  else if (ch < 2.5) uv = (uv - 0.5) * (0.92 + 0.08 * sin(t * 1.7)) + 0.5;
+  vec3 col = cell(uCh0 + ch, uv).rgb;
+  if (ch > 2.5) { float bx = floor(vUv.x * 9.0), hgt = 0.25 + 0.5 * abs(sin(t * (2.3 + bx * 0.61) + bx * 1.7)); col = mix(col, mix(vec3(0.0, 0.9, 1.0), vec3(1.0, 0.31, 0.85), vUv.y), step(1.0 - vUv.y, hgt) * step(0.18, fract(vUv.x * 9.0)) * step(vUv.y, 0.8)); }
+  col *= 0.88 + 0.12 * step(0.5, fract(vUv.y * 70.0));
+  float n = fract(sin(dot(floor(vUv * vec2(90.0, 60.0)) + floor(t * 24.0), vec2(12.9898, 78.233))) * 43758.5453);
+  col = mix(col, vec3(n * 0.9 + 0.1), step(since, 0.22));
+  col *= 1.0 - 0.4 * pow(length(vUv - 0.5) * 1.25, 2.0);
+  gl_FragColor = vec4(col * 1.05, 0.5);
+  oAux = vec4(0.5, 0.5, 0.0, 0.0);
+}`;
+export function screenMaterial(atlas) {
+  return new THREE.ShaderMaterial({ vertexShader: SCREEN_VS, fragmentShader: SCREEN_FS, uniforms: { uMap: { value: atlas }, uTime: R.u.uTime, uCh0: { value: KIT.ch0 } } });
+}
 
 // ---- the floor ------------------------------------------------------------------------------------------
 // One texel of uMap per plan tile: r = spare, g = decal / 16 (1-4 arrow east, south, west, north; 5 checkout
@@ -67,10 +94,12 @@ ${CEL_COMMON}
 uniform sampler2D uMap; uniform vec2 uMapSize; uniform float uTile; uniform float uTime;
 uniform vec3 uA; uniform vec3 uB; uniform vec3 uGrout; uniform vec3 uPaint; uniform vec3 uArrow; uniform vec3 uWet; uniform vec3 uBelt; uniform vec3 uClosed; uniform vec3 uHatch;
 uniform float uChecker; uniform float uVary; uniform float uPoolGrid; uniform float uPoolR; uniform vec3 uPoolC; uniform float uPoolK; uniform float uLines; uniform vec3 uLineC;
+uniform float uGroutW; uniform float uGrid; uniform float uGloss; uniform float uGlossMode; uniform float uMarble; uniform vec3 uVein;
 varying vec3 vW; varying vec4 vSh;
 ${MRT_OUT}
 vec4 tileAt(vec2 id) { return texture2D(uMap, (id + 0.5) / uMapSize); }
 float hash2(vec2 p) { return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5453); }
+float vein(vec2 p) { float a = sin(p.x * 1.3 + sin(p.y * 1.7 + sin(p.x * 0.6 + p.y * 0.4) * 1.8) * 1.4 + p.y * 0.5); return 1.0 - smoothstep(0.0, 0.06 + fwidth(a) * 1.5, abs(a)); }
 void main() {
   vec2 g = vW.xz / uTile, id = floor(g), f = fract(g), e = abs(f - 0.5);
   vec4 t = tileAt(id);
@@ -80,11 +109,14 @@ void main() {
   vec2 cg = g * uChecker, cid = floor(cg), cf = fract(cg), ce = abs(cf - 0.5); vec2 cw = fwidth(cg) * 1.2;
   vec3 c = mix(uA, uB, mod(cid.x + cid.y, 2.0));
   c *= 1.0 + (hash2(cid) - 0.5) * uVary;
-  float grout = max(smoothstep(0.475 - cw.x, 0.475, ce.x), smoothstep(0.475 - cw.y, 0.475, ce.y)) * far;
+  float grout = max(smoothstep(uGroutW - cw.x, uGroutW, ce.x), smoothstep(uGroutW - cw.y, uGroutW, ce.y)) * far;
   c = mix(c, uGrout, grout);
   // a faint bevel highlight on each square's upper-left edge (tiles, not paint)
   c = mix(c, c * 1.04, (1.0 - smoothstep(0.0, 0.06, cf.x)) * (1.0 - grout) * far * 0.6);
   float d = floor(t.g * 16.0 + 0.5);
+  if (d > 14.5) discard;                                            // a pit or a field of sliding panels: its own geometry lies below
+  // marble veins (boutique floors)
+  if (uMarble > 0.0) c = mix(c, uVein, vein(vW.xz * 0.55) * uMarble * far * (1.0 - grout));
   if (d > 0.5 && d < 4.5) {                                          // a painted chevron down the route
     vec2 dir = d < 1.5 ? vec2(1.0, 0.0) : d < 2.5 ? vec2(0.0, 1.0) : d < 3.5 ? vec2(-1.0, 0.0) : vec2(0.0, -1.0);
     vec2 p = f - 0.5, q = vec2(dot(p, dir), dot(p, vec2(-dir.y, dir.x)));
@@ -111,9 +143,6 @@ void main() {
     c = mix(c, uWet, pud * 0.75);
     float glint = step(0.92, sin((g.x + g.y) * 7.0 + uTime * 1.6) * sin((g.x - g.y) * 5.0 - uTime));
     c = mix(c, vec3(1.0), glint * pud * far);
-  } else if (d > 14.5) {                                            // a pit: a dark drop with hazard edges
-    c = mix(vec3(0.09, 0.07, 0.13), uHatch, step(0.4, e.x + e.y * 0.0) * step(0.5, fract((f.x + f.y) * 4.0)) * 0.0);
-    c = mix(c, mix(uHatch, uInk, step(0.5, fract((g.x + g.y) * 2.0))), max(step(0.43, e.x), step(0.43, e.y)));
   } else if (d > 13.5) {
     c = mix(mix(uHatch, uInk, step(0.5, fract((f.x + f.y) * 2.0))), c, 0.2);
     c = mix(c, uClosed, step(0.5, fract(uTime * 4.0)) * 0.7);
@@ -131,6 +160,15 @@ void main() {
     ln = max(ln, (1.0 - tileAt(id + vec2(0.0, 1.0)).a) * smoothstep(0.1, 0.1 + w.y, 1.0 - f.y) * (1.0 - smoothstep(0.16, 0.16 + w.y, 1.0 - f.y)));
     c = mix(c, uLineC, ln * 0.92);
   }
+  // a glossy floor mirrors the ceiling: its light strips (or chandeliers) slide across it with the camera
+  if (uGloss > 0.0) {
+    vec3 V = normalize(vW - cameraPosition); float up = max(0.08, -V.y);
+    vec2 h = vW.xz + V.xz * (7.0 / up), q;
+    float r;
+    if (uGlossMode < 0.5) { q = abs(fract(h / vec2(9.0, 7.0)) - 0.5); r = (1.0 - smoothstep(0.035, 0.075, q.y)) * (1.0 - smoothstep(0.3, 0.42, q.x)); }
+    else { q = (fract(h / 10.0) - 0.5) * 10.0; r = (1.0 - smoothstep(0.5, 1.5, length(q))) * 0.8 + (1.0 - smoothstep(0.0, 0.35, length(q))) * 0.4; }
+    c = mix(c, mix(uPoolC, vec3(1.0), 0.45) * 1.1, r * (0.3 + 0.7 * pow(1.0 - up, 3.0)) * uGloss * (1.0 - grout) * far);
+  }
   // light pools under the ceiling lamps: two hard-edged bands, warm
   vec2 pc = vW.xz / uPoolGrid; vec2 pq = (fract(pc) - 0.5) * uPoolGrid; float pr = length(pq);
   float pool = (1.0 - smoothstep(uPoolR - 0.03, uPoolR + 0.03, pr)) * 0.55 + (1.0 - smoothstep(uPoolR * 0.62 - 0.03, uPoolR * 0.62 + 0.03, pr)) * 0.45;
@@ -145,7 +183,7 @@ void main() {
   c = mix(c, c * uShade, sh);
   c = mix(c, c * uTint, uTintAmt);
   if (uFlat > 0.5) c = vec3(0.96, 0.94, 0.9);
-  gl_FragColor = vec4(c, 0.0);
+  gl_FragColor = vec4(c, grout * uGrid * far);                     // a glowing grid blooms (electronics)
   oAux = vec4(0.5, 0.5, 0.5 + 0.25 * step(0.5, sh), 0.0);
 }`;
 export function floorMaterial(kit) {
@@ -158,6 +196,7 @@ export function floorMaterial(kit) {
       uMap: { value: null }, uMapSize: { value: new T.Vector2(1, 1) }, uTile: { value: CFG.TILE },
       uA: { value: v3(F.a) }, uB: { value: v3(F.b) }, uGrout: { value: v3(F.grout) }, uPaint: { value: v3(F.paint) }, uArrow: { value: v3(F.arrow) },
       uWet: { value: v3(F.wet) }, uBelt: { value: v3(0x4A3D66) }, uClosed: { value: v3(PAL.danger) }, uHatch: { value: v3(PAL.sale) },
+      uGroutW: { value: F.groutW || 0.475 }, uGrid: { value: F.grid || 0 }, uGloss: { value: F.gloss || 0 }, uGlossMode: { value: F.glossMode || 0 }, uMarble: { value: F.marble || 0 }, uVein: { value: v3(F.vein || 0) },
       uChecker: { value: F.checker }, uVary: { value: F.vary }, uLines: { value: F.lines ? 1 : 0 }, uLineC: { value: v3(F.lines || 0) }, uPoolGrid: { value: P.grid }, uPoolR: { value: P.r }, uPoolC: { value: new T.Vector3(...P.warm) }, uPoolK: { value: P.k },
     },
   });
@@ -173,6 +212,7 @@ export function floorMap(world) {
     data[i * 4 + 2] = (b ? world.nav[to] > world.nav[i] : k === '=' && line[i % cols - 1] !== '=' && line[i % cols + 1] !== '=') ? 255 : 0;
     data[i * 4 + 3] = world.floor[i] ? 255 : 0;
   }
+  for (const ob of world.objs || []) if (ob.kind === 'panels') for (let j = 0; j < ob.nr; j++) for (let i = 0; i < ob.nc; i++) data[((ob.r0 + j) * cols + ob.c0 + i) * 4 + 1] = 15 * 16;   // panels over a pit
   let c = Math.floor(world.start.x / CFG.TILE), r = Math.floor(world.start.z / CFG.TILE);
   for (let n = 0; n < 600; n++) {
     let best = world.nav[r * cols + c], bc = c, br = r, dir = 0;

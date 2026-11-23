@@ -149,8 +149,13 @@ const DEMO = {
     '                            ',
   ],
 };
+// each store's own objects on the demo floor (the hazard camera looks at them)
+const DEMO_OBJECTS = {
+  electronics: [['turnstile', 21, 3, {}], ['barrier', 12, 10, { c1: 13, color: 'red' }], ['barrier', 15, 10, { c1: 16, color: 'blue' }], ['laser', 22, 10, { len: 5 }],
+    ['patrol', 24, 14, { type: 'vacuum', to: [[25, 14], [25, 15], [24, 15]] }], ['panels', 12, 15, { cols: 3, rows: 2, pattern: 'wave' }]],
+};
 function kitShow(kit, view, q) {
-  const def = Object.assign({}, DEMO, { kit: kit.id });
+  const def = Object.assign({}, DEMO, { kit: kit.id, objects: DEMO_OBJECTS[kit.id] || [] });
   const sim = createSim(def, 1, { countdown: 0 });
   const v = buildScene(sim);
   setGrade(v.kit.grade);

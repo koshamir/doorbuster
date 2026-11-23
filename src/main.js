@@ -40,7 +40,7 @@ const game = {
   probe: null, gain: 0, gainT: 0, gainList: false, v: null, said: {},
   icons: {},                      // pictures of goods for the list, by id
   mark: null, markT: 0, markText: '',   // where the arrow points (a piece or a lane), for how long, its word
-  flash: 0, flashAt: -9, warner: null, dodgeHint: false, glassT: 0, rammed: false, frozen: false, clock: 0, steered: 0, tagAt: -9, aim: { x: 0, z: 0, fx: 0, fz: 0, left: 0 },
+  flash: 0, flashAt: -9, flipT: 0, warner: null, dodgeHint: false, glassT: 0, rammed: false, frozen: false, clock: 0, steered: 0, tagAt: -9, aim: { x: 0, z: 0, fx: 0, fz: 0, left: 0 },
 };
 let save = null;                  // platform.progress: { best, medals, unlocked, fails, seen, music, sfx, shake }
 
@@ -185,6 +185,12 @@ function onEvent(e) {
   if (!mine) {
     const close = (x, z) => Math.hypot(x - p.x, z - p.z) < 22;
     if (e.type === 'pancake' && close(e.ref.x, e.ref.z)) sticker('SPLAT!', 'splat', e.ref.x, 1.4, e.ref.z);
+    if (e.type === 'flip') {           // the store swaps its barriers: the screen flashes the colour that is now solid
+      if (e.value) R.u.uTint.value.set(1.0, 0.3, 0.25); else R.u.uTint.value.set(0.35, 0.55, 1.0);
+      R.u.uTintAmt.value = 0.42; game.flipT = 0.3;
+      sticker('ZAP!', 'bam', p.x, 2.8, p.z);
+      if (!save.seen.flip && !p.ai) { save.seen.flip = true; platform.save(); }
+    }
     if (!k) return;
     if (e.type === 'wipe' && close(k.x, k.z)) sticker('BONK!', 'bonk', k.x, 2.8, k.z);
     else if (e.type === 'pop' && close(k.x, k.z)) sticker('BOING!', 'bam', k.x, 2.8, k.z);
@@ -294,6 +300,7 @@ function pointers(dt) {
     if (game.warner && game.dodgeHint) keys = game.touch ? ['◀', '▶'] : ['A', 'D'];
     else if (game.glassT > 0) keys = [game.touch ? 'DASH' : 'SHIFT'];
     else if (!seen.drive) { keys = game.touch ? ['◀', '▶'] : ['A', 'D', 'W']; if (game.steered > 90) { seen.drive = true; platform.save(); } }
+    else if (!seen.flip && sim.world.barriers.some((b) => b.solid.on && ahead(b, 14))) keys = [game.touch ? 'DASH' : 'SHIFT'];      // a dash flips the barriers
     else if (!seen.dash && sim.world.pieces.some((q) => q.solid.on && q.solid.dash && ahead(q, 16))) keys = [game.touch ? 'DASH' : 'SHIFT'];
     else if (!seen.drift && Math.abs(p.spd) > 7 && sim.world.pieces.some((q) => q.type === 'display' && ahead(q, 16))) keys = [game.touch ? 'DRIFT' : 'SPACE'];
   }
@@ -337,14 +344,17 @@ function tick(dt, draw) {
     game.state === 'receipt' ? (R.w > R.h ? 3 : 0) : undefined, game.state === 'closeup');
   // Closing time washes the store in red, pulsing.
   const tint = R.u.uTintAmt;
-  tint.value += ((sim.closing && game.state === 'play' ? 0.24 + 0.08 * Math.sin(game.clock * 6) : 0) - tint.value) * Math.min(1, dt * 4);
+  if (game.flipT > 0) game.flipT -= dt;
+  else { if (sim.closing) R.u.uTint.value.set(1.0, 0.55, 0.6); tint.value += ((sim.closing && game.state === 'play' ? 0.24 + 0.08 * Math.sin(game.clock * 6) : 0) - tint.value) * Math.min(1, dt * 4); }
   syncScene(game.view, sim, alpha, dt);
   // the level objects' own sounds: a sign creaks at each end of its swing, a forklift beeps while it moves
   const props = game.view.props;
   if (props && game.state === 'play') {
     const near = (x, z) => Math.max(0, 1 - Math.hypot(x - p.x, z - p.z) / 22);
     for (const sg of props.signs) if (sg.creak) { sg.creak = false; objectSound('creak', near(sg.ob.x, sg.ob.z)); }
-    for (const pt of props.patrols) if (pt.pos && Math.sin(game.clock * 6.3) > 0.97) objectSound('beep', near(pt.pos.x, pt.pos.z));
+    for (const pt of props.patrols) if (pt.pos && !pt.ob.loop && Math.sin(game.clock * 6.3) > 0.97) objectSound('beep', near(pt.pos.x, pt.pos.z));
+    for (const l of props.lasers) if (l.zip) { l.zip = false; objectSound('zip', near(l.ob.x, l.ob.z)); }
+    for (const f of props.fields) if (f.clank) { f.clank = false; objectSound(f.trap ? 'clank' : 'boing', near(f.ob.x, f.ob.z)); }
   }
   // Money being swept right now is one running label above the cart; when the run of goods ends it
   // floats away.

@@ -325,7 +325,53 @@ function drawPrint(g, kind) {
 // surfaces: price strips, frost, ice, awning, shutter slats, a checkout belt, wood, decals with a clear ground.
 export const KIT = { sign0: 0, checkout: 8, banner: 9, sale: 10, pct: 11, wet: 12, fish: 13, deli: 14, price: 15, frost: 16, ice: 17, awning: 18,
   shutter: 19, belt: 20, wood: 21, chalk: 22, ring: 23, star: 24, dash: 25, press: 26, logo: 27, poster2: 28, poster3: 29, glare: 30, pegboard: 31, door: 32, arrow: 33, walltop: 34, backroom: 35,
-  tag: 36, bell: 37, watch: 38, arch: 39, poptile: 40, fork: 41 };
+  tag: 36, bell: 37, watch: 38, arch: 39, poptile: 40, fork: 41, panel: 42, hex: 43, yarn: 44, plate: 45, bin: 46, stripe: 47,
+  ch0: 48, s0: 52 };      // 48-51: the four TV channels; 52-63: a store's own signs and surfaces (STORE_ART)
+// A store's own cells (from KIT.ch0 up): the TV channels, its signs, posters and surfaces.
+const STORE_ART = {
+  electronics(cell, g, text, burst) {
+    const C = '#00E5FF', M = '#FF4FD8', N = '#1B1F3B';
+    // the four channels (the screen shader animates them): a platformer, a cartoon cat, the match, a music show
+    cell(KIT.ch0, () => {
+      const sky = g.createLinearGradient(0, 0, 0, 256); sky.addColorStop(0, '#5BC0FF'); sky.addColorStop(1, '#B8E8FF'); g.fillStyle = sky; g.fillRect(0, 0, 256, 256);
+      g.fillStyle = '#FFFFFF'; for (const [x, y] of [[40, 50], [170, 36], [230, 70]]) { g.beginPath(); g.ellipse(x, y, 26, 12, 0, 0, 7); g.ellipse(x + 18, y - 8, 18, 12, 0, 0, 7); g.fill(); }
+      g.fillStyle = '#3BB273'; for (let x = -64; x < 320; x += 128) { g.beginPath(); g.ellipse(x, 230, 90, 70, 0, 0, 7); g.fill(); }
+      g.fillStyle = '#C98A5B'; g.fillRect(0, 214, 256, 42); g.fillStyle = '#8AC926'; g.fillRect(0, 206, 256, 12);
+      g.fillStyle = '#FFB703'; g.fillRect(96, 150, 64, 20); g.strokeStyle = INK; g.lineWidth = 4; g.strokeRect(96, 150, 64, 20);
+      g.fillStyle = '#FFD23F'; for (const x of [60, 112, 144, 200]) { g.beginPath(); g.arc(x, x === 112 || x === 144 ? 126 : 180, 9, 0, 7); g.fill(); g.stroke(); }
+      g.fillStyle = '#FF4FA3'; g.fillRect(52, 172, 22, 34); g.fillStyle = '#FFD9B8'; g.fillRect(56, 160, 14, 14); g.fillStyle = INK; g.fillRect(64, 164, 3, 4);
+    });
+    cell(KIT.ch0 + 1, () => {
+      g.fillStyle = '#FFD23F'; g.fillRect(0, 0, 256, 256); burst(128, 128, 150, 110, 18, '#FFE58A');
+      g.fillStyle = '#FF8AC4'; g.beginPath(); g.moveTo(66, 92); g.lineTo(84, 30); g.lineTo(118, 78); g.lineTo(138, 78); g.lineTo(172, 30); g.lineTo(190, 92); g.closePath(); g.fill(); g.lineWidth = 7; g.strokeStyle = INK; g.stroke();
+      g.beginPath(); g.ellipse(128, 140, 78, 66, 0, 0, 7); g.fill(); g.stroke();
+      g.fillStyle = '#FFFFFF'; for (const x of [98, 158]) { g.beginPath(); g.ellipse(x, 128, 20, 24, 0, 0, 7); g.fill(); g.stroke(); g.fillStyle = INK; g.beginPath(); g.arc(x + 4, 132, 9, 0, 7); g.fill(); g.fillStyle = '#FFFFFF'; g.beginPath(); g.arc(x + 7, 127, 3, 0, 7); g.fill(); }
+      g.strokeStyle = INK; g.lineWidth = 6; g.beginPath(); g.arc(128, 160, 16, 0.2, Math.PI - 0.2); g.stroke();
+    });
+    cell(KIT.ch0 + 2, () => {
+      g.fillStyle = '#3BB273'; g.fillRect(0, 0, 256, 256); g.fillStyle = '#34A066'; for (let x = 0; x < 256; x += 64) g.fillRect(x, 0, 32, 256);
+      g.strokeStyle = '#FFFFFF'; g.lineWidth = 5; g.strokeRect(16, 40, 224, 200); g.beginPath(); g.moveTo(128, 40); g.lineTo(128, 240); g.stroke(); g.beginPath(); g.arc(128, 140, 34, 0, 7); g.stroke();
+      g.fillStyle = '#FFFFFF'; g.beginPath(); g.arc(150, 118, 12, 0, 7); g.fill(); g.strokeStyle = INK; g.lineWidth = 3; g.stroke();
+      g.fillStyle = N; g.fillRect(0, 0, 256, 34); text('ZAP 2', 70, 18, 22, '#FFFFFF', null); text('1 BOOP', 186, 18, 22, '#FFFFFF', null); g.fillStyle = M; g.fillRect(112, 4, 32, 26); text('88', 128, 18, 18, '#FFFFFF', null);
+    });
+    cell(KIT.ch0 + 3, () => {
+      const bg = g.createRadialGradient(128, 90, 10, 128, 128, 180); bg.addColorStop(0, '#7B2FF7'); bg.addColorStop(1, '#170A33'); g.fillStyle = bg; g.fillRect(0, 0, 256, 256);
+      g.fillStyle = 'rgba(255,79,216,0.35)'; g.beginPath(); g.moveTo(128, 0); g.lineTo(60, 256); g.lineTo(196, 256); g.fill();
+      text('BASSBRICK', 128, 40, 34, '#FFFFFF', M);
+    });
+    // the store's signs: GIGAVISION over the TV walls, the VR ZONE neon, posters
+    cell(KIT.s0, () => { g.fillStyle = N; g.fillRect(0, 0, 256, 128); g.lineWidth = 6; g.strokeStyle = C; g.strokeRect(8, 8, 240, 112); text('GIGAVISION', 128, 58, 40, '#FFFFFF', C); g.fillStyle = M; g.fillRect(40, 92, 176, 8); });
+    cell(KIT.s0 + 1, () => { g.fillStyle = '#120A26'; g.fillRect(0, 0, 256, 128); g.lineWidth = 10; g.strokeStyle = M; g.strokeRect(10, 10, 236, 108); text('VR ZONE', 128, 64, 56, '#FFE6FA', M); });
+    cell(KIT.s0 + 2, () => { g.fillStyle = M; g.fillRect(0, 0, 256, 256); burst(128, 104, 96, 70, 10, '#FFD23F'); g.fillStyle = N; g.beginPath(); g.moveTo(140, 40); g.lineTo(96, 116); g.lineTo(126, 116); g.lineTo(110, 176); g.lineTo(160, 92); g.lineTo(130, 92); g.closePath(); g.fill(); text('ZAPTRONIX', 128, 214, 36, '#FFFFFF', INK); g.lineWidth = 8; g.strokeStyle = INK; g.strokeRect(4, 4, 248, 248); });
+    cell(KIT.s0 + 3, () => { g.fillStyle = C; g.fillRect(0, 0, 256, 256); g.fillStyle = N; g.beginPath(); g.arc(128, 104, 70, 0, 7); g.fill(); g.fillStyle = '#FFFFFF'; for (const x of [104, 152]) { g.beginPath(); g.arc(x, 96, 16, 0, 7); g.fill(); } g.fillStyle = N; for (const x of [108, 156]) { g.beginPath(); g.arc(x, 100, 7, 0, 7); g.fill(); } g.strokeStyle = '#FFFFFF'; g.lineWidth = 6; g.beginPath(); g.arc(128, 124, 18, 0.3, Math.PI - 0.3); g.stroke(); text('BOOP!', 128, 214, 52, '#FFFFFF', INK); g.lineWidth = 8; g.strokeStyle = INK; g.strokeRect(4, 4, 248, 248); });
+    cell(KIT.s0 + 4, () => {
+      g.fillStyle = '#2D6CDF'; g.fillRect(0, 0, 256, 256); const w = g.createLinearGradient(0, 0, 256, 256); w.addColorStop(0, '#5AA7FF'); w.addColorStop(1, '#7B2FF7'); g.fillStyle = w; g.fillRect(0, 0, 256, 256);
+      for (const [x, y, ww, hh, c] of [[24, 30, 120, 90, '#FFFFFF'], [110, 100, 120, 100, '#F4F7FB']]) { g.fillStyle = c; g.fillRect(x, y, ww, hh); g.fillStyle = M; g.fillRect(x, y, ww, 16); g.fillStyle = 'rgba(27,31,59,0.25)'; for (let k = 0; k < 4; k++) g.fillRect(x + 10, y + 28 + k * 14, ww - 30 - k * 12, 6); }
+      g.fillStyle = 'rgba(27,31,59,0.8)'; g.fillRect(0, 232, 256, 24);
+    });
+    cell(KIT.s0 + 5, () => { g.fillStyle = N; g.fillRect(0, 0, 256, 256); g.fillStyle = C; g.fillRect(0, 150, 256, 26); g.strokeStyle = '#FFFFFF'; g.lineWidth = 14; g.beginPath(); g.arc(128, 104, 52, Math.PI, 0); g.stroke(); g.fillStyle = M; g.fillRect(64, 98, 30, 50); g.fillRect(162, 98, 30, 50); text('PIXELPOP', 128, 214, 38, '#FFFFFF', null); });
+  },
+};
 export function kitAtlas(store) {
   const key = 'kit_' + store.id;
   if (cache[key]) return cache[key];
@@ -428,6 +474,34 @@ export function kitAtlas(store) {
     g.fillStyle = INK; for (let x = -256; x < 256; x += 48) { g.beginPath(); g.moveTo(x, 256); g.lineTo(x + 24, 256); g.lineTo(x + 24 + 60, 196); g.lineTo(x + 60, 196); g.fill(); }
     text('LIFT-O-MATIC', 128, 96, 34, '#FFFFFF', INK);
   });
+  // the objects of levels 3-4: a sliding floor panel (tread plate in a hazard border), the hex skin of a smart barrier
+  // (white lines over its own colour), yarn, a red pressure plate, a clearance bin's sign, tiling hazard stripes
+  cell(KIT.panel, () => {
+    const gr = g.createLinearGradient(0, 0, 256, 256); gr.addColorStop(0, '#8C96AA'); gr.addColorStop(1, '#5E687E'); g.fillStyle = gr; g.fillRect(0, 0, 256, 256);
+    g.fillStyle = 'rgba(220,230,245,0.45)'; for (let y = 34; y < 230; y += 22) for (let x = 34 + ((y / 22) % 2) * 11; x < 230; x += 22) { g.save(); g.translate(x, y); g.rotate(0.7); g.fillRect(-7, -2, 14, 4); g.restore(); }
+    for (let k = 0; k < 4; k++) { g.save(); g.translate(128, 128); g.rotate(k * Math.PI / 2); g.translate(-128, -128); g.beginPath(); g.rect(0, 0, 256, 24); g.clip(); for (let x = -40; x < 300; x += 32) { g.fillStyle = '#FFD23F'; g.fillRect(x, 0, 32, 24); g.fillStyle = INK; g.beginPath(); g.moveTo(x, 24); g.lineTo(x + 16, 0); g.lineTo(x + 32, 0); g.lineTo(x + 16, 24); g.fill(); } g.restore(); }
+    g.lineWidth = 6; g.strokeStyle = INK; g.strokeRect(3, 3, 250, 250); g.fillStyle = '#5A6274'; for (const [x, y] of [[38, 38], [218, 38], [38, 218], [218, 218]]) { g.beginPath(); g.arc(x, y, 6, 0, 7); g.fill(); }
+  });
+  cell(KIT.hex, () => {
+    g.clearRect(0, 0, 256, 256); g.strokeStyle = 'rgba(255,255,255,0.7)'; g.lineWidth = 4;
+    const r = 32, w = r * Math.sqrt(3);
+    for (let row = -1; row < 7; row++) for (let col = -1; col < 6; col++) { const cx = col * w + (row % 2 ? w / 2 : 0), cy = row * r * 1.5; g.beginPath(); for (let i = 0; i < 6; i++) { const a = Math.PI / 6 + i * Math.PI / 3; g.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r); } g.closePath(); g.stroke(); }
+    g.fillStyle = 'rgba(255,255,255,0.55)'; g.fillRect(0, 0, 256, 10); g.fillRect(0, 246, 256, 10);
+  });
+  cell(KIT.yarn, () => {
+    g.fillStyle = '#FF7FB6'; g.fillRect(0, 0, 256, 256);
+    for (let k = 0; k < 26; k++) { const y = k * 10 - 4; g.strokeStyle = k % 3 ? 'rgba(196,44,112,0.55)' : 'rgba(255,214,232,0.8)'; g.lineWidth = k % 3 ? 5 : 3; g.beginPath(); for (let x = -8; x <= 264; x += 8) g.lineTo(x, y + Math.sin(x / 40 + k) * 6); g.stroke(); }
+    g.strokeStyle = 'rgba(160,30,90,0.5)'; g.lineWidth = 6; for (let k = 0; k < 5; k++) { g.beginPath(); g.moveTo(k * 56, 0); g.bezierCurveTo(k * 56 + 50, 90, k * 56 - 30, 170, k * 56 + 20, 256); g.stroke(); }
+  });
+  cell(KIT.plate, () => {
+    g.fillStyle = '#8E96A8'; g.fillRect(0, 0, 256, 256); g.fillStyle = '#E63946'; g.fillRect(20, 20, 216, 216); g.fillStyle = '#B5212F'; g.fillRect(44, 44, 168, 168);
+    g.lineWidth = 8; g.strokeStyle = INK; g.strokeRect(20, 20, 216, 216); g.strokeRect(4, 4, 248, 248);
+    g.fillStyle = '#FFFFFF'; g.beginPath(); g.ellipse(128, 120, 46, 40, 0, 0, 7); g.fill(); g.fillRect(96, 140, 64, 44); g.lineWidth = 6; g.stroke();
+    g.fillStyle = '#E63946'; for (let i = 0; i < 3; i++) g.fillRect(104 + i * 18, 96, 12, 30);
+  });
+  cell(KIT.bin, () => { g.fillStyle = '#E63946'; g.fillRect(0, 0, 256, 128); g.fillStyle = '#FFFFFF'; g.fillRect(0, 96, 256, 32); text('CLEARANCE', 128, 46, 40, '#FFFFFF', INK); text('90% OFF EVERYTHING', 128, 112, 20, '#E63946', null); g.lineWidth = 8; g.strokeStyle = INK; g.strokeRect(4, 4, 248, 120); });
+  cell(KIT.stripe, () => { g.fillStyle = '#FFD23F'; g.fillRect(0, 0, 256, 256); g.fillStyle = INK; for (let x = -256; x < 512; x += 64) { g.beginPath(); g.moveTo(x, 256); g.lineTo(x + 32, 256); g.lineTo(x + 288, 0); g.lineTo(x + 256, 0); g.fill(); } });
+  (STORE_ART[store.id] || (() => {}))(cell, g, text, burst, P);
   // the backroom round the store: the same overstock, dim and grey, so the lit store stands out from it
   cell(KIT.backroom, () => {
     g.drawImage(cv, (KIT.walltop % 8) * 256, Math.floor(KIT.walltop / 8) * 256, 256, 256, 0, 0, 256, 256);
