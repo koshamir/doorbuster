@@ -515,31 +515,40 @@ export function updateCamera(k, alpha, dt, towerHeight, world, orbit, intro = 0,
   cam.shake = Math.max(0, cam.shake - dt * 1.8);
   camera.position.set(lx - fx * back + fz * sx, height + sy, lz - fz * back - fx * sx);
   camera.lookAt(lx + fz * sx * 0.5, 0.6, lz - fx * sx * 0.5);
-  if (cam.close > 0.001) {
-    // the checkout close-up: a front three-quarter portrait of the hero, from the side the counter is not on, clear
-    // of the lamp pole on the lane's centre line
+  if (cam.close > 0.001 && cam.side !== 9) {
+    // the checkout close-up: a front three-quarter portrait of the hero from a spot over open floor, clear of the lamp
+    // poles; where the lanes end at a wall there is no such spot and the wide view stays (cam.side 9)
     const hx = Math.sin(h), hz = Math.cos(h), cx = x - hx * 1.3, cz = z - hz * 1.3, u = cam.close, e = u * u * (3 - 2 * u);
     if (!cam.side) {        // pick once: the side whose line of sight stays clear of the lane lamp poles
       let best = -1;
-      for (const sd of [1, -1]) {
-        const qx = cx + hx * 2.3 - hz * 1.35 * sd, qz = cz + hz * 2.3 + hx * 1.35 * sd;
+      // in front of the hero on either side first (the face), else behind on either side (the approach is open floor)
+      for (const [fa, sd] of [[2.8, 1], [2.8, -1], [-2.2, 1], [-2.2, -1]]) {
+        if (best >= 0 && fa < 0 && cam.ahead > 0) break;
+        const qx = cx + hx * fa - hz * 1.45 * sd, qz = cz + hz * fa + hx * 1.45 * sd;
+        if (world && [[0, 0], [0.9, 0], [-0.9, 0], [0, 0.9], [0, -0.9]].some(([dx, dz]) => { const c = Math.floor((qx + dx) / CFG.TILE), r = Math.floor((qz + dz) / CFG.TILE); return c < 0 || r < 0 || c >= world.cols || r >= world.rows || !world.floor[r * world.cols + c]; })) continue;
+        if (world && ((world.laneOf && world.laneOf[Math.floor(qz / CFG.TILE) * world.cols + Math.floor(qx / CFG.TILE)] >= 0) ||
+          world.pieces.some((q) => q.type === 'counter' && q.solid && Math.abs(q.x - qx) < q.solid.hx + 0.25 && Math.abs(q.z - qz) < q.solid.hz + 0.25))) continue;      // never over a lane or a counter
         let near = 9;
         for (const l of (world && world.lanes) || []) {
           const ox = l.pole ? l.pole[0] : l.x, oz = l.pole ? l.pole[1] : l.z, vx = cx - qx, vz = cz - qz, t = Math.max(0, Math.min(1, ((ox - qx) * vx + (oz - qz) * vz) / (vx * vx + vz * vz)));
           near = Math.min(near, Math.hypot(qx + vx * t - ox, qz + vz * t - oz));
         }
-        if (near > best) { best = near; cam.side = sd; }
+        if (near > best) { best = near; cam.side = sd; cam.ahead = fa; }
       }
+      if (!cam.side) cam.side = 9;
     }
-    const px = cx + hx * 2.3 - hz * 1.35 * cam.side, pz = cz + hz * 2.3 + hx * 1.35 * cam.side;
-    camera.position.lerp(_cv.set(px, 1.58, pz), e);
+  }
+  if (cam.close > 0.001 && cam.side !== 9) {
+    const hx = Math.sin(h), hz = Math.cos(h), cx = x - hx * 1.3, cz = z - hz * 1.3, u = cam.close, e = u * u * (3 - 2 * u);
+    const px = cx + hx * cam.ahead - hz * 1.45 * cam.side, pz = cz + hz * cam.ahead + hx * 1.45 * cam.side;
+    camera.position.lerp(_cv.set(px, 2.45, pz), e);      // above the counters' tops (1.25 m): the counter beside the lane never cuts into the picture
     _lk.set(lx, 0.6, lz).lerp(_cv.set(cx, 1.12, cz), e);
     camera.lookAt(_lk.x, _lk.y, _lk.z);
   }
   const aspect = R.w / R.h;
   const base = TUNE.camfov - 5 + 8 * Math.min(cam.zoom, 1) + 6 * fast + 7 * cam.punch;
   const tall = aspect < 1.3 ? Math.min(1.7, 1.3 / aspect) : 1;
-  const fov = 2 * Math.atan(Math.tan((base + (40 - base) * (cam.close || 0)) * Math.PI / 360) * tall) * 180 / Math.PI;
+  const fov = 2 * Math.atan(Math.tan((base + (40 - base) * (cam.side === 9 ? 0 : cam.close || 0)) * Math.PI / 360) * tall) * 180 / Math.PI;
   if (Math.abs(fov - camera.fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
   cam.x = lx; cam.z = lz;
 }
