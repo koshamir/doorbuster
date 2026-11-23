@@ -189,7 +189,7 @@ function finish() {
   ui.hud.classList.add('off'); setArrow(false); setWarn(false); setHint(null);
   game.result = () => showReceipt(p.receipt, () => {
     game.frozen = true;
-    return settle(sim).map((k) => ({ name: k.player ? 'YOU' : k.def.name, total: k.receipt ? k.receipt.total : -1, me: k.player }));
+    return settle(sim).map((k) => ({ name: k.player ? 'YOU' : k.def.name, total: k.receipt ? k.receipt.total : -1, time: k.receipt ? k.doneT : -1, me: k.player }));
   }, { value: Math.max(prev, total), isNew: isNew && prev > 0 }, def.name, medal, () => play(true),
   openCustoms, openDirectory,
   medal < 3 && def.medals ? { medal: medal + 1, at: def.medals[medal - 1] } : null,      // (the Black Card stays a secret)

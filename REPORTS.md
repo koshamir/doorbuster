@@ -34,3 +34,15 @@ Try: (1) level 1: let the sign swing past, then thread the pop-up tiles column b
 - `npm run check` passes for levels 1-4 (rivals pass 89-95% of hazards).
 
 Try: (1) level 3: dash at the first red wall, then flip again mid-way down the panel corridor; (2) level 4: grab the golden handbag and outrun the yarn ball; (3) after a run, buy BIG WHEELS in Cart Customs and watch the cart change.
+
+## P4 CAMPAIGN — 23 Nov 2026 (tag `p4`)
+
+- Two new modes: LIST (ram the list racks; the checkouts stay red until the list is done) and RACE (first through each checkpoint takes it; a star per checkpoint led and a RACE line on the receipt; the final table ranks by finish time).
+- Level 5 GAME ON (sports megastore, LIST, about 47 s): a hub with four departments in any order: gym cushion walls and punching bags, the pool with its trampoline, the treadmill track with hurdles, giant foosball rows and the GOLAZO goal.
+- Level 6 FOOD FIGHT (food court, RACE against Turbo Gramps, about 27 s): the sushi conveyor, grill strips bursting into flame, belly bros and a cleaver row, the dessert court of flying tables and the cake tower, three shortcuts, a head-on finish into turned checkouts.
+- Two new kits with zone floors (turf, track, gym planks, pool deck, kitchen tread plate, sushi wood, dessert checker); the sports hub is rubber matting, the food court terracotta.
+- Campaign: medals from author runs for all six stores; one groove re-orchestrated per store (muzak-funk, clank, synthwave, disco-house, stadium drums, surf-rock); leaderboards per level and total.
+- Fixed a real-time-only bug: a frame stamped before boot ended ran time backwards and made the rivals' rigs vanish for the first seconds; the check now opens two real-time pages.
+- The race: the expert wins by about 4 s, the confident bot 9 of 10, the beginner loses; `npm run check` passes for levels 1-6.
+
+Try: (1) level 6: take the delivery-box shortcut out of the sushi lane and beat Gramps through all three checkpoints; (2) level 5: do the departments in a different order each run and watch the list racks; (3) play three stores in a row and listen to the music change.

@@ -1,8 +1,8 @@
 ## STATUS (at most 10 lines)
-Phase: P4 CAMPAIGN (prompts/P4_CAMPAIGN.md) — starting; P3 STORES done and tagged p3 (23 Nov)
-Done: P1 look; P2 objects, modes, levels 1-2; P3 levels 3-4 with the electronics and boutique kits, the Mall Directory, Cart Customs, wallet, intro cards
-Next: P4 item 1 (read prompts/P4_CAMPAIGN.md)
-Open problems: the expert bot is now and then caught by the yarn ball late in the serpentine; L3/L4 author runs are shorter than the doc's 38/35 s
+Phase: P5 SHIP (prompts/P5_SHIP.md) — starting; P4 CAMPAIGN done and tagged p4 (23 Nov)
+Done: P1 look; P2 objects, modes, levels 1-2; P3 levels 3-4, Directory, Customs; P4 LIST and RACE modes, levels 5-6 with the sports and food kits, medals from author runs, a band per store
+Next: P5 item 1 (read prompts/P5_SHIP.md)
+Open problems: L4 receipts run small (spills in the boutique), so its medals are low; the release moment of L6 is a quiet frame
 
 ## Owner feedback (verbatim, latest first, last 3 rounds)
 
@@ -45,5 +45,14 @@ D35 2026-11-23 Every store is open; the directory recommends the first store not
 D36 2026-11-23 The intro card's portraits are the 3D heads rendered once into small pictures.
 D37 2026-11-23 L4's serpentine dividers are plain walls: as shoe walls they put 27% of the goods on the safe line.
 D38 2026-11-23 The timed barrier fallback (flipEvery) stays off: the bots and the flip flash read well; switch it on if the owner is confused.
+D39 2026-11-23 Level 5 GAME ON: author time 47 s (four departments in any order); level 6 FOOD FIGHT: author time 27 s.
+D40 2026-11-23 The level 6 race keeps LEVELS.md's shape on a track about half as long: Gramps through the checkpoints at about 8.5/15/20 s and home at 29-31 s; the expert wins by about 4 s, the confident bot 9 of 10.
+D41 2026-11-23 Level 6 ends head-on: counters turned for east-west lanes (plan letter E) close the home stretch; the 90-degree turn into a north-south lane cost up to 10 s.
+D42 2026-11-23 Medals come from the expert bot's 75th-percentile receipt over 24 seeds (the author run): silver 70%, gold 90%, Black Card at 100% (level 6: 105%, its receipts are tight).
+D43 2026-11-23 One groove, six bands (ART.md section 8): the same bass line, chords and lead, re-voiced per kit with its own drums and a tempo factor.
+D44 2026-11-23 A frame stamped before the previous task ended gives dt 0, never negative: a negative dt broke the rigs' squash into NaN in real-time play.
+D45 2026-11-23 A race's final table ranks by who got to a checkout first and shows the times; a RACE line with a star per checkpoint led prints on the receipt.
+D46 2026-11-23 The sports hub floor is rubber gym matting with coloured flecks, so it never reads as the electronics store's navy floor.
+D47 2026-11-23 Hazards that an object answers for itself (arena.js: cushion walls, bags, foosball, belly bros, grills, cleavers) live in their own module; props.js hands them over.
 
 ## Known issues (at most 10)

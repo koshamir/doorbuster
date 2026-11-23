@@ -521,7 +521,8 @@ function listDone(sim, k) { const n = (sim.def.list || []).length; return n > 0 
 export function settle(sim) {
   let guard = Math.ceil((sim.timer - sim.t + 1) / CFG.STEP);
   while (guard-- > 0 && sim.t < sim.timer && sim.carts.some((k) => !k.done)) { stepSim(sim); sim.events.length = 0; }
-  sim.table = [...sim.carts].sort((a, b) => (b.receipt ? b.receipt.total : -1) - (a.receipt ? a.receipt.total : -1));
+  const race = sim.mode === 'race', key = (k) => race ? (k.receipt ? -k.doneT : -1e9) : (k.receipt ? k.receipt.total : -1);   // a race ranks by who got there first
+  sim.table = [...sim.carts].sort((a, b) => key(b) - key(a));
   sim.table.forEach((k, i) => { k.place = i + 1; });
   return sim.table;
 }

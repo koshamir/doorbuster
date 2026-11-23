@@ -72,7 +72,7 @@ export const KITS = {
     id: 'sports', name: 'GAME ON', palette: { a: '#2B2D42', b: '#3BB273', c: '#FF7F11', d: '#48CAE4' }, sign: '#2B2D42', top: '#44475E',
     signs: ['GYM', 'POOL', 'TRACK', 'PITCH', 'BALLS', 'WEIGHTS', 'SHOES', 'SWIM'],
     shelves: { S: 'gondola', M: 'gondola', L: 'gondola' }, fixture: { body: 0xF4F7FB, accent: 0x3BB273, trim: 0xFF7F11, dark: 0x2B2D42 },
-    floor: { a: 0x44475E, b: 0x3E4157, grout: 0x2B2D42, checker: 1, paint: 0xFF7F11, arrow: 0xFFFFFF, vary: 0.05, wet: 0x48CAE4, groutW: 0.49 },
+    floor: { a: 0x4B4D5E, b: 0x464859, grout: 0x34364A, checker: 1, paint: 0xFF7F11, arrow: 0xFFFFFF, vary: 0.04, wet: 0x48CAE4, groutW: 0.494, fleck: 1 },   // rubber gym mats with coloured flecks
     walls: { face: 0xE9EEF5, band: 0x3BB273, stripe: 0xFF7F11, top: 0x44475E, base: 0x2B2D42 },
     pools: { grid: 12, r: 3.4, warm: [1.0, 1.0, 0.95], k: 0.12 },
     grade: { shade: [0.6, 0.66, 0.84], key: [1, 1, 0.96], light: [0.36, 0.86, 0.36], sat: 1.08, contrast: 1.06, lift: [0.0, 0.01, 0.03], gain: [1, 1, 1], vignette: 0.18, bloom: 1, halftone: 0.14 },
@@ -134,7 +134,7 @@ ${CEL_COMMON}
 uniform sampler2D uMap; uniform vec2 uMapSize; uniform float uTile; uniform float uTime;
 uniform vec3 uA; uniform vec3 uB; uniform vec3 uGrout; uniform vec3 uPaint; uniform vec3 uArrow; uniform vec3 uWet; uniform vec3 uBelt; uniform vec3 uClosed; uniform vec3 uHatch;
 uniform float uChecker; uniform float uVary; uniform float uPoolGrid; uniform float uPoolR; uniform vec3 uPoolC; uniform float uPoolK; uniform float uLines; uniform vec3 uLineC;
-uniform float uGroutW; uniform float uGrid; uniform float uGloss; uniform float uGlossMode; uniform float uMarble; uniform vec3 uVein;
+uniform float uGroutW; uniform float uGrid; uniform float uGloss; uniform float uGlossMode; uniform float uMarble; uniform vec3 uVein; uniform float uFleck;
 varying vec3 vW; varying vec4 vSh;
 ${MRT_OUT}
 vec4 tileAt(vec2 id) { return texture2D(uMap, (id + 0.5) / uMapSize); }
@@ -149,6 +149,10 @@ void main() {
   vec2 cg = g * uChecker, cid = floor(cg), cf = fract(cg), ce = abs(cf - 0.5); vec2 cw = fwidth(cg) * 1.2;
   vec3 c = mix(uA, uB, mod(cid.x + cid.y, 2.0));
   c *= 1.0 + (hash2(cid) - 0.5) * uVary;
+  if (uFleck > 0.5) {                          // rubber gym mats: flecks of the store's green, orange and pool blue, fading out with distance
+    vec2 fq = floor(vW.xz * 12.0); float h = hash2(fq + 0.37), ff = clamp(1.0 - max(w.x, w.y) * 18.0, 0.0, 1.0);
+    if (h > 0.91) c = mix(c, h > 0.97 ? vec3(0.23, 0.7, 0.45) : h > 0.94 ? vec3(1.0, 0.5, 0.07) : vec3(0.28, 0.79, 0.89), 0.5 * ff);
+  }
   float grout = max(smoothstep(uGroutW - cw.x, uGroutW, ce.x), smoothstep(uGroutW - cw.y, uGroutW, ce.y)) * far;
   c = mix(c, uGrout, grout);
   // a faint bevel highlight on each square's upper-left edge (tiles, not paint)
@@ -259,7 +263,7 @@ export function floorMaterial(kit) {
       uMap: { value: null }, uMapSize: { value: new T.Vector2(1, 1) }, uTile: { value: CFG.TILE },
       uA: { value: v3(F.a) }, uB: { value: v3(F.b) }, uGrout: { value: v3(F.grout) }, uPaint: { value: v3(F.paint) }, uArrow: { value: v3(F.arrow) },
       uWet: { value: v3(F.wet) }, uBelt: { value: v3(0x4A3D66) }, uClosed: { value: v3(PAL.danger) }, uHatch: { value: v3(PAL.sale) },
-      uGroutW: { value: F.groutW || 0.475 }, uGrid: { value: F.grid || 0 }, uGloss: { value: F.gloss || 0 }, uGlossMode: { value: F.glossMode || 0 }, uMarble: { value: F.marble || 0 }, uVein: { value: v3(F.vein || 0) },
+      uGroutW: { value: F.groutW || 0.475 }, uGrid: { value: F.grid || 0 }, uGloss: { value: F.gloss || 0 }, uGlossMode: { value: F.glossMode || 0 }, uMarble: { value: F.marble || 0 }, uVein: { value: v3(F.vein || 0) }, uFleck: { value: F.fleck || 0 },
       uChecker: { value: F.checker }, uVary: { value: F.vary }, uLines: { value: F.lines ? 1 : 0 }, uLineC: { value: v3(F.lines || 0) }, uPoolGrid: { value: P.grid }, uPoolR: { value: P.r }, uPoolC: { value: new T.Vector3(...P.warm) }, uPoolK: { value: P.k },
     },
   });

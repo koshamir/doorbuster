@@ -400,6 +400,7 @@ export function showReceipt(rc, tableOf, best, storeName, medal, onRetry, onNext
   line('ITEMS x' + rc.count, money(rc.items));
   if (rc.mode === 'smash') line('SMASH', money(rc.smash));
   if (rc.list) line('LIST', money(rc.list));
+  if (rc.mode === 'race') line('RACE ' + (rc.won ? 'WON ' : '') + '★'.repeat(rc.stars), money(rc.race));      // a star for each checkpoint led
   line('STUNTS', money(rc.stunts));
   line('TIME ' + rc.left + ' s', money(rc.time));
   const total = line('TOTAL', money(rc.total), 'total');
@@ -408,7 +409,7 @@ export function showReceipt(rc, tableOf, best, storeName, medal, onRetry, onNext
   steps.push(() => { el('div', 'stamp m' + medal, MEDAL[medal], total); audioCue('stamp'); });
   if (rc.badge) steps.push(() => { el('div', 'stamp new', rc.badge, total); audioCue('stamp'); });
   steps.push(() => {
-    tableOf().forEach((r, i) => line((i + 1) + '. ' + r.name, r.total < 0 ? 'still shopping' : money(r.total), 'rank' + (r.me ? ' me' : '')));
+    tableOf().forEach((r, i) => line((i + 1) + '. ' + r.name, rc.mode === 'race' ? (r.time < 0 ? 'still shopping' : r.time.toFixed(1) + ' s') : r.total < 0 ? 'still shopping' : money(r.total), 'rank' + (r.me ? ' me' : '')));
     const bestRow = line('BEST', money(best.value), 'rank best');
     if (goal) line(MEDAL[goal.medal] + ' AT', money(goal.at), 'rank next');       // what the next medal takes
     if (purse) line('WALLET', money(purse.wallet), 'rank wallet');
