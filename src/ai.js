@@ -7,7 +7,7 @@
 // Exports: BOTS, rivalProfile, makeDriver, drive, inZone, spawnCrowd, stepCrowd, spawnTrains, stepTrains
 // Depends on: config.js, world.js. No DOM, no THREE.
 
-import { TUNE, CFG, GOODS, CHARS, clamp, wrapAngle } from './config.js';
+import { TUNE, CFG, GOODS, GOOD, CHARS, CROWD_MIX, clamp, wrapAngle } from './config.js';
 import { navAim, navDistAt, clearPath, collide, blockedAt } from './world.js';
 import { switchField, hazardsOn, passDelay } from './objects.js';
 import { loadFactor } from './cart.js';
@@ -425,8 +425,9 @@ export function inZone(ob, x, z, pad) {
 // in yet (a quarter of the crowd arrives halfway through the run).
 export function spawnCrowd(sim) {
   const world = sim.world, tiles = world.crowdTiles, rng = sim.rng;
-  const shopper = (x, z, state, busy) => sim.shoppers.push({ x, z, vx: 0, vz: 0, tx: x, tz: z, h: rng() * 6.283, state, t: rng() * 3,
-    col: sim.shoppers.length % 3, busy, rush: false, near: null, hit: false, sure: false, angry: 0, hx: x, hz: z });
+  const mix = CROWD_MIX[sim.def.kit || 'supermarket'] || CROWD_MIX.supermarket;
+  const shopper = (x, z, state, busy) => { const i = sim.shoppers.length; sim.shoppers.push({ x, z, vx: 0, vz: 0, tx: x, tz: z, h: rng() * 6.283, state, t: rng() * 3,
+    col: i % 3, busy, rush: false, near: null, hit: false, sure: false, angry: 0, hx: x, hz: z, kind: mix[(i * 7 + 3) % mix.length], cd: 2 + (i % 5), chase: 0 }); };
   // A huddle: six shoppers set up like bowling pins (one, two, three), the head pin toward the carts
   // that come down the route, and too busy to jump clear. A dash through the middle is a STRIKE.
   if (TUNE.crowd > 0) for (const g of world.huddles) {
@@ -461,6 +462,39 @@ export function spawnCrowd(sim) {
   }
 }
 
+// The crowd's absurd moments (DESIGN.md section 6): the mascot breakdances when a cart comes near, the scooter
+// elder does donuts, a member of staff chases a speeding cart with a price gun for two seconds, a baby throws
+// goods out of its stroller. Returns true while the shopper is busy with one (its own movement is done here).
+function absurd(sim, s, p, dt) {
+  const d = Math.hypot(s.x - p.x, s.z - p.z);
+  if (s.state === 6 || s.state === 7) {                    // breakdancing or doing donuts
+    if (s.state === 7) {
+      s.h += 3.2 * dt; const nx = s.x + Math.sin(s.h) * 2.6 * dt, nz = s.z + Math.cos(s.h) * 2.6 * dt;
+      if (!blockedAt(sim.world, nx, nz, 0.5)) { s.x = nx; s.z = nz; } else s.t = 0;
+    }
+    if (s.t <= 0) { s.state = 0; s.t = 1 + sim.rng(); s.cd = 7 + sim.rng() * 4; }
+    return true;
+  }
+  if (s.chase > 0) {                                       // the price gun
+    s.chase -= dt;
+    const dx = p.x - s.x, dz = p.z - s.z, l = Math.hypot(dx, dz) || 1;
+    s.vx = dx / l * 4.2; s.vz = dz / l * 4.2; s.h = Math.atan2(dx, dz); s.state = 4;
+    if (s.chase <= 0) { s.state = 0; s.vx = s.vz = 0; s.angry = 1.2; s.t = 1; s.cd = 9; }
+    return false;
+  }
+  if (s.state !== 0 && s.state !== 1 || s.busy || s.cd > 0 || sim.phase !== 'run') return false;
+  if (s.kind === 'mascot' && d < 14) { s.state = 6; s.t = 3; s.vx = s.vz = 0; sim.emit('dance', null, 0, s); return true; }
+  if (s.kind === 'scooterElder' && d < 20) { s.state = 7; s.t = 3.5; sim.emit('donut', null, 0, s); return true; }
+  if (s.kind === 'staff' && d < 4.5 && Math.abs(p.spd) > 8) { s.chase = 2; sim.emit('pricegun', null, 0, s); return false; }
+  if (s.kind === 'strollerMom' && d < 7) {
+    s.cd = 10;
+    const pool = ['chips', 'soda', 'roll'], good = GOOD[pool[sim.tick % 3]];
+    sim.toss(s.x, s.z, p.x - s.x, p.z - s.z, good);
+    sim.emit('babythrow', null, 0, s);
+  }
+  return false;
+}
+
 export function stepCrowd(sim, dt) {
   const world = sim.world, rng = sim.rng, p = sim.player;
   const sale = sim.sale ? sim.sale.piece : null;
@@ -471,6 +505,8 @@ export function stepCrowd(sim, dt) {
     }
     s.t -= dt;
     if (s.angry > 0) s.angry -= dt;
+    if (s.cd > 0) s.cd -= dt;
+    if (absurd(sim, s, p, dt)) continue;
     if (s.state === 0 && s.busy) {
       if (s.t <= 0 && Math.hypot(s.hx - s.x, s.hz - s.z) > 0.4) { s.state = 4; s.rush = true; s.tx = s.hx; s.tz = s.hz; }   // back into formation, at a run
     } else if (s.state === 0) {
@@ -479,7 +515,9 @@ export function stepCrowd(sim, dt) {
         s.tx = sale.x + Math.cos(a) * r; s.tz = sale.z + Math.sin(a) * r;
       } else if (s.t <= 0) {                          // stroll a few metres if the way is clear
         const a = rng() * 6.283, r = 3 + rng() * 5, tx = s.x + Math.cos(a) * r, tz = s.z + Math.sin(a) * r;
-        if (clearPath(world, s.x, s.z, tx, tz, 0.4)) { s.state = 1; s.tx = tx; s.tz = tz; } else s.t = 0.4 + rng();
+        // most shoppers keep out of the hazards; one in seven wanders in regardless (and may be flattened)
+        const risky = sim.shoppers.indexOf(s) % 7 !== 0 && world.objs.some((ob) => (ob.fx === 'wipe' || ob.fx === 'push') && (inZone(ob, tx, tz, 1) || inZone(ob, (s.x + tx) / 2, (s.z + tz) / 2, 1)));
+        if (!risky && clearPath(world, s.x, s.z, tx, tz, 0.4)) { s.state = 1; s.tx = tx; s.tz = tz; } else s.t = 0.4 + rng();
       }
     } else if (s.state === 1 || s.state === 4) {
       const dx = s.tx - s.x, dz = s.tz - s.z, d = Math.hypot(dx, dz), v = s.state === 4 ? 3.6 : 1.3;

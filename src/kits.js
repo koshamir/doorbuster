@@ -5,7 +5,7 @@
 // Exports: KITS, kitOf, floorMaterial, floorMap
 // Depends on: config.js, render.js and the global THREE (inside functions only).
 
-import { CFG, PAL } from './config.js';
+import { CFG, PAL, CROWD_MIX } from './config.js';
 import { R, MRT_OUT, CEL_COMMON, v3 } from './render.js';
 
 // ---- the kits -----------------------------------------------------------------------------------------
@@ -22,7 +22,7 @@ export const KITS = {
     grade: { shade: [0.66, 0.6, 0.82], key: [1, 0.96, 0.86], light: [0.42, 0.8, 0.43], sat: 1.06, contrast: 1.04, lift: [0.012, 0.0, 0.03], gain: [1, 0.99, 0.97], vignette: 0.2, bloom: 1, halftone: 0.16 },
     void: 0x2A2240,
     hot: 'cheese',
-    crowd: ['walkerGranny', 'strollerMom', 'staff', 'caneGrandpa', 'toddler', 'phoneTeen', 'bellyBro', 'jogger'],
+    crowd: CROWD_MIX.supermarket,
   },
   // CAN-DEMONIUM: concrete with yellow safety lines, blue pallet racks with orange beams, red roller doors, a
   // cool key with warm pools under caged lamps; the can pyramids are the colour.
@@ -36,7 +36,7 @@ export const KITS = {
     grade: { shade: [0.52, 0.6, 0.8], key: [0.9, 0.96, 1.0], light: [0.34, 0.84, 0.42], sat: 1.05, contrast: 1.07, lift: [0.0, 0.01, 0.035], gain: [0.98, 1, 1.02], vignette: 0.24, bloom: 1, halftone: 0.18 },
     void: 0x1E2230,
     hot: 'goldcan',
-    crowd: ['staff', 'bellyBro', 'gymBro', 'caneGrandpa', 'phoneTeen', 'strollerMom', 'jogger', 'gamer'],
+    crowd: CROWD_MIX.warehouse,
   },
 };
 export function kitOf(def) { return KITS[def.kit || 'supermarket'] || KITS.supermarket; }

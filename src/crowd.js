@@ -135,6 +135,9 @@ export function crowdPose(p, t, o) {
     leg = Math.sin(ph) * a; armL = -Math.sin(ph) * a * 0.9; armR = Math.sin(ph) * a * 0.9;
     lean += p.state === 4 ? 0.25 : 0.06; y += Math.abs(Math.sin(ph)) * (p.state === 4 ? 0.06 : 0.025);
     face = p.state === 4 ? EXPR.happy : EXPR.neutral;
+    if (p.gun) { armR = -1.55; face = EXPR.angry; }            // running with the price gun up
+  } else if (p.state === 6) {                                  // a breakdance: on its back, legs kicking, arms out
+    fall = -1.45; y += 0.18; leg = Math.sin(t * 14) * 0.9; armL = -1.6 + Math.sin(t * 10) * 0.5; armR = -1.6 - Math.sin(t * 10) * 0.5; face = EXPR.happy;
   } else if (p.state === 2) {                                  // dodge-jump: arms up, legs tucked
     const u = clamp(p.t / 0.35, 0, 1);
     y += Math.sin(u * Math.PI) * 0.45; armL = -2.6; armR = -2.6; leg = 0.4; face = EXPR.shocked;

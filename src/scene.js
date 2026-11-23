@@ -396,12 +396,18 @@ function syncShoppers(view, sim, dt) {
     if (s.state < 0) continue;
     let q = view.people[i];
     if (!q) {
-      const kind = view.crowdKinds[(i * 7 + 3) % view.crowdKinds.length], f = CROWD[kind].face;
+      const kind = s.kind && CROWD[s.kind] ? s.kind : view.crowdKinds[(i * 7 + 3) % view.crowdKinds.length], f = CROWD[kind].face;
       q = view.people[i] = { kind, style: f === 2 ? 2 : [0, 1, 3][i % 3], cloth: CROWD_COLORS.cloth[(i * 7) % CROWD_COLORS.cloth.length], pants: CROWD_COLORS.pants[(i * 3) % 5], hair: CROWD_COLORS.hair[(i * 7 + 1) % 6], seed: i * 1.7, phase: i, scale: 0.96 + (i % 5) * 0.02, pose: {} };
     }
     const sp = Math.hypot(s.vx, s.vz);
     q.phase += sp / 1.15 * Math.PI * 2 * dt;
     q.x = s.x; q.z = s.z; q.state = s.state; q.t = s.t; q.speed = sp; q.angry = s.angry;
+    // flattened like a pancake by a sign or a forklift, then springing back up
+    q.squash = s.state === 5 ? (s.t > 0.35 ? 0.14 : 0.14 + (1 - s.t / 0.35) * 1.0 + Math.sin((1 - s.t / 0.35) * Math.PI) * 0.25) : 1;
+    if (s.state === 5) q.state = 0;
+    if (s.state === 6) { q.state = 6; q.h = s.h + t * 9; }          // breakdancing: spinning on its back
+    if (s.state === 7) q.state = 0;                                // donuts: the scooter turns, the rider idles
+    q.gun = s.chase > 0;
     q.h = s.state === 2 ? Math.atan2(s.vx, s.vz) : s.state === 3 ? s.h + (1 - s.t / 1.3) * 5 : s.angry > 0 ? Math.atan2(p.x - s.x, p.z - s.z) : s.h;
     crowdPose(q, t, q.pose);
     view.crowdList.push(q);

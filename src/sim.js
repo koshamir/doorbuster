@@ -116,6 +116,8 @@ export function createSim(def, seed, opts = {}) {
     },
     watch(k, ob) { sim.timer += CFG.watchTime; sim.emit('watch', k, CFG.watchTime, ob); },
     checkpoint(k, ob) { k.cp = ob.index; sim.emit('checkpoint', k, ob.index, ob); },
+    // a good thrown out of a stroller onto the floor, toward (dx, dz): anyone may take it
+    toss(x, z, dx, dz, good) { const l = Math.hypot(dx, dz) || 1; scatter(sim, x, z, dx / l, dz / l, good, 0, 8, false); },
   };
   const s = world.start;
   sim.player = makeCart(0, 'player', s.x, s.z, s.h);

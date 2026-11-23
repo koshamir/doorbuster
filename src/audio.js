@@ -115,6 +115,40 @@ function voice(char, up, force) {
   }
 }
 
+// ---- The cast's voices (DESIGN.md section 7) ----------------------------------------------------------------
+// A line is spoken as gibberish syllables in the character's own pitch, wave and pace, shaped by the mood (angry is
+// low and fast, shocked rises, happy bounces, sad falls). If assets/voice/voices.json lists a file <id>_<n>.mp3,
+// that file plays instead. The music ducks by 3 dB under a voice.
+const VOICE = { penny: [330, 'triangle', 1.1], granny: [225, 'sawtooth', 0.85], sprintdad: [140, 'sawtooth', 1.05], coupon: [300, 'square', 1.15],
+  selfie: [410, 'triangle', 1.2], bubba: [100, 'sawtooth', 0.8], gramps: [180, 'square', 0.95] };
+export function loadVoices() {
+  try { fetch('assets/voice/voices.json').then((r) => (r.ok ? r.json() : [])).then((list) => { A.voiceFiles = new Set((list || []).map((n) => String(n).replace(/\.mp3$/, ''))); }).catch(() => {}); } catch (e) { /* no voices */ }
+}
+export function say(who, n, text, mood, vol = 1) {
+  if (!A.ctx || !A.on) return;
+  const t = A.ctx.currentTime + 0.02, name = who + '_' + n;
+  let len;
+  if (A.voiceFiles && A.voiceFiles.has(name)) {
+    const a = new Audio('assets/voice/' + name + '.mp3'); a.volume = Math.min(1, A.vSfx * vol); a.play().catch(() => {});
+    len = 1.4;
+  } else {
+    const v = VOICE[who] || [190 + (who.length * 37) % 170, 'triangle', 1], syl = Math.max(2, Math.min(7, Math.round(text.length / 4)));
+    const d = (mood === 'angry' ? 0.07 : 0.095) / v[2];
+    for (let i = 0; i < syl; i++) {
+      if (A.voices > 56) break;
+      const k = mood === 'shocked' ? 1 + i * 0.07 : mood === 'happy' ? 1 + (i % 2 ? 0.12 : -0.04) : mood === 'sad' ? 1 - i * 0.05 : mood === 'angry' ? 0.86 + (i % 2) * 0.05 : 1;
+      const o = A.ctx.createOscillator(), f = A.ctx.createBiquadFilter(), g = A.ctx.createGain(), t0 = t + i * (d + 0.02), p = v[0] * k;
+      o.type = v[1]; o.frequency.setValueAtTime(p, t0); o.frequency.linearRampToValueAtTime(p * (mood === 'shocked' ? 1.3 : 0.92), t0 + d);
+      f.type = 'bandpass'; f.Q.value = 5; f.frequency.setValueAtTime([700, 1200, 1900, 900][i % 4], t0); f.frequency.linearRampToValueAtTime([1500, 800, 1200, 1700][i % 4], t0 + d);
+      g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(0.55 * vol, t0 + 0.012); g.gain.exponentialRampToValueAtTime(0.0006, t0 + d + 0.03);
+      o.connect(f); f.connect(g); g.connect(A.sfx); o.start(t0); o.stop(t0 + d + 0.06);
+      A.voices++; o.onended = () => { A.voices--; };
+    }
+    len = syl * (d + 0.02) + 0.1;
+  }
+  if (A.music) { const m = A.music.gain; m.cancelScheduledValues(t); m.setTargetAtTime(A.vMusic * 0.71, t, 0.03); m.setTargetAtTime(A.vMusic, t + len, 0.15); }
+}
+
 // ---- Effects for simulation events (same names as in sim.js). mine = the event is the player's. ----
 export function audioEvent(e, sim) {
   if (!A.ctx || !A.on) return;

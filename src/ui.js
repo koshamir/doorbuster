@@ -4,7 +4,7 @@
 //          arrow to the current event, the ram warning, key hints, countdown), touch controls, the
 //          title with the loyalty card, receipt, "store closed" and pause screens, and the debug
 //          panel (?debug=1). It only shows state; decisions stay in main.js.
-// Exports: initUI, ui, money, updateHud, popWord, announce, floatText, sticker, updateStickers, chainText, setList, setArrow, setWarn,
+// Exports: initUI, ui, money, updateHud, popWord, announce, floatText, sticker, updateStickers, bubble, emote, chainText, setList, setArrow, setWarn,
 //          setHint, showTouch, showTitle, showReceipt, showClosed, showPause, hideScreens, hurryUI,
 //          initDebug, updateDebug
 // Depends on: config.js, audio.js (interface sounds). Browser only. All styles live in index.html.
@@ -14,7 +14,7 @@ import { audioCue } from './audio.js';
 
 export const ui = { root: null, hud: null, timer: null, total: null, pop: null, count: null, chain: null, floats: [], screen: null,
   popT: 0, popQ: [], popKind: '', tally: null, meter: null, segs: [], mult: null, place: null, list: [], news: null, newsT: 0, arrow: null, warn: null,
-  hint: null, hintKey: '', touch: null, em: 16, onPause: null, stickers: [] };
+  hint: null, hintKey: '', touch: null, em: 16, onPause: null, stickers: [], bubbles: [], emotes: [] };
 
 function el(tag, cls, text, parent) {
   const e = document.createElement(tag);
@@ -60,6 +60,8 @@ export function initUI(root) {
   ui.chain = el('div', 'float chain', '', ui.hud);
   for (let i = 0; i < 14; i++) ui.floats.push({ e: el('div', 'float', '', ui.hud), t: 0, x: 0, y: 0 });
   for (let i = 0; i < 3; i++) { const e = el('canvas', 'sticker', undefined, ui.hud); e.width = 300; e.height = 190; ui.stickers.push({ e, t: 9, x: 0, y: 0, z: 0, word: '' }); }
+  for (let i = 0; i < 2; i++) { const e = el('div', 'bubble', undefined, ui.hud), pop = el('span', 'pop', undefined, e); el('b', '', '', pop); ui.bubbles.push({ e, pop, t: 0, pos: null, hero: false }); }
+  for (let i = 0; i < 4; i++) { const e = el('canvas', 'emote', undefined, ui.hud); e.width = e.height = 72; ui.emotes.push({ e, t: 0, pos: null, kind: '' }); }
   ui.screen = el('div', 'screen', undefined, root);
 }
 
@@ -163,8 +165,70 @@ function drawSticker(cv, word, kind) {
   g.fillStyle = '#FFFFFF'; g.fillText(word, 0, 2);
   g.restore();
 }
+// ---- speech bubbles and emotes (ART.md section 7) ------------------------------------------------------------
+// A bubble follows its speaker (pos() gives the world point above the head) for 1.6 s. Two at most: the hero's
+// line takes the place of the oldest other one; anyone else waits for a free one.
+let tilt = 0;
+export function bubble(text, pos, hero) {
+  let s = ui.bubbles.find((b) => b.t <= 0);
+  if (!s && hero) { for (const b of ui.bubbles) if (!b.hero && (!s || b.t < s.t)) s = b; }
+  if (!s) return false;
+  s.t = 1.6; s.pos = pos; s.hero = hero;
+  s.pop.firstChild.textContent = text;
+  s.e.style.setProperty('--tilt', (tilt++ % 2 ? 2.5 : -2.5) + 'deg');
+  s.e.classList.remove('in'); void s.e.offsetWidth; s.e.classList.add('in');
+  return true;
+}
+// An emote over a head for a second: 'vein' (anger), 'sweat', 'heart', 'bang' (!), 'what' (?).
+export function emote(kind, pos) {
+  let s = ui.emotes[0];
+  for (const c of ui.emotes) if (c.t < s.t) s = c;
+  s.t = 1; s.pos = pos;
+  if (s.kind !== kind) { s.kind = kind; drawEmote(s.e, kind); }
+}
+function drawEmote(cv, kind) {
+  const g = cv.getContext('2d'), INK = '#2A1A3A';
+  g.clearRect(0, 0, 72, 72); g.lineJoin = 'round'; g.lineCap = 'round';
+  if (kind === 'vein') {
+    g.strokeStyle = INK; g.lineWidth = 13;
+    const arcs = () => { for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2 + Math.PI / 4; g.beginPath(); g.arc(36 + Math.cos(a) * 15, 36 + Math.sin(a) * 15, 11, a + 2.2, a + 4.1); g.stroke(); } };
+    arcs(); g.strokeStyle = '#E63946'; g.lineWidth = 7; arcs();
+  } else if (kind === 'sweat') {
+    g.beginPath(); g.moveTo(36, 8); g.quadraticCurveTo(60, 42, 50, 54); g.arc(36, 50, 15, 0.3, Math.PI - 0.3); g.quadraticCurveTo(12, 42, 36, 8); g.closePath();
+    g.fillStyle = '#7CC6FE'; g.fill(); g.lineWidth = 5; g.strokeStyle = INK; g.stroke();
+    g.fillStyle = '#FFFFFF'; g.beginPath(); g.ellipse(30, 44, 4, 7, -0.4, 0, 7); g.fill();
+  } else if (kind === 'heart') {
+    g.beginPath(); g.moveTo(36, 62); g.bezierCurveTo(4, 40, 10, 8, 36, 22); g.bezierCurveTo(62, 8, 68, 40, 36, 62); g.closePath();
+    g.fillStyle = '#FF4FA3'; g.fill(); g.lineWidth = 5; g.strokeStyle = INK; g.stroke();
+    g.fillStyle = 'rgba(255,255,255,0.7)'; g.beginPath(); g.ellipse(24, 26, 5, 8, -0.6, 0, 7); g.fill();
+  } else {
+    g.fillStyle = kind === 'bang' ? '#FFD23F' : '#FFFFFF'; g.beginPath(); g.arc(36, 36, 27, 0, 7); g.fill(); g.lineWidth = 5; g.strokeStyle = INK; g.stroke();
+    g.fillStyle = INK; g.font = '900 40px "Arial Black", Impact, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(kind === 'bang' ? '!' : '?', 36, 38);
+  }
+}
+function updateTalk(dt, project) {
+  for (const s of ui.bubbles) {
+    if (s.t <= 0) continue;
+    s.t -= dt;
+    const [x, y, z] = s.pos(), p = project(x, y, z);
+    if (s.t <= 0 || p.z > 1) { s.e.classList.remove('in'); s.t = Math.min(s.t, 0); continue; }
+    // kept on screen: a speaker beyond the edge talks from the edge
+    const bx = Math.max(innerWidth * 0.09, Math.min(innerWidth * 0.91, p.x)), by = Math.max(innerHeight * 0.2, Math.min(innerHeight * 0.95, p.y));
+    s.e.style.transform = 'translate(' + bx.toFixed(0) + 'px, ' + by.toFixed(0) + 'px)';
+    s.e.style.opacity = s.t < 0.2 ? (s.t / 0.2).toFixed(2) : '';
+  }
+  for (const s of ui.emotes) {
+    if (s.t <= 0) continue;
+    s.t -= dt;
+    const [x, y, z] = s.pos(), p = project(x, y, z), age = 1 - s.t, sc = age < 0.1 ? 0.4 + age * 7 : 1.1 - Math.min(0.1, (age - 0.1) * 0.5);
+    s.e.style.opacity = s.t <= 0 || p.z > 1 ? 0 : (s.t < 0.25 ? s.t / 0.25 : 1).toFixed(2);
+    s.e.style.transform = 'translate(' + (p.x + 26).toFixed(0) + 'px, ' + (p.y - 18 - age * 18).toFixed(0) + 'px) scale(' + sc.toFixed(2) + ')';
+  }
+}
+
 // Called every frame with a world-to-screen function (returns { x, y, z }, z > 1 behind the camera).
 export function updateStickers(dt, project) {
+  updateTalk(dt, project);
   for (const s of ui.stickers) {
     if (s.t >= 0.6) continue;
     s.t += dt;

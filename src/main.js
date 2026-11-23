@@ -21,7 +21,8 @@ import { buildScene, syncScene, sceneEvent, disposeScene } from './scene.js';
 import { goodIcon } from './goods.js';
 import { initFx, clearFx, cartFx, eventFx, updateFx, spark } from './fx.js';
 import { initShowcase, makeTitle } from './showcase.js';
-import { audio, unlockAudio, setSound, setVolumes, audioEvent, audioCue, audioFrame, objectSound } from './audio.js';
+import { audio, unlockAudio, setSound, setVolumes, audioEvent, audioCue, audioFrame, objectSound, loadVoices } from './audio.js';
+import { chatterReset, chatterEvent, chatterFrame } from './chatter.js';
 import { ui, initUI, updateHud, popWord, announce, floatText, sticker, updateStickers, chainText, setList, setArrow, setWarn, setHint, showTouch, showTitle, showReceipt,
   showClosed, showPause, hideScreens, hurryUI, money, initDebug, updateDebug } from './ui.js';
 
@@ -51,6 +52,7 @@ const WORDS = { cleansweep: 'CLEAN SWEEP', strike: 'STRIKE!', ram: 'RAM!', taked
 
 // Builds the level. quick = a restart: shorter countdown, straight into play.
 function startLevel(quick) {
+  chatterReset();
   if (game.titleShow) { game.titleShow.dispose(); game.titleShow = null; }
   if (game.view) disposeScene(game.view);
   clearFx();
@@ -176,6 +178,7 @@ function onEvent(e) {
   const dashed = () => { if (!save.seen.dash && !p.ai) { save.seen.dash = true; platform.save(); } };   // the dash hint retires when a dash has hit something
   if (game.probe && (mine || e.ref === p)) game.probe.log.push([e.type + (mine ? '' : '<'), +sim.t.toFixed(3)]);     // for the capture tool
   audioEvent(e, sim);
+  chatterEvent(e, sim, game.view);
   const shake = eventFx(e);
   sceneEvent(game.view, e);
   // What others do to the player, or near the player.
@@ -358,6 +361,7 @@ function tick(dt, draw) {
   }
   pointers(dt);
   updateHud(sim, dt);
+  chatterFrame(sim);
   updateStickers(dt, toScreen);
   audioFrame(sim, dt, game.state);
   if (game.probe) probeCamera(game.probe, p, dt);
@@ -413,6 +417,7 @@ async function boot() {
   initRender(document.getElementById('game'));
   initFx();
   initUI(document.getElementById('ui'));
+  loadVoices();
   ui.onPause = () => pause(true);
   game.v = new THREE.Vector3();
   // cover=1 and icon=1 are for the pictures of the handoff package: the title view without its buttons, or without any interface and closer.

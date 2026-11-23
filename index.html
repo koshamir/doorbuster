@@ -81,6 +81,15 @@
   .float { position: absolute; left: 0; top: 0; margin: -1em 0 0 -2em; width: 4em; text-align: center; font-size: 1.25em; color: #fff; opacity: 0;
     -webkit-text-stroke: .16em var(--night); paint-order: stroke fill; transition: opacity .25s; will-change: transform; }
   .float.in { opacity: 1; transition: none; }
+  .bubble { position: absolute; left: 0; top: 0; pointer-events: none; opacity: 0; }
+  .bubble.in { opacity: 1; }
+  .bubble .pop { display: block; transform-origin: 0 0; }
+  .bubble.in .pop { animation: bubpop .12s cubic-bezier(.3, 1.8, .5, 1) both; }
+  .bubble b { display: block; position: relative; width: max-content; max-width: 13em; transform: translate(-50%, calc(-100% - .9em)) rotate(var(--tilt, -2deg)); background: #fff; color: var(--night);
+    border: 3px solid var(--night); border-radius: .8em; padding: .32em .7em .26em; font: 900 1.05em/1.05 "Arial Narrow", "Roboto Condensed", "Segoe UI", system-ui, sans-serif; text-transform: uppercase; letter-spacing: .01em; box-shadow: 0 .16em 0 var(--night); text-align: center; }
+  .bubble b::after { content: ''; position: absolute; left: calc(50% - .45em); bottom: -.58em; width: .8em; height: .8em; background: #fff; border-right: 3px solid var(--night); border-bottom: 3px solid var(--night); transform: rotate(45deg); }
+  @keyframes bubpop { from { transform: scale(.35); } to { transform: scale(1); } }
+  .emote { position: absolute; left: 0; top: 0; width: 4.2vh; height: 4.2vh; margin: -2.1vh 0 0 -2.1vh; opacity: 0; pointer-events: none; }
   .sticker { position: absolute; left: 0; top: 0; width: 26.3vh; height: 16.6vh; margin: -8.3vh 0 0 -13.15vh; opacity: 0; pointer-events: none; will-change: transform, opacity; }
   .float.name { width: 12em; margin-left: -6em; font-size: 1em; letter-spacing: .04em; white-space: nowrap; }
   .float.list { color: var(--teal); } .float.big { color: var(--sale); font-size: 1.7em; } .float.loss { color: var(--danger); font-size: 2em; width: 6em; margin-left: -3em; }

@@ -2,7 +2,7 @@
 // Purpose: every shared constant in one place: tune defaults (a mirror of tune.json), fixed
 //          constants that do not fit in the 40 platform values, the palette, the goods catalogue,
 //          the characters, small math helpers and the seeded random generator.
-// Exports: TUNE, applyTune, CFG, PAL, rgb, mix, GOODS, GOOD, POOLS, CHARS, makeRng, clamp, lerp,
+// Exports: TUNE, applyTune, CFG, PAL, rgb, mix, GOODS, GOOD, POOLS, CROWD_MIX, CHARS, makeRng, clamp, lerp,
 //          wrapAngle, approach
 // Depends on: nothing. Safe to import from Node (no DOM, no THREE).
 
@@ -162,6 +162,12 @@ export const POOLS = {
   bulk: { S: ['can', 'soda', 'chips'], M: ['toaster', 'pizza', 'headset'], L: ['microwave', 'speaker'] },
   gadget: { S: ['phone', 'game', 'soda'], M: ['headset', 'toaster', 'shoes'], L: ['speaker', 'microwave'] },
   atrium: { S: ['chips', 'soda', 'roll', 'game'], M: ['shoes', 'pizza', 'melon'], L: ['suitcase', 'speaker'] },
+};
+
+// ---- The crowd mix of each store (DESIGN.md section 6): every shopper gets an archetype from it. ----
+export const CROWD_MIX = {
+  supermarket: ['walkerGranny', 'strollerMom', 'staff', 'caneGrandpa', 'toddler', 'phoneTeen', 'bellyBro', 'jogger', 'mascot'],
+  warehouse: ['staff', 'bellyBro', 'gymBro', 'caneGrandpa', 'phoneTeen', 'strollerMom', 'jogger', 'gamer', 'scooterElder'],
 };
 
 // ---- Characters. One silhouette, one colour, one behaviour each (GDD 5.6). ---------------------
