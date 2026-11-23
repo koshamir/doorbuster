@@ -46,7 +46,13 @@ export function buildStore(view, sim, kit, shadow) {
       at(W, x - dc * 0.025, 1.78, z - dr * 0.025, ry); box(W, T2, 0.1, 0.06, kit.walls.stripe, { bevel: 0 });
       if ((c * 7 + r * 3) % 9 === 0) { face++; bind(W, 0, K([KIT.sale, KIT.poster2, KIT.poster3][face % 3], 0.1)); at(W, x - dc * 0.05, 0.55, z - dr * 0.05, ry); box(W, 1.1, 1.1, 0.03, 0xFFFFFF, { bevel: 0, front: K([KIT.sale, KIT.poster2, KIT.poster3][face % 3], 0.1) }); }
       if ((c + r) % 2 === 0) bulbs.push([x - dc * 0.1, z - dr * 0.1]);
+      overstock(W, x, z, dc, dr, ry, c * 31 + r * 17 + dc * 5 + dr * 3, kit);
     }
+  }
+  bind(W, 0, PL(0));
+  const M = 18, ww = world.w, wh = world.h;
+  for (const [x0, z0, x1, z1] of [[-M, -M, ww + M, 0], [-M, wh, ww + M, wh + M], [-M, 0, 0, wh], [ww, 0, ww + M, wh]]) {
+    at(W, (x0 + x1) / 2, 0, (z0 + z1) / 2); box(W, x1 - x0, CFG.WALL_H, z1 - z0, kit.walls.face, { bevel: 0, top: 0xFFFFFF, lid: KW(KIT.backroom), uvs: [(x1 - x0) / 4, (z1 - z0) / 4] });
   }
   bind(W, 0, PL(0.5, 0.9));
   for (const [x, z] of bulbs) { at(W, x, CFG.WALL_H + 0.06, z); ellipsoid(W, 0.09, 0.09, 0.09, 0xFFF1C4, { seg: 6, rings: 4 }); }
@@ -200,10 +206,7 @@ function freezerRun(B, s, F, view, stock) {
   const along = s.horiz ? s.hx * 2 : s.hz * 2, depth = s.horiz ? s.hz * 2 : s.hx * 2, both = s.sides[0] && s.sides[1];
   const P = runFrame(s), ry = s.horiz ? 0 : Math.PI / 2, put = (u, y, w) => at(B, ...P(u, y, w), ry);
   bind(B, 0, PL(0.3), (x, y) => 1 - 0.15 * Math.max(0, Math.min(1, (0.2 - y) / 0.2)));
-  put(0, 0, 0); box(B, along, 0.44, depth, 0xF4F7FB, { bevel: 0.1 });
-  bind(B, 0, KW(KIT.frost, 0.9, 0.08));
-  put(0, 0.44, 0); box(B, along - 0.08, 0.05, depth - 0.08, 0xBFE9FF, { bevel: 0.2, lid: KW(KIT.frost, 0.9, 0.08), uvs: [along / 1.5, depth / 1.5] });
-  bind(B, 0, PL(0.6)); put(0, 0.42, depth / 2 + 0.01); box(B, along, 0.06, 0.03, 0x7CC6FE, { bevel: 0 });
+  put(0, 0, 0); box(B, along, 0.49, depth, 0xF4F7FB, { bevel: 0.06, top: 0xBFE9FF, lid: KW(KIT.frost, 0.9, 0.08), uvs: [along / 1.5, depth / 1.5] });
   if (!both) {
     const w = (s.sides[0] ? 1 : -1) * (depth / 2 - 0.12);
     bind(B, 0, PL(0.2)); put(0, 0.44, w); box(B, along, 1.6, 0.2, 0xF4F7FB, { bevel: 0.08, top: F.dark });
@@ -211,6 +214,24 @@ function freezerRun(B, s, F, view, stock) {
     for (let j = 0; j < n; j++) { bind(B, 0, K(KIT.door, 0.9, 0.35)); at(B, ...P(-along / 2 + (j + 0.5) * along / n, 0.55, w - (s.sides[0] ? 1 : -1) * 0.105), ry + (s.sides[0] ? Math.PI : 0)); box(B, along / n - 0.1, 1.3, 0.02, 0x7CD5FF, { bevel: 0, front: K(KIT.door, 0.9, 0.35) }); }
   }
   void view; void stock;
+}
+
+// A row of cartons on top of a wall, along the edge (x, z) that faces the floor in direction (-dc, -dr):
+// one or two per tile of edge, set back from the edge, of mixed sizes; mostly cardboard, now and then a
+// product box in a store colour.
+const CARD = [0xD9B98A, 0xC9A574, 0xE4C99B, 0xCDAE7E];
+function overstock(W, x, z, dc, dr, ry, seed, kit) {
+  const h = (k) => { const v = Math.sin(seed * 12.9898 + k * 78.233) * 43758.5453; return v - Math.floor(v); };
+  const n = 1 + (h(1) < 0.6 ? 1 : 0), pal = kit.palette;
+  for (let i = 0; i < n; i++) {
+    const along = (n === 1 ? 0 : (i - 0.5) * 1.0) + (h(2 + i) - 0.5) * 0.3, back = 0.45 + h(4 + i) * 0.35;
+    const w = 0.7 + h(6 + i) * 0.35, ht = 0.35 + h(8 + i) * 0.45, d = 0.6 + h(10 + i) * 0.3;
+    const tx = -dr, tz = dc;     // along the edge
+    const coloured = h(12 + i) < 0.18, col = coloured ? [pal.a, pal.b, pal.c, pal.d][Math.floor(h(14 + i) * 4)] : CARD[Math.floor(h(16 + i) * 4)];
+    at(W, x + dc * back + tx * along, CFG.WALL_H, z + dr * back + tz * along, ry + (h(18 + i) - 0.5) * 0.25);
+    box(W, w, ht, d, typeof col === 'string' ? parseInt(col.slice(1), 16) : col, { bevel: 0, top: coloured ? 0xFFFFFF : 0xE8D2A6 });
+    if (!coloured) { at(W, x + dc * back + tx * along, CFG.WALL_H + ht, z + dr * back + tz * along, ry + (h(18 + i) - 0.5) * 0.25); box(W, 0.16, 0.01, d + 0.02, 0xF3E3BE, { bevel: 0 }); }
+  }
 }
 
 // ---- static single pieces -------------------------------------------------------------------------------------

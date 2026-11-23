@@ -234,6 +234,7 @@ export function labelAtlas() {
   if (cache.label) return cache.label;
   const cv = canvas(), g = cv.getContext('2d');
   LABELS.forEach((L, i) => { g.save(); g.translate((i % 8) * 256, Math.floor(i / 8) * 256); g.beginPath(); g.rect(0, 0, 256, 256); g.clip(); drawLabel(g, L); g.restore(); });
+  PRINTS.forEach((kind, j) => { const i = PRINT0 + j; g.save(); g.translate((i % 8) * 256, Math.floor(i / 8) * 256); g.beginPath(); g.rect(0, 0, 256, 256); g.clip(); drawPrint(g, kind); g.restore(); });
   return (cache.label = atlasTex(cv));
 }
 function drawLabel(g, [name, bg, band, ink, deco]) {
@@ -271,11 +272,59 @@ function drawLabel(g, [name, bg, band, ink, deco]) {
   g.strokeStyle = INK; g.lineWidth = 8; g.strokeRect(4, 4, 248, 248);
 }
 
+// Cells from PRINT0 up are fixed prints, the same on every pack (the shader keeps them, see INST_CELL in
+// render.js): a carton top, a side panel and two boxed appliances. The first two are see-through where the
+// pack's own colour shows.
+export const PRINT0 = 32, PRINTS = ['top', 'side', 'wave', 'bass', 'tape'];
+function drawPrint(g, kind) {
+  const rr = (x, y, w, h, r) => { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); };
+  g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
+  if (kind === 'tape') {
+    // a carton top: packing tape down the middle, a THIS SIDE UP stamp
+    g.fillStyle = 'rgba(42,26,58,0.22)'; g.fillRect(0, 122, 256, 12);
+    g.fillStyle = '#D9B26A'; g.fillRect(100, 0, 56, 256); g.fillStyle = 'rgba(255,255,255,0.35)'; g.fillRect(108, 0, 10, 256);
+    g.strokeStyle = INK; g.lineWidth = 5; g.beginPath(); g.moveTo(100, 0); g.lineTo(100, 256); g.moveTo(156, 0); g.lineTo(156, 256); g.stroke();
+    g.fillStyle = '#C8323C'; g.font = '900 22px "Arial Black", sans-serif';
+    for (const x of [50, 206]) { g.save(); g.translate(x, 128); g.rotate(-Math.PI / 2); g.fillText('UP', 0, 0); g.restore(); g.beginPath(); g.moveTo(x, 40); g.lineTo(x - 16, 70); g.lineTo(x + 16, 70); g.fill(); }
+  } else if (kind === 'top') {
+    g.fillStyle = 'rgba(42,26,58,0.28)'; g.fillRect(0, 0, 256, 14); g.fillRect(0, 242, 256, 14); g.fillRect(121, 0, 14, 256);   // flap seams
+    g.fillStyle = '#FFFFFF'; rr(18, 80, 220, 96, 22); g.fill(); g.lineWidth = 8; g.strokeStyle = INK; g.stroke();
+    g.font = '900 56px "Arial Black", Impact, sans-serif'; g.fillStyle = '#E63946'; g.lineWidth = 8; g.strokeText('NEW!', 128, 130); g.fillText('NEW!', 128, 130);
+  } else if (kind === 'side') {
+    g.fillStyle = '#FFFFFF'; rr(22, 22, 212, 212, 18); g.fill(); g.lineWidth = 7; g.strokeStyle = INK; g.stroke();
+    g.font = '900 34px "Arial Black", Impact, sans-serif'; g.fillStyle = INK; g.fillText('FACTS', 128, 58);
+    g.fillRect(40, 80, 176, 6);
+    for (let k = 0; k < 5; k++) { g.fillStyle = 'rgba(42,26,58,0.55)'; g.fillRect(40, 100 + k * 18, 96 + (k * 41) % 64, 9); g.fillRect(186, 100 + k * 18, 30, 9); }
+    g.fillStyle = INK; for (let x = 44; x < 212; x += 6) if ((x * 7) % 5 > 1) g.fillRect(x, 196, (x * 3) % 4 + 2, 24);   // a barcode
+  } else {
+    // a boxed appliance: cardboard, colour bands, a big picture of what is inside, the name
+    const wave = kind === 'wave', name = wave ? 'ZAP-O-WAVE' : 'BASSBRICK';
+    g.fillStyle = '#E9D3A8'; g.fillRect(0, 0, 256, 256);
+    g.fillStyle = wave ? '#FF5A4E' : '#2A2440'; g.fillRect(0, 0, 256, 52); g.fillRect(0, 222, 256, 34);
+    g.font = '900 34px "Arial Black", Impact, sans-serif'; g.lineWidth = 7; g.strokeStyle = INK; g.fillStyle = '#FFFFFF';
+    g.strokeText(name, 128, 28); g.fillText(name, 128, 28);
+    g.lineWidth = 7;
+    if (wave) {
+      g.fillStyle = '#FF8A7A'; rr(30, 70, 196, 132, 16); g.fill(); g.stroke();
+      g.fillStyle = '#2A3550'; rr(44, 86, 120, 100, 8); g.fill(); g.stroke();
+      g.fillStyle = '#7CC6FE'; g.fillRect(56, 96, 30, 10);
+      g.fillStyle = INK; for (const y of [104, 134, 164]) { g.beginPath(); g.arc(196, y, 9, 0, 7); g.fill(); }
+    } else {
+      g.fillStyle = '#3D3552'; rr(64, 62, 128, 150, 14); g.fill(); g.stroke();
+      for (const [y, r] of [[100, 24], [162, 34]]) { g.fillStyle = '#8AC926'; g.beginPath(); g.arc(128, y, r, 0, 7); g.fill(); g.stroke(); g.fillStyle = INK; g.beginPath(); g.arc(128, y, r * 0.35, 0, 7); g.fill(); }
+    }
+    // a NEW! burst in the corner
+    g.save(); g.translate(214, 196); g.fillStyle = '#FFD23F'; g.beginPath(); for (let k = 0; k < 16; k++) { const a = k / 16 * 6.283, r = k % 2 ? 20 : 32; g.lineTo(Math.cos(a) * r, Math.sin(a) * r); } g.closePath(); g.fill(); g.lineWidth = 5; g.stroke();
+    g.font = '900 15px "Arial Black", sans-serif'; g.fillStyle = INK; g.fillText('NEW!', 0, 1); g.restore();
+    g.strokeStyle = INK; g.lineWidth = 8; g.strokeRect(4, 4, 248, 248);
+  }
+}
+
 // ---- store-kit signs and surfaces ---------------------------------------------------------------------------
 // Cells of 256 px (8 x 8). Signs are drawn for every store's own words (kits.js signs); the rest are shared
 // surfaces: price strips, frost, ice, awning, shutter slats, a checkout belt, wood, decals with a clear ground.
 export const KIT = { sign0: 0, checkout: 8, banner: 9, sale: 10, pct: 11, wet: 12, fish: 13, deli: 14, price: 15, frost: 16, ice: 17, awning: 18,
-  shutter: 19, belt: 20, wood: 21, chalk: 22, ring: 23, star: 24, dash: 25, press: 26, logo: 27, poster2: 28, poster3: 29, glare: 30, pegboard: 31, door: 32, arrow: 33, walltop: 34 };
+  shutter: 19, belt: 20, wood: 21, chalk: 22, ring: 23, star: 24, dash: 25, press: 26, logo: 27, poster2: 28, poster3: 29, glare: 30, pegboard: 31, door: 32, arrow: 33, walltop: 34, backroom: 35 };
 export function kitAtlas(store) {
   const key = 'kit_' + store.id;
   if (cache[key]) return cache[key];
@@ -318,6 +367,33 @@ export function kitAtlas(store) {
   cell(KIT.pegboard, () => { g.fillStyle = P.a; g.fillRect(0, 0, 256, 256); g.fillStyle = 'rgba(42,26,58,0.18)'; for (let y = 16; y < 256; y += 32) for (let x = 16; x < 256; x += 32) { g.beginPath(); g.arc(x, y, 5, 0, 7); g.fill(); } });
   cell(KIT.door, () => { g.fillStyle = '#7CD5FF'; g.fillRect(0, 0, 256, 256); g.fillStyle = '#FFFFFF'; for (let y = 30; y < 256; y += 60) g.fillRect(14, y, 228, 10); g.fillStyle = 'rgba(255,255,255,0.6)'; g.beginPath(); g.moveTo(20, 256); g.lineTo(90, 0); g.lineTo(120, 0); g.lineTo(50, 256); g.fill(); g.lineWidth = 14; g.strokeStyle = '#DDE3EA'; g.strokeRect(7, 7, 242, 242); });
   cell(KIT.arrow, () => { g.fillStyle = '#FFFFFF'; g.beginPath(); g.moveTo(128, 20); g.lineTo(230, 140); g.lineTo(170, 140); g.lineTo(170, 236); g.lineTo(86, 236); g.lineTo(86, 140); g.lineTo(26, 140); g.closePath(); g.fill(); g.lineWidth = 10; g.strokeStyle = INK; g.stroke(); });
-  cell(KIT.walltop, () => { g.fillStyle = store.top || '#6E5C96'; g.fillRect(0, 0, 256, 256); g.fillStyle = 'rgba(42,26,58,0.22)'; for (let k = -256; k < 512; k += 64) { g.beginPath(); g.moveTo(k, 0); g.lineTo(k + 28, 0); g.lineTo(k + 28 + 256, 256); g.lineTo(k + 256, 256); g.fill(); } g.fillStyle = 'rgba(255,255,255,0.12)'; g.fillRect(0, 0, 256, 10); });
+  cell(KIT.walltop, () => {
+    // overstock on top of the walls, seen from above (the cell covers 4 x 4 m and tiles seamlessly): two rows of
+    // cartons with a dark gap between them, each carton with a shaded front edge, tape, now and then a product box
+    g.fillStyle = '#2E241E'; g.fillRect(0, 0, 256, 256);
+    const card = ['#D9B98A', '#C9A574', '#E4C99B', '#CDAE7E', '#BF9A68'], pop = [store.palette.b, store.palette.c, store.palette.d];
+    let seed = 11; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    for (let row = 0; row < 2; row++) {
+      const y0 = row * 128 + 10, hgt = 104;
+      let x = -Math.floor(rnd() * 50);
+      const boxes = [];
+      while (x < 256) { const w = 36 + Math.floor(rnd() * 7) * 9; boxes.push([x, w, rnd() < 0.14, Math.floor(rnd() * 5), rnd()]); x += w + 4; }
+      for (const [bx, w, coloured, ci, r] of boxes) for (const sx of [0, -256, 256]) {
+        const X = bx + sx; if (X > 256 || X + w < 0) continue;
+        const top = coloured ? pop[ci % 3] : card[ci], inset = Math.floor(r * 3) * 6;   // some stacks are lower: their top sits further back
+        g.fillStyle = top; g.fillRect(X, y0 + inset, w, hgt - 16 - inset);
+        g.fillStyle = 'rgba(42,26,58,0.38)'; g.fillRect(X, y0 + hgt - 16, w, 16);              // the shaded front face
+        g.fillStyle = 'rgba(42,26,58,0.18)'; g.fillRect(X + w - 5, y0 + inset, 5, hgt - 16 - inset);   // and its right edge
+        if (!coloured) { g.fillStyle = 'rgba(255,244,214,0.55)'; g.fillRect(X + w / 2 - 4, y0 + inset, 8, hgt - 16 - inset); }
+        else { g.fillStyle = '#FFFFFF'; g.fillRect(X + 6, y0 + inset + 10, w - 12, 12); }
+      }
+    }
+  });
+  // the backroom round the store: the same overstock, dim and grey, so the lit store stands out from it
+  cell(KIT.backroom, () => {
+    g.drawImage(cv, (KIT.walltop % 8) * 256, Math.floor(KIT.walltop / 8) * 256, 256, 256, 0, 0, 256, 256);
+    g.globalCompositeOperation = 'saturation'; g.fillStyle = 'rgba(128,128,128,0.6)'; g.fillRect(0, 0, 256, 256);
+    g.globalCompositeOperation = 'source-over'; g.fillStyle = 'rgba(36,26,48,0.58)'; g.fillRect(0, 0, 256, 256);
+  });
   return (cache[key] = atlasTex(cv));
 }

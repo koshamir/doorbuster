@@ -23,7 +23,7 @@ export const R = {
 };
 export const v3 = (hex) => { const c = rgb(hex); return new THREE.Vector3(c[0], c[1], c[2]); };
 const TIERS = {
-  high: { ratio: 1.5, small: 2, samples: 4, post: true, normals: true, halftone: true, bloom: 2, shadow: true, fxaa: false },
+  high: { ratio: 1.5, small: 2, samples: 4, post: true, normals: true, halftone: true, bloom: 2, shadow: true, fxaa: true },
   med: { ratio: 1, small: 1.5, samples: 0, post: true, normals: false, halftone: true, bloom: 1, shadow: false, fxaa: true },
   low: { ratio: 0.85, small: 1, samples: 0, post: false, normals: false, halftone: false, bloom: 0, shadow: false, fxaa: false },
 };
@@ -59,7 +59,7 @@ void main() {
   vec4 w = modelMatrix * p;
   vW = w.xyz; vN = normalize(mat3(modelMatrix) * n); vUv = uv; vTex = tex;
 #ifdef INST_CELL
-  vTex.y = iCell;
+  vTex.y = tex.y > 31.5 ? tex.y : iCell;      // cells from 32 up are fixed prints (atlas.js PRINT0)
 #endif
   vSh = uShadowMat * w;
   gl_Position = projectionMatrix * viewMatrix * w;
@@ -114,7 +114,7 @@ void main() {
   vec3 c = mix(base * uShade * (0.93 + 0.1 * n.y), base, lit);
   vec3 v = normalize(cameraPosition - vW);
   float gloss = vTex.z;
-  if (gloss > 0.01) { vec3 h = normalize(uLight + v); c = mix(c, vec3(1.0), band(dot(n, h), 0.975 - 0.05 * gloss) * (0.35 + 0.55 * lit) * gloss); }
+  if (gloss > 0.01) { vec3 h = normalize(uLight + v); c = mix(c, vec3(1.0), band(dot(n, h), 0.975 - 0.05 * gloss) * (0.35 + 0.55 * lit) * gloss * smoothstep(0.25, 0.5, dot(n, v))); }
   if (uRim > 0.0) { float f = 1.0 - max(dot(n, v), 0.0); c = mix(c, uKey, band(f, 0.6) * smoothstep(-0.25, 0.35, nl) * uRim); }
   float gm = vTex.w < 0.0 ? -vTex.w : 0.0;
   c += uGlow * gm;
@@ -159,36 +159,47 @@ const COMPOSITE_FS = `
 uniform sampler2D tColor; uniform sampler2D tAux; uniform sampler2D tDepth; uniform sampler2D tBloomA; uniform sampler2D tBloomB;
 uniform vec2 uTexel; uniform vec2 uRes; uniform float uScale; uniform float uNear; uniform float uFar; uniform vec3 uInk; uniform vec3 uPaper;
 uniform float uBloom; uniform float uSat; uniform float uContrast; uniform vec3 uLift; uniform vec3 uGain; uniform float uVignette;
-uniform float uSpeed; uniform float uImpact; uniform float uTime; uniform float uHalfK; uniform float uLines;
+uniform float uSpeed; uniform float uImpact; uniform float uTime; uniform float uHalfK; uniform float uLines; uniform float uInkA;
 varying vec2 vUv;
 float lin(float d) { float z = d * 2.0 - 1.0; return 2.0 * uNear * uFar / (uFar + uNear - z * (uFar - uNear)); }
 vec3 dn(vec4 a) { vec2 xy = a.xy * 2.0 - 1.0; return vec3(xy, sqrt(max(0.0, 1.0 - dot(xy, xy)))); }
 float hash(float x) { return fract(sin(x * 91.7) * 43758.5453); }
+// the eight neighbours, in opposite pairs (i, i + 1)
+vec2 nb(int i) { return i == 0 ? vec2(1.0, 0.0) : i == 1 ? vec2(-1.0, 0.0) : i == 2 ? vec2(0.0, 1.0) : i == 3 ? vec2(0.0, -1.0)
+  : i == 4 ? vec2(0.7, 0.7) : i == 5 ? vec2(-0.7, -0.7) : i == 6 ? vec2(0.7, -0.7) : vec2(-0.7, 0.7); }
 void main() {
   vec4 col = texture2D(tColor, vUv); vec3 c = col.rgb;
   vec4 ac = texture2D(tAux, vUv);
   float floorM = step(0.49, ac.b), ht = step(0.2, ac.b - floorM * 0.5);
   float dc = lin(texture2D(tDepth, vUv).r);
-  // crease ink: silhouettes from depth (drawn on the nearer side only) and creases from normals
+  // crease ink: silhouettes from depth (drawn on the nearer side only) and creases from normals, over all
+  // eight neighbours so a stepped diagonal edge stays one unbroken line; a crease is either ink or not
+  // (no half-strength greys that break into dots), and lines fade out by alpha in the distance
+  float ink = 0.0;
   if (uLines > 0.0 && ac.a > 0.01 && floorM < 0.5) {
-    float e = 0.0; vec3 nc = dn(ac);
-    for (int i = 0; i < 4; i++) {
-      vec2 o = (i == 0 ? vec2(1.0, 0.0) : i == 1 ? vec2(-1.0, 0.0) : i == 2 ? vec2(0.0, 1.0) : vec2(0.0, -1.0)) * uTexel * uScale;
-      float dj = lin(texture2D(tDepth, vUv + o).r);
-      e = max(e, smoothstep(0.02, 0.05, (dj - dc) / dc));
-#ifdef NORMALS
-      vec4 aj = texture2D(tAux, vUv + o);
-      if (aj.a > 0.01 && abs(dj - dc) / dc < 0.05) e = max(e, smoothstep(0.8, 0.55, dot(nc, dn(aj))));
-#endif
+    float e = 0.0, dd[8];
+    for (int i = 0; i < 8; i++) {
+      dd[i] = lin(texture2D(tDepth, vUv + nb(i) * uTexel * uScale).r);
+      e = max(e, smoothstep(0.025, 0.04, (dd[i] - dc) / dc));
     }
-    c = mix(c, uInk, e * ac.a * (1.0 - smoothstep(28.0, 70.0, dc)));
+#ifdef NORMALS
+    // creases: the normals on opposite sides of this pixel (the blend MSAA leaves on the edge pixel
+    // itself never decides), so a straight crease is one unbroken line
+    for (int i = 0; i < 8; i += 2) {
+      vec2 o = nb(i) * uTexel * uScale;
+      vec4 a1 = texture2D(tAux, vUv + o), a2 = texture2D(tAux, vUv - o);
+      if (a1.a > 0.01 && a2.a > 0.01 && abs(dd[i] - dd[i + 1]) / dc < 0.06) e = max(e, smoothstep(0.78, 0.72, dot(dn(a1), dn(a2))));
+    }
+#endif
+    ink = e * ac.a * (1.0 - smoothstep(28.0, 70.0, dc));
   }
-  // halftone dots in environment shadows
+  // halftone dots in environment shadows (under the ink, never on it)
   if (uHalfK > 0.0 && ht > 0.5) {
     vec2 p = gl_FragCoord.xy / (7.0 * uScale); p = vec2(p.x + p.y, p.y - p.x) * 0.7071;
     float d = length(fract(p) - 0.5), r = 0.32, aa = 0.6 / (7.0 * uScale);
     c = mix(c, c * 0.72, (1.0 - smoothstep(r - aa, r + aa, d)) * uHalfK);
   }
+  c = mix(c, uInk, ink);
   c += (texture2D(tBloomA, vUv).rgb * 0.75 + texture2D(tBloomB, vUv).rgb * 0.9) * uBloom;
   // grade: lift and gain per channel, contrast, saturation, vignette
   c = (c - 0.5) * uContrast + 0.5;
@@ -205,12 +216,14 @@ void main() {
   }
   // impact frame: a two-frame high-contrast ink flash
   if (uImpact > 0.01) { float lum = dot(c, vec3(0.3, 0.55, 0.15)); c = mix(c, mix(uInk, uPaper, step(0.5, lum)), uImpact); }
-  gl_FragColor = vec4(clamp(c, 0.0, 1.0), 1.0);
+  // on the way to FXAA, alpha carries the ink so the lines are kept whole (FXAA would break them into dashes)
+  gl_FragColor = vec4(clamp(c, 0.0, 1.0), mix(1.0, ink, uInkA));
 }`;
 const FXAA_FS = `uniform sampler2D tSrc; uniform vec2 uTexel; varying vec2 vUv;
 float lu(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }
 void main() {
-  vec3 m = texture2D(tSrc, vUv).rgb;
+  vec4 mm = texture2D(tSrc, vUv); vec3 m = mm.rgb;
+  if (mm.a > 0.5) { gl_FragColor = vec4(m, 1.0); return; }      // an ink line: kept as drawn, only its surroundings are smoothed
   float n = lu(texture2D(tSrc, vUv + vec2(0.0, uTexel.y)).rgb), s = lu(texture2D(tSrc, vUv - vec2(0.0, uTexel.y)).rgb);
   float e = lu(texture2D(tSrc, vUv + vec2(uTexel.x, 0.0)).rgb), w = lu(texture2D(tSrc, vUv - vec2(uTexel.x, 0.0)).rgb), c = lu(m);
   float lo = min(c, min(min(n, s), min(e, w))), hi = max(c, max(max(n, s), max(e, w)));
@@ -258,7 +271,7 @@ export function initRender(canvas) {
     tColor: { value: null }, tAux: { value: null }, tDepth: { value: null }, tBloomA: { value: null }, tBloomB: { value: null },
     uTexel: { value: new T.Vector2() }, uRes: { value: new T.Vector2() }, uScale: { value: 1 }, uNear: { value: 0.5 }, uFar: { value: 260 },
     uInk: R.u.uInk, uPaper: { value: v3(0xFFFDF6) }, uBloom: { value: 1 }, uSat: { value: 1 }, uContrast: { value: 1 }, uLift: { value: new T.Vector3() },
-    uGain: { value: new T.Vector3(1, 1, 1) }, uVignette: { value: 0.2 }, uSpeed: { value: 0 }, uImpact: { value: 0 }, uTime: R.u.uTime, uHalfK: { value: 0.16 }, uLines: { value: 1 },
+    uGain: { value: new T.Vector3(1, 1, 1) }, uVignette: { value: 0.2 }, uSpeed: { value: 0 }, uImpact: { value: 0 }, uTime: R.u.uTime, uHalfK: { value: 0.16 }, uLines: { value: 1 }, uInkA: { value: 0 },
   }, normals ? { NORMALS: 1 } : {});
   R.post.compN = comp(true); R.post.compD = comp(false);
   R.black = new T.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1); R.black.needsUpdate = true;
@@ -408,6 +421,7 @@ export function renderFrame(fx = {}, focus) {
     cu.uBloom.value = tier.bloom ? g.bloom : 0; cu.uSat.value = g.sat; cu.uContrast.value = g.contrast; cu.uLift.value.set(...g.lift); cu.uGain.value.set(...g.gain);
     cu.uVignette.value = g.vignette; cu.uSpeed.value = fx.speed || 0; cu.uImpact.value = fx.impact || 0; cu.uHalfK.value = tier.halftone ? g.halftone : 0;
     cu.uLines.value = fx.lines === false ? 0 : 1;
+    cu.uInkA.value = tier.fxaa ? 1 : 0;
     if (tier.fxaa) {
       drawQuad(C, R.ldr);
       P.fxaa.uniforms.tSrc.value = R.ldr.texture; P.fxaa.uniforms.uTexel.value.set(1 / R.ldr.width, 1 / R.ldr.height);

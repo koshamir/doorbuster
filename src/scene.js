@@ -262,7 +262,7 @@ function layoutTower(tower) {
     towX[i] = (at + span / 2 - 3) * 0.18;
     towY[i] = y;
     towZ[i] = -LEN / 2 + Math.min(z0 + d / 2, LEN - 0.1);
-    towYaw[i] = yaw + ((i * 37) % 11 - 5) * 0.035;
+    towYaw[i] = yaw + Math.PI + ((i * 37) % 11 - 5) * 0.035;      // label side back, toward the camera
     layerH = Math.max(layerH, g.dims[1] * TOWER_SCALE * 0.94);
   }
   return y + layerH;

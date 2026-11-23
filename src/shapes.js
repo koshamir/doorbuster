@@ -85,8 +85,8 @@ export function box(B, w, h, d, color, o = {}) {
     for (const s of [-1, 1]) {
       const pts = [];
       for (const [s1, s2] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { const q = [0, 0, 0]; q[ax] = s * hs[ax]; q[b1] = s1 * (hs[b1] - bv); q[b2] = s2 * (hs[b2] - bv); pts.push(P(q[0], q[1], q[2])); }
-      const isTop = ax === 1 && s > 0, isBot = ax === 1 && s < 0, isFront = ax === 2 && s > 0;
-      const tex = isFront && o.front ? o.front : ax !== 1 && o.sides ? o.sides : isTop && o.lid ? o.lid : null;
+      const isTop = ax === 1 && s > 0, isBot = ax === 1 && s < 0, isFront = ax === 2 && s > 0, isBack = ax === 2 && s < 0;
+      const tex = isFront && o.front ? o.front : isBack && o.back ? o.back : ax !== 1 && o.sides ? o.sides : isTop && o.lid ? o.lid : null;
       flatFace(B, pts, isTop ? ct : isBot ? cb : c, cen, tex, tex ? boxUV(pts, ax, s, hs, y0 + h / 2, o.uvs) : null);
     }
   }

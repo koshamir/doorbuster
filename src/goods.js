@@ -10,25 +10,28 @@
 
 import { GOODS, mix } from './config.js';
 import { builder, at, bind, box, cyl, ellipsoid, lathe, tube, ring, toGeometry } from './shapes.js';
-import { labelAtlas } from './atlas.js';
+import { labelAtlas, PRINT0 } from './atlas.js';
 import { R, celMaterial, hullMaterial } from './render.js';
 
 const LBL = (g = 0.25) => [3, 0, g, 0], TINT = (g = 0.3) => [5, 0, g, 0], FIX = (g = 0) => [0, 0, g, 0], WRAP = (g = 0.3) => [4, 0, g, 0];
+const TOP = (g = 0.2) => [3, PRINT0, g, 0], SIDE = (g = 0.2) => [3, PRINT0 + 1, g, 0];   // fixed prints: carton top, side panel
 const G_W = 0xFFFFFF, G_STEEL = 0xDDE3EA, G_INK = 0x2A1A3A;
 
 // ---- base shapes, unit size: width, height and depth 1, origin on the floor, label toward +z ----------
 const BUILD = {
-  box(B) { bind(B, 0, TINT(0.2)); box(B, 1, 1, 1, G_W, { bevel: 0.06, front: LBL(), lid: TINT(0.3) }); },
+  box(B) { bind(B, 0, TINT(0.2)); box(B, 1, 1, 1, G_W, { bevel: 0.06, front: LBL(), back: LBL(), sides: SIDE(), lid: TOP() }); },
+  // a shipping carton: the label printed on all four sides, taped on top (boxed appliances)
+  carton(B) { bind(B, 0, TINT(0.1)); box(B, 1, 1, 1, G_W, { bevel: 0.04, front: LBL(0.1), back: LBL(0.1), sides: LBL(0.1), lid: [3, PRINT0 + 4, 0.1, 0] }); },
   tallbox(B) {
-    bind(B, 0, TINT(0.2)); box(B, 1, 0.8, 1, G_W, { bevel: 0.05, front: LBL() });
+    bind(B, 0, TINT(0.2)); box(B, 1, 0.8, 1, G_W, { bevel: 0.05, front: LBL(), back: LBL(), sides: SIDE() });
     at(B, 0, 0.8, 0); for (const s of [1, -1]) { at(B, 0, 0.8, s * 0.25, 0, s * 0.55); box(B, 0.98, 0.04, 0.58, G_W, { bevel: 0.2 }); }
     at(B, 0, 0.94, 0); box(B, 0.98, 0.08, 0.06, G_W, { bevel: 0.3 });
   },
   can(B) {
     bind(B, 0, WRAP(0.35)); at(B, 0, 0.06, 0); cyl(B, 0.5, 0.5, 0.88, G_W, { seg: 16, top: false, side: WRAP(0.35), uRep: 2 });
-    bind(B, 0, FIX(0.9)); at(B, 0, 0.94, 0); cyl(B, 0.47, 0.47, 0.03, G_STEEL, { seg: 16 });
-    at(B, 0, 0, 0); cyl(B, 0.47, 0.5, 0.06, G_STEEL, { seg: 16, top: false });
-    for (const y of [0.06, 0.94]) { at(B, 0, y, 0, 0, Math.PI / 2); ring(B, 0.5, 0.5, 0.035, 0.07, G_STEEL, { seg: 12 }); }
+    bind(B, 0, TINT(0.7)); at(B, 0, 0.94, 0); cyl(B, 0.5, 0.44, 0.06, G_W, { seg: 16, top: mix(G_W, G_STEEL, 0.25) });
+    bind(B, 0, FIX(0.9)); at(B, 0.16, 1.0, 0); box(B, 0.2, 0.012, 0.12, G_STEEL, { bevel: 0.3 });
+    at(B, 0, 0, 0); cyl(B, 0.46, 0.5, 0.06, G_STEEL, { seg: 16, top: false });
   },
   bottle(B) {
     bind(B, 0, FIX(0.8)); at(B, 0, 0, 0); lathe(B, [[0.001, 0], [0.42, 0.01], [0.46, 0.08], [0.46, 0.58], [0.4, 0.68], [0.2, 0.8], [0.15, 0.86]], 0xE4F4FA, { seg: 14 });
@@ -36,7 +39,7 @@ const BUILD = {
     bind(B, 0, TINT(0.4)); at(B, 0, 0.84, 0); cyl(B, 0.19, 0.19, 0.16, G_W, { seg: 12 });
   },
   jug(B) {
-    bind(B, 0, FIX(0.3)); box(B, 0.9, 0.85, 0.82, 0xFAFCFF, { bevel: 0.25, front: LBL() });
+    bind(B, 0, FIX(0.3)); box(B, 0.9, 0.85, 0.82, 0xFAFCFF, { bevel: 0.25, front: LBL(), back: LBL() });
     bind(B, 0, TINT(0.4)); at(B, -0.15, 0.85, 0); cyl(B, 0.15, 0.15, 0.12, G_W, { seg: 10 });
     bind(B, 0, FIX(0.3)); at(B, 0, 0, 0); tube(B, [[0.18, 0.86, 0], [0.42, 0.88, 0], [0.47, 0.55, 0]], 0.07, 0xFAFCFF, { seg: 6, caps: 'round' });
   },
@@ -76,8 +79,8 @@ const BUILD = {
     bind(B, 0, FIX(0)); for (const r of [0, Math.PI / 2]) { at(B, 0, 0.5, 0, r); ring(B, 0.5, 0.5, 0.025, 0.04, G_INK, { seg: 18 }); }
   },
   shoebox(B) {
-    bind(B, 0, TINT(0.2)); box(B, 1, 0.78, 1, G_W, { bevel: 0.05, front: LBL() });
-    at(B, 0, 0.72, 0); box(B, 1.04, 0.28, 1.04, G_W, { bevel: 0.1, sides: TINT(0.3), lid: TINT(0.3) });
+    bind(B, 0, TINT(0.2)); box(B, 1, 0.78, 1, G_W, { bevel: 0.05, front: LBL(), back: LBL() });
+    at(B, 0, 0.72, 0); box(B, 1.04, 0.28, 1.04, G_W, { bevel: 0.1, sides: TINT(0.3), lid: TOP(0.3) });
     bind(B, 0, FIX(0)); at(B, 0, 0.75, 0.52); box(B, 0.9, 0.05, 0.02, mix(G_W, G_INK, 0.6), { bevel: 0 });
   },
   appliance(B) {
@@ -114,10 +117,11 @@ export const PRODUCTS = [
   ['appliance', 14, 0xDDE3EA, [0.62, 0.46, 0.44]], ['appliance', 14, 0xFF8A7A, [0.92, 0.6, 0.7]], ['box', 16, 0x2A2440, [0.56, 0.6, 0.4]], ['box', 18, 0x1B1F3B, [0.7, 0.5, 0.2]],
   ['shoebox', 20, 0xFF7F11, [0.7, 0.36, 0.46]], ['shoebox', 21, 0xE63946, [0.7, 0.36, 0.46]], ['speaker', 16, 0x2A2440, [0.66, 1.0, 0.62]], ['suitcase', 19, 0xFF8A7A, [0.9, 0.7, 0.5]],
   ['ball', 22, 0xFF7F11, [0.5, 0.5, 0.5]], ['ball', 22, 0xFFFFFF, [0.44, 0.44, 0.44]], ['ball', 22, 0x3A86FF, [0.5, 0.5, 0.5]],
+  ['carton', PRINT0 + 2, 0xE9D3A8, [0.92, 0.6, 0.7]], ['carton', PRINT0 + 3, 0xE9D3A8, [0.66, 0.9, 0.62]],      // 45, 46: boxed microwave and speaker
 ];
 // The products each gameplay good may look like (its variants).
 const LOOK = { can: [4, 5, 6], soda: [8, 9, 10, 11, 12], chips: [13, 14, 15, 16], roll: [25], cereal: [0, 1, 2], phone: [31, 32], game: [33], toaster: [34],
-  melon: [27, 28], pizza: [26], headset: [36], shoes: [38, 39], microwave: [35], speaker: [40], suitcase: [41] };
+  melon: [27, 28], pizza: [26], headset: [36], shoes: [38, 39], microwave: [45], speaker: [46, 40], suitcase: [41] };
 // What a store stocks on its shelves as decor (product indices).
 export const STORE_STOCK = { supermarket: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 27, 28, 29, 30] };
 export function productSize(i) { return PRODUCTS[i][3]; }
