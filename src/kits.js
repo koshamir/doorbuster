@@ -160,10 +160,16 @@ void main() {
   if (sf > 0.5) {
     vec2 q = vW.xz;
     if (sf < 1.5) c = mix(vec3(0.2, 0.6, 0.3), vec3(0.25, 0.68, 0.35), step(0.5, fract(q.x / 3.0)));
-    else if (sf < 2.5) c = mix(vec3(0.86, 0.42, 0.16), vec3(1.0), (1.0 - smoothstep(0.03, 0.03 + w.x, abs(fract(q.y / 1.4) - 0.5) - 0.44)) * far);
+    else if (sf < 2.5) { float a = abs(fract(q.y / 1.4) - 0.5), aw = fwidth(q.y / 1.4) * 1.2; c = mix(vec3(0.86, 0.42, 0.16), vec3(1.0), smoothstep(0.465 - aw, 0.465, a) * far); }
     else if (sf < 3.5) { float pl = floor(q.x / 0.3); c = vec3(0.8, 0.6, 0.38) * (0.92 + 0.12 * hash2(vec2(pl, floor(q.y / 1.7 + pl * 0.37)))); c = mix(c, c * 0.75, (1.0 - smoothstep(0.0, 0.02 + w.x * 0.3, fract(q.x / 0.3))) * far); }
     else if (sf < 4.5) { vec2 tq = fract(q / 0.5); c = mix(vec3(0.96, 0.98, 1.0), vec3(0.62, 0.84, 0.94), max(step(0.9, tq.x), step(0.9, tq.y)) * far); }
-    else if (sf < 5.5) { vec2 tq = fract(q / 0.6) - 0.5; c = mix(vec3(0.4, 0.42, 0.47), vec3(0.58, 0.6, 0.66), step(abs(tq.x + tq.y), 0.08) * far); }
+    else if (sf < 5.5) {                       // diamond tread plate: raised lozenges turning 90 degrees cell to cell
+      vec2 cq = q / 0.45, ci = floor(cq), tq = fract(cq) - 0.5; float o = mod(ci.x + ci.y, 2.0) * 2.0 - 1.0;
+      vec2 r = vec2(tq.x + o * tq.y, tq.x - o * tq.y) * 0.7071, rs = r + vec2(0.035, -0.035 * o);
+      float lz = step(abs(r.x), 0.26) * step(abs(r.y), 0.055), sh = step(abs(rs.x), 0.26) * step(abs(rs.y), 0.055);
+      c = vec3(0.47, 0.49, 0.54) * (0.97 + 0.06 * hash2(floor(q / 1.8)));
+      c = mix(c, c * 0.72, sh * (1.0 - lz) * far); c = mix(c, c * 1.28, lz * far);
+    }
     else if (sf < 6.5) { float pl = floor(q.y / 0.4); c = vec3(0.7, 0.47, 0.3) * (0.9 + 0.14 * hash2(vec2(pl, floor(q.x / 2.1 + pl * 0.5)))); c = mix(c, c * 0.7, (1.0 - smoothstep(0.0, 0.03, fract(q.y / 0.4))) * far); }
     else c = mix(vec3(1.0, 0.85, 0.9), vec3(0.99, 0.96, 0.9), mod(floor(q.x) + floor(q.y), 2.0));
     for (int k = 0; k < 4; k++) {

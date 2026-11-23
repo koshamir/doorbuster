@@ -228,6 +228,16 @@ if (!skip.has('browser')) {
   };
   for (let li = 0; li < LEVELS.length; li++) await visit(`level=${li}&seed=1&autoplay=expert&manual=1`, 5, `level ${li}`);
   await visit('scene=lineup&manual=1', 0, 'lineup');
+  // real time, as a person sees it (the browser's own frame clock): the title, and a race with its intro card
+  for (const [query, tag] of [['title=1', 'title (real time)'], ['level=6&seed=1&autoplay=expert', 'level 6 (real time)']]) {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+    let errs = 0;
+    page.on('pageerror', (e) => { if (!errs++) fail('browser', `${tag}: page error: ${e.message.slice(0, 160)}`); });
+    page.on('console', (m) => { if (m.type() === 'error' && !errs++) fail('browser', `${tag}: console error: ${m.text().slice(0, 160)}`); });
+    try { await page.goto(`${server.url}/index.html?${query}`); await page.waitForFunction(() => window.__ready === true, null, { timeout: 20000 }); await page.waitForTimeout(2500); pages++; }
+    catch (e) { fail('browser', `${tag}: ${e.message.split('\n')[0]}`); }
+    await page.close();
+  }
   await browser.close(); await server.close();
   summary.push(`browser  ${pages} pages clean, peak ${peakCalls} draw calls, ${(peakTris / 1000).toFixed(0)}k triangles`);
 }

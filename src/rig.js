@@ -220,7 +220,7 @@ export function animate(rig, s, dt, rootM) {
   // dash: a 0.1 s crouch, then a stretch; impacts squash
   let sy = 1;
   if (s.dash >= 0 && s.dash < 0.1) sy = 0.86; else if (s.dash >= 0.1 && s.dash < 0.35) sy = 1.1 - (s.dash - 0.1) * 0.4;
-  if (s.squash) rig.sq = Math.max(rig.sq, s.squash);
+  if (s.squash) rig.sq = Math.max(rig.sq, Math.min(1, s.squash));
   rig.sq = Math.max(0, rig.sq - dt * 4);
   sy *= 1 - 0.28 * rig.sq * rig.sq;
   const sxz = 1 / Math.sqrt(sy);

@@ -1,8 +1,8 @@
 // DOORBUSTER — audio.js
 // Purpose: every sound in the game, synthesized with WebAudio (no audio files): the effects for
 //          simulation events, three-layer impacts, gibberish voices, the cart's own noises (drift
-//          screech, rolling, a heavy cart's squeak), crowd murmur, the announcer's chime, and the funk
-//          loop whose layers follow the Madness meter and whose tempo rises at closing time.
+//          screech, rolling, a heavy cart's squeak), crowd murmur, the announcer's chime, and one funk
+//          groove re-orchestrated per store, whose layers follow the Madness meter and whose tempo rises at closing time.
 // Exports: audio, unlockAudio, setSound, setVolumes, audioEvent, audioCue, audioFrame
 // Depends on: config.js. Browser only; nothing sounds before unlockAudio() (the player's first action).
 //
@@ -14,7 +14,7 @@
 import { TUNE, GOODS } from './config.js';
 
 export const audio = { ctx: null, on: true, vMusic: 0.55, vSfx: 0.9, master: null, music: null, sfx: null, wah: null, noise: null,
-  voices: 0, last: {}, chain: 0, chainT: 0, step: 0, nextT: 0, bpm: 100, level: 0, loops: null, squeak: 0 };
+  voices: 0, last: {}, chain: 0, chainT: 0, step: 0, nextT: 0, bpm: 100, level: 0, style: 'muzak', loops: null, squeak: 0 };
 const A = audio;
 const hz = (m) => 440 * Math.pow(2, (m - 69) / 12);
 
@@ -289,29 +289,85 @@ const LEAD = [[76, 0, 79, 0, 0, 81, 0, 79, 0, 0, 76, 0, 74, 0, 0, 0], [0, 0, 76,
   [76, 0, 81, 0, 0, 85, 0, 81, 0, 0, 79, 0, 76, 0, 0, 0], [0, 0, 73, 0, 76, 0, 79, 0, 81, 0, 83, 0, 85, 0, 88, 0]];
 const STAB = [0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0], KICK = [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0];
 const SNARE = [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1], BELL = [1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0];
+// The same groove re-orchestrated per store (ART.md section 8): kit -> [band, tempo factor]. muzak-funk in
+// the supermarket, clank percussion in the warehouse, synthwave in electronics, disco-house in the boutique,
+// stadium drums in the sports megastore, surf-rock in the food court.
+const BAND = { supermarket: ['muzak', 1], warehouse: ['clank', 1], electronics: ['synth', 0.92], boutique: ['disco', 1.06], sports: ['stadium', 0.96], food: ['surf', 1.1] };
+const BASS_F = { muzak: 1100, clank: 700, synth: 900, disco: 1400, stadium: 800, surf: 2000 }, CHORD_W = { muzak: 'square', clank: 'triangle', disco: 'sawtooth', stadium: 'sawtooth', surf: 'sawtooth' };
+function drums(M, st, t, s, level, fill) {
+  const fv = fill ? 0.3 + (s - 12) * 0.07 : 0;
+  const kick = (v, f0, d) => { tone(M, 'sine', f0 || 125, 44, t, d || 0.16, v); hiss(M, 'highpass', 3000, 0, 0.7, t, 0.012, 0.25 * v); };
+  const snare = (v) => { hiss(M, 'bandpass', 1900, 0, 0.9, t, 0.13, v); tone(M, 'triangle', 190, 150, t, 0.07, 0.3); };
+  const clap = (v) => { for (let i = 0; i < 3; i++) hiss(M, 'bandpass', 1300, 0, 1.2, t + i * 0.011, 0.07, v); };
+  const hat = (v, d) => hiss(M, 'highpass', 7500, 0, 0.7, t, d, v);
+  const cowbell = () => { tone(M, 'square', 545, 0, t, 0.06, 0.08); tone(M, 'square', 815, 0, t, 0.06, 0.06); };
+  if (st === 'clank') {                       // pipes, crates and an anvil
+    if (KICK[s]) kick(0.9);
+    if (SNARE[s] || fill) { for (let i = 0; i < 3; i++) { const f = 900 + Math.random() * 2600; tone(M, 'square', f, f * 0.98, t + i * 0.03, 0.12, (fill ? fv * 0.2 : 0.09) * (1 - i / 5)); } tone(M, 'triangle', 95, 60, t, 0.1, 0.35); }
+    if (s % 2 === 0 || level >= 3) tone(M, 'square', 3200 + (s % 4) * 400, 0, t, 0.025, level >= 5 ? 0.05 : 0.035);
+    if (level >= 4 && BELL[s]) { tone(M, 'square', 1450, 1430, t, 0.09, 0.05); tone(M, 'square', 2150, 2120, t, 0.07, 0.035); }
+  } else if (st === 'synth') {                // a slow kick, a big gated snare, soft sixteenths
+    if (s % 8 === 0 || s === 10) kick(1, 110, 0.22);
+    if (s === 4 || s === 12 || fill) hiss(M, 'bandpass', 1500, 0, 0.6, t, fill ? 0.1 : 0.26, fill ? fv : 0.45);
+    if (level >= 2) hat(s % 2 ? 0.05 : 0.09, 0.03);
+    if (level >= 4 && (s === 4 || s === 12)) clap(0.16);
+  } else if (st === 'disco') {                // four on the floor, claps, the open hat on the off-beat
+    if (s % 4 === 0) kick(1);
+    if (s === 4 || s === 12) clap(0.24);
+    if (fill) snare(fv);
+    if (s % 4 === 2) hat(0.14, 0.12); else if (level >= 3) hat(0.06, 0.025);
+    if (level >= 4 && BELL[s]) tone(M, 'triangle', hz(96), 0, t, 0.05, 0.05);
+  } else if (st === 'stadium') {              // stomp, stomp, clap; a tom roll into the repeat
+    if (s % 8 === 0 || s % 8 === 2) { tone(M, 'sine', 95, 38, t, 0.32, 1.0); hiss(M, 'lowpass', 700, 150, 0.7, t, 0.15, 0.3); }
+    if (s % 8 === 4) clap(0.3);
+    if (fill) tone(M, 'sine', 160 - (s - 12) * 15, 60, t, 0.18, 0.6);
+    if (level >= 3 && s % 2 === 0) hiss(M, 'highpass', 5000, 0, 0.7, t, 0.12, 0.05);
+    if (level >= 4 && BELL[s]) cowbell();
+  } else if (st === 'surf') {                 // a driving beat on a ride, a woodblock
+    if (s % 8 === 0 || s === 10) kick(0.85);
+    if (s === 4 || s === 12 || fill) snare(fill ? fv : 0.5);
+    if (s % 2 === 0) hiss(M, 'bandpass', 6500, 0, 1.5, t, 0.09, level >= 3 ? 0.11 : 0.07);
+    if (level >= 4 && s % 4 === 3) tone(M, 'triangle', hz(84), 0, t, 0.04, 0.05);
+  } else {                                    // muzak-funk
+    if (KICK[s]) kick(0.95);
+    if (SNARE[s] || fill) snare(fill ? fv : 0.5);
+    if (s % 2 === 0 || level >= 3) hat(level >= 5 ? 0.2 : 0.13, s % 4 === 2 ? 0.07 : 0.028);
+    if (level >= 4 && BELL[s]) cowbell();
+    if (level >= 4 && (s === 4 || s === 12)) clap(0.22);
+  }
+}
 // level: 0 = menu (bass and soft chords), 1-4 = the multiplier in a run (drums and bass, then chords,
 // then the lead, then cowbell and claps), 5 = MADNESS mode (everything, double-time hats).
 function musicStep(t, n, level, closing) {
-  const M = A.music, bar = (n >> 4) & 3, s = n & 15, pass = (n >> 6) & 3, up = pass === 2 ? 3 : 0, fill = pass === 3 && bar === 3 && s >= 12;
-  if (level > 0) {
-    if (KICK[s]) { tone(M, 'sine', 125, 44, t, 0.16, 0.95); hiss(M, 'highpass', 3000, 0, 0.7, t, 0.012, 0.25); }
-    if (SNARE[s] || fill) { hiss(M, 'bandpass', 1900, 0, 0.9, t, 0.13, fill ? 0.3 + (s - 12) * 0.07 : 0.5); tone(M, 'triangle', 190, 150, t, 0.07, 0.3); }
-    if (s % 2 === 0 || level >= 3) hiss(M, 'highpass', 7500, 0, 0.7, t, s % 4 === 2 ? 0.07 : 0.028, level >= 5 ? 0.2 : 0.13);
-    if (level >= 4 && BELL[s]) { tone(M, 'square', 545, 0, t, 0.06, 0.08); tone(M, 'square', 815, 0, t, 0.06, 0.06); }
-    if (level >= 4 && (s === 4 || s === 12)) for (let i = 0; i < 3; i++) hiss(M, 'bandpass', 1300, 0, 1.2, t + i * 0.011, 0.07, 0.22);
-    if (closing && s === 0) { tone(M, 'square', hz(93), 0, t, 0.25, 0.07); tone(M, 'square', hz(93), 0, t + 0.12, 0.25, 0.07); }   // the closing bell
-  }
-  const b = BASS[bar][s];
+  const M = A.music, st = A.style, sp = 15 / A.bpm, bar = (n >> 4) & 3, s = n & 15, pass = (n >> 6) & 3, up = pass === 2 ? 3 : 0, fill = pass === 3 && bar === 3 && s >= 12;
+  if (level > 0) drums(M, st, t, s, level, fill);
+  if (level > 0 && closing && s === 0) { tone(M, 'square', hz(93), 0, t, 0.25, 0.07); tone(M, 'square', hz(93), 0, t + 0.12, 0.25, 0.07); }   // the closing bell
+  // the bass: the written line, or eighth-note pulses on the bar's root (synthwave; octaves for disco)
+  const pulse = st === 'synth' || st === 'disco', b = pulse ? (s % 2 === 0 ? BASS[bar][0] + (st === 'disco' && s % 4 === 2 ? 12 : 0) : 0) : BASS[bar][s];
   if (b) {
-    const c = A.ctx, o = c.createOscillator(), f = c.createBiquadFilter(), g = c.createGain(), d = 0.17;
-    o.type = 'sawtooth'; o.frequency.value = hz(b + up);
-    f.type = 'lowpass'; f.Q.value = 5; f.frequency.setValueAtTime(1100, t); f.frequency.exponentialRampToValueAtTime(180, t + d);
-    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(level ? 0.5 : 0.3, t + 0.006); g.gain.exponentialRampToValueAtTime(0.0006, t + d + 0.05);
+    const c = A.ctx, o = c.createOscillator(), f = c.createBiquadFilter(), g = c.createGain(), d = pulse ? 0.12 : st === 'surf' ? 0.2 : 0.17;
+    o.type = st === 'clank' ? 'square' : st === 'surf' ? 'triangle' : 'sawtooth'; o.frequency.value = hz(b + up);
+    f.type = 'lowpass'; f.Q.value = 5; f.frequency.setValueAtTime(BASS_F[st] || 1100, t); f.frequency.exponentialRampToValueAtTime(st === 'surf' ? 1200 : 180, t + d);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime((level ? 0.5 : 0.3) * (pulse ? 0.8 : 1), t + 0.006); g.gain.exponentialRampToValueAtTime(0.0006, t + d + 0.05);
     o.connect(f); f.connect(g); g.connect(M); o.start(t); o.stop(t + d + 0.08);
   }
-  if (STAB[s] && (level === 0 || level >= 2)) for (const m of CHORD[bar]) tone(M, 'square', hz(m + up), 0, t, 0.1, level ? 0.06 : 0.035);
+  // the chords: a detuned pad held through the bar (synthwave), else stabs (strummed in the food court)
+  const chords = level === 0 || level >= 2;
+  if (st === 'synth') {
+    if (chords && s === 0) for (const m of CHORD[bar]) { tone(M, 'sawtooth', hz(m + up), 0, t, sp * 15, level ? 0.02 : 0.014, sp * 3); tone(M, 'sawtooth', hz(m + up) * 1.007, 0, t, sp * 15, level ? 0.016 : 0.011, sp * 3); }
+    if (level >= 2) tone(M, 'square', hz(CHORD[bar][s % 4] + up + 12), 0, t, 0.07, 0.025);     // the arpeggiator
+  } else if (STAB[s] && chords) CHORD[bar].forEach((m, i) => tone(M, CHORD_W[st], hz(m + up), 0, t + (st === 'surf' ? i * 0.012 : 0), st === 'disco' ? 0.16 : 0.1, (level ? 0.06 : 0.035) * (CHORD_W[st] === 'sawtooth' ? 0.7 : 1), st === 'stadium' ? 0.02 : 0.004));
+  // the lead, in each band's voice
   const ld = LEAD[pass === 3 ? 3 - bar : bar][s];
-  if (level >= 3 && ld) tone(M, 'square', hz(ld + up), hz(ld + up) * 1.01, t, 0.13, 0.085);
+  if (level >= 3 && ld) {
+    const f = hz(ld + up);
+    if (st === 'clank') { tone(M, 'square', f, f * 0.985, t, 0.1, 0.07); tone(M, 'sine', f * 2.76, 0, t, 0.08, 0.03); }
+    else if (st === 'synth') { tone(M, 'sawtooth', f, 0, t, 0.3, 0.05); tone(M, 'sawtooth', f * 1.008, 0, t, 0.3, 0.04); }
+    else if (st === 'disco') { tone(M, 'triangle', f * 2, 0, t, 0.14, 0.09); tone(M, 'square', f, 0, t, 0.12, 0.04); }
+    else if (st === 'stadium') tone(M, 'sawtooth', f * 0.96, f, t, 0.18, 0.065, 0.02);                             // brass with a scoop
+    else if (st === 'surf') for (let k = 0; k < 4; k++) tone(M, 'sawtooth', f, f * 0.995, t + k * sp * 0.5, 0.06, 0.06 * (1 - k * 0.18));   // tremolo picking
+    else tone(M, 'square', f, f * 1.01, t, 0.13, 0.085);
+  }
 }
 
 // Once a frame: keeps the music scheduled a little ahead, moves its layers, tempo and filter with the
@@ -321,7 +377,9 @@ export function audioFrame(sim, dt, state) {
   if (!c || c.state === 'closed') return;
   const t = c.currentTime, p = sim.player, play = state === 'play', mad = play && p.madT > 0;
   A.level = play ? (mad ? 5 : 1 + Math.min(3, Math.floor(p.mad))) : 0;
-  A.bpm += ((play ? (sim.closing ? 134 : 114) : 100) - A.bpm) * Math.min(1, dt * 0.7);
+  const band = BAND[(sim.def && sim.def.kit) || 'supermarket'] || BAND.supermarket;
+  A.style = band[0];
+  A.bpm += ((play ? (sim.closing ? 134 : 114) : 100) * band[1] - A.bpm) * Math.min(1, dt * 0.7);
   if (A.nextT < t - 0.25) A.nextT = t + 0.05;                 // the tab slept: start again from now
   while (A.nextT < t + 0.12) {
     musicStep(A.nextT + (A.step & 1 ? 1.8 / A.bpm : 0), A.step, A.level, play && sim.closing);   // odd steps are late: swing

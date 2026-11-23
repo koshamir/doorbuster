@@ -152,6 +152,27 @@ export const SETS = {
         for (let s = 0; s < secs; s++) { let m = 0, q = 0; for (let i = s * sr; i < (s + 1) * sr; i++) { m = Math.max(m, Math.abs(a[i])); q += a[i] * a[i]; } if (m < 0.01) quiet++; loud = Math.max(loud, Math.sqrt(q / sr)); }
         return { seconds: secs, peak: +peak.toFixed(3), rms: +Math.sqrt(sum / a.length).toFixed(3), loudestSecondRms: +loud.toFixed(3), clippedSamples: clipped, silentSeconds: quiet, voicesLeft: d.audio.voices };
       })()` },
+    // each store's band (ART.md section 8): 12 s of the groove per kit, the layers building to MADNESS and closing time
+    { name: 'bands', query: 'level=1&seed=3&debug=1', plain: 0.5, after: `(async () => {
+        const d = window.__db, api = d.audioApi, sr = 44100, secs = 12, out = {};
+        d.game.manual = true;
+        for (const kit of ['supermarket', 'warehouse', 'electronics', 'boutique', 'sports', 'food']) {
+          const p = { x: 10, z: 10, id: 0, char: 'player', spd: 8, drift: 0, tier: 0, load: 10, mad: 0, madT: 0 };
+          const sim = { player: p, shoppers: [], t: 30, timer: 72, closing: false, phase: 'run', def: { kit } };
+          const ctx = new OfflineAudioContext(2, sr * secs, sr);
+          d.audio.ctx = null; d.audio.step = 0; d.audio.nextT = 0; api.unlockAudio(ctx);
+          for (let t = 0.05; t < secs - 0.05; t += 0.05) ctx.suspend(t).then(() => {
+            p.mad = Math.min(3.9, t / 2.2); p.madT = t > 8 && t < 10 ? 1 : 0; sim.closing = t > 10;
+            api.audioFrame(sim, 0.05, t < 1.5 ? 'title' : 'play'); ctx.resume();
+          });
+          const a = (await ctx.startRendering()).getChannelData(0);
+          let peak = 0, sum = 0, clipped = 0, quiet = 0;
+          for (let i = 0; i < a.length; i++) { const v = Math.abs(a[i]); if (v > peak) peak = v; sum += v * v; if (v >= 0.99) clipped++; }
+          for (let s = 0; s < secs; s++) { let m = 0; for (let i = s * sr; i < (s + 1) * sr; i++) m = Math.max(m, Math.abs(a[i])); if (m < 0.01) quiet++; }
+          out[kit] = { peak: +peak.toFixed(2), rms: +Math.sqrt(sum / a.length).toFixed(3), clipped, silentSeconds: quiet, style: d.audio.style, bpm: +d.audio.bpm.toFixed(0) };
+        }
+        return out;
+      })()` },
     // touch input: a finger starts the run, then holds the left pad; the cart must accelerate by itself and steer
     { name: 'touch', query: 'level=1&seed=3&debug=1', viewport: [844, 390], touch: true, plain: 1.0, tap: [422, 300],
       after: `(async () => { const d = window.__db, pad = document.querySelector('.pad.l1');

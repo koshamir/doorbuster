@@ -459,7 +459,7 @@ function probeCamera(pr, k, dt) {
 
 function frame(now) {
   requestAnimationFrame(frame);
-  const dt = Math.min(0.1, (now - game.last) / 1000);
+  const dt = Math.max(0, Math.min(0.1, (now - game.last) / 1000));   // a frame stamped before the last task ended is not time going back
   game.last = now;
   if (!game.manual) { tick(dt, true); if (game.state === 'play' && !game.paused) watchFrameRate(dt); else if (game.state === 'title') benchTick(dt); }
 }
