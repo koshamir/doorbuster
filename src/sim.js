@@ -403,7 +403,7 @@ function smash(sim, k, solid) {
   if (solid.type === 'podium' || solid.type === 'case') {     // through the ribbon (or the glass): the hot item jumps into the cart
     if (solid.type === 'case') { stunt(sim, k, 'glass', p.x, p.z); sim.emit('glass', k, 0, p); }
     if (p.good >= 0) { take(sim, k, p.good, p.x, 1, p.z); p.good = -1; madGain(sim, k, 0.5); sim.emit('hot', k, 0, p); }
-  } else if (solid.type === 'glass') {              // the window shatters and the short way is open to everyone
+  } else if (solid.type === 'glass' || solid.type === 'crates') {     // the window shatters (the boxes burst) and the short way is open to everyone
     sim.world.block[p.r * sim.world.cols + p.c] = 0;
     navBuild(sim.world);
     stunt(sim, k, 'glass', p.x, p.z);

@@ -14,7 +14,8 @@
 //   O round display  P can pyramid  Q MEGA PYRAMID  G gift pile  K cardboard stand  H hot item behind a ribbon
 //   W glass window  F fountain  X Christmas tree  # low wall of crates (a ramp jumps it)  V hot item in a glass case
 //   _  pit (a clearance bin, the stockroom, the pool): rolling in is a wipeout unless in the air
-//   t table  b boxes  m mannequin (light, fly away)   p plant  n bench (solid decor)
+//   t table  b boxes  m mannequin  u hurdle  y cone (light, fly away)   p plant  n bench (solid decor)
+//   J trampoline (launches over a pool or a wall)  D delivery boxes (a dash opens the shortcut)  Y cake tower
 //   > < ^ v travelator   ~ wet floor   R ramp   f flash-sale podium (dormant until the sale)
 //   g  huddle of six shoppers (a dash through the middle is a STRIKE)
 //   =  the cart train's track (floor; a straight run of these carries one train)
@@ -37,6 +38,10 @@ export const PIECES = {
   V: { type: 'case', r: 0.95, dash: 1, nav: 1 },               // a hot item in a glass case
   f: { type: 'podium', r: 0.85, dash: 1, nav: 0, off: 1, sale: 1 },
   W: { type: 'glass', hx: 1, hz: 1, dash: 1, nav: 1 },
+  D: { type: 'crates', hx: 1, hz: 1, dash: 1, nav: 1 },          // a stack of delivery boxes: a dash bursts through (a shortcut)
+  Y: { type: 'caketower', r: 0.9, dash: 1, nav: 1 },             // a cake tower: smash it for desserts
+  u: { type: 'hurdle', hx: 0.9, hz: 0.12, soft: 1 },             // a low hurdle (knocked flying)
+  y: { type: 'cone', r: 0.25, soft: 1 },
   F: { type: 'fountain', r: 2.8, low: 1, nav: 1 },
   X: { type: 'tree', r: 1.7, nav: 1 },
   C: { type: 'counter', hx: 0.7, hz: 1, nav: 1 },
@@ -83,7 +88,7 @@ export function buildWorld(def, rng) {
   for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
     const k = plan[r][c], i = r * cols + c;
     world.floor[i] = k === ' ' ? 0 : 1;
-    world.block[i] = k === ' ' || 'SMLRk'.includes(k) || (PIECES[k] && PIECES[k].nav) ? 1 : 0;   // drivers go round ramps: the jump is the player's
+    world.block[i] = k === ' ' || 'SMLRJk'.includes(k) || (PIECES[k] && PIECES[k].nav) ? 1 : 0;   // drivers go round ramps: the jump is the player's
     world.belt[i] = '>v<^'.indexOf(k) + 1;
     if (k === '_') { world.pit[i] = 1; world.pits = true; world.block[i] = 1; }
     world.wet[i] = k === '~' ? 1 : 0;
@@ -131,8 +136,8 @@ export function buildWorld(def, rng) {
       world.slots.push({ x, z });
     } else if (k === 'g') {
       world.huddles.push({ x, z, dx: 0, dz: 1, on: false });   // on and its axis (the way the route runs through it) are set when the crowd is placed
-    } else if (k === 'R') {
-      world.ramps.push({ x, z, c, r, dx: 0, dz: 0 });
+    } else if (k === 'R' || k === 'J') {
+      world.ramps.push({ x, z, c, r, dx: 0, dz: 0, tramp: k === 'J' });
     } else if (k === '=') {
       // A train track: one train per straight run (found at the run's first tile).
       for (const [dc, dr] of [[1, 0], [0, 1]]) {

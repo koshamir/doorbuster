@@ -67,6 +67,19 @@ export const KITS = {
     hot: 'handbag',
     crowd: CROWD_MIX.boutique,
   },
+  // GAME ON: slate rubber with painted zones, turf, an orange track, the pool; bright stadium light.
+  sports: {
+    id: 'sports', name: 'GAME ON', palette: { a: '#2B2D42', b: '#3BB273', c: '#FF7F11', d: '#48CAE4' }, sign: '#2B2D42', top: '#44475E',
+    signs: ['GYM', 'POOL', 'TRACK', 'PITCH', 'BALLS', 'WEIGHTS', 'SHOES', 'SWIM'],
+    shelves: { S: 'gondola', M: 'gondola', L: 'gondola' }, fixture: { body: 0xF4F7FB, accent: 0x3BB273, trim: 0xFF7F11, dark: 0x2B2D42 },
+    floor: { a: 0x44475E, b: 0x3E4157, grout: 0x2B2D42, checker: 1, paint: 0xFF7F11, arrow: 0xFFFFFF, vary: 0.05, wet: 0x48CAE4, groutW: 0.49 },
+    walls: { face: 0xE9EEF5, band: 0x3BB273, stripe: 0xFF7F11, top: 0x44475E, base: 0x2B2D42 },
+    pools: { grid: 12, r: 3.4, warm: [1.0, 1.0, 0.95], k: 0.12 },
+    grade: { shade: [0.6, 0.66, 0.84], key: [1, 1, 0.96], light: [0.36, 0.86, 0.36], sat: 1.08, contrast: 1.06, lift: [0.0, 0.01, 0.03], gain: [1, 1, 1], vignette: 0.18, bloom: 1, halftone: 0.14 },
+    void: 0x1C1E2E,
+    hot: 'trophy',
+    crowd: CROWD_MIX.sports,
+  },
 };
 export function kitOf(def) { return KITS[def.kit || 'supermarket'] || KITS.supermarket; }
 

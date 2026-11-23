@@ -9,7 +9,7 @@
 //          a cart can cross here?"); the simulation applies the effects each step, the drivers plan with the
 //          two queries and the level validator checks pass windows and the loot rule with them.
 // Exports: FX, SIGN, objExtent, buildObjects, stepObjects, dangerAt, passDelay, signAngle, tilePop, patrolAt, hazardsOn,
-//          switchField, levelRules, flipBarriers, freeField, armAngle, laserAngle, scissorState, gloveReach, chaserAt, startChaser
+//          switchField, levelRules, flipBarriers, freeField, flameState, cleaverState, armAngle, laserAngle, scissorState, gloveReach, chaserAt, startChaser
 // Depends on: config.js, world.js. No DOM, no THREE (runs in Node).
 //
 // Level data: objects: [[kind, col, row, { options }], ...] in tile coordinates (fractions allowed; a tile is
@@ -30,6 +30,12 @@
 //   barrier  c1, r1, color 'red'|'blue': solid when its colour is up; the player's dash flips them (def.flipEvery:
 //            also every so many seconds)
 //   chaser   speed: waits at (c, r) until the player takes a hot item, then rolls down the route to the checkouts
+//   glove    every (s), delay (s): fires on a clock instead of from a plate (a gym cushion wall; look 'cushion')
+//   bag      a punching bag: a sign that knocks back instead of wiping out (same options)
+//   flame    c1, r1, period, on (s), phase: grill strips that burst into flame (a shimmer 0.6 s before)
+//   cleavers across 'x'|'z' (the gantry spans that way), n, gap (m), period, down (s), step (s): a row chopping in a wave
+//   bonus    c1, r1, stunt: a zone that pays a named stunt once (GOLAZO behind the foosball defence)
+//   patrol   type 'foos' (a giant foosball player on its rail), 'belly' (a belly bro: a dash makes him drop food)
 
 import { CFG, TUNE, GOODS } from './config.js';
 import { addSolid, navBuild, fieldFrom, navDistAt } from './world.js';
@@ -39,7 +45,8 @@ const OM = (c) => (c + 0.5) * OT;                 // a tile coordinate to metres
 
 // Effect classes (LEVELS.md section 4): what touching each kind does.
 export const FX = { sign: 'wipe', tiles: 'push', patrol: 'push', button: 'switch', plate: 'switch', gate: 'switch', boost: 'move', watch: 'pick', cp: 'mark',
-  panels: 'wipe', turnstile: 'push', laser: 'wipe', scissors: 'wipe', glove: 'push', barrier: 'switch', chaser: 'wipe' };
+  panels: 'wipe', turnstile: 'push', laser: 'wipe', scissors: 'wipe', glove: 'push', barrier: 'switch', chaser: 'wipe',
+  bag: 'push', flame: 'wipe', cleavers: 'wipe', bonus: 'pick' };
 
 // The swinging sale sign: a giant price tag on a chain from a pivot SIGN.H up. At rest its lower edge is
 // SIGN.REST above the floor; it is dangerous while that edge is below SIGN.CLEAR (a cart with its shopper),
@@ -58,7 +65,7 @@ export function buildObjects(world, def) {
   for (const [kind, c, r, o = {}] of def.objects || []) {
     const x = OM(c), z = OM(r);
     let ob;
-    if (kind === 'sign') {
+    if (kind === 'sign' || kind === 'bag') {
       const ax = (o.across || 'x') === 'x';
       ob = { x, z, ax: ax ? 1 : 0, az: ax ? 0 : 1, period: o.period || 3, phase: o.phase || 0, amp: (o.amp || 60) * Math.PI / 180, w: o.w || 3 };
       ob.reach = SIGN.R * Math.sin(Math.min(ob.amp, SIGN.LOW)) + ob.w / 2;     // how far off centre it can hurt
@@ -75,7 +82,8 @@ export function buildObjects(world, def) {
       for (let i = 1; i < pts.length; i++) { const l = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); seg.push(l); len += l; }
       const jack = o.type === 'jack', vac = o.type === 'vacuum';
       if (vac) { const l = Math.hypot(pts[0][0] - pts[pts.length - 1][0], pts[0][1] - pts[pts.length - 1][1]); pts.push(pts[0]); seg.push(l); len += l; }   // a loop
-      ob = { type: o.type || 'forklift', pts, seg, len, speed: o.speed || (vac ? 2 : 3), wait: vac ? 0 : o.wait ?? 0.8, phase: o.phase || 0, hx: vac ? 0.55 : jack ? 0.5 : 0.75, hz: vac ? 0.55 : jack ? 1.0 : 1.35, x, z, loop: vac, spinT: 0, spitT: 0 };
+      const foos = o.type === 'foos', belly = o.type === 'belly';
+      ob = { type: o.type || 'forklift', pts, seg, len, speed: o.speed || (vac ? 2 : belly ? 1.4 : 3), wait: vac ? 0 : o.wait ?? 0.8, phase: o.phase || 0, hx: vac ? 0.55 : jack ? 0.5 : foos ? 0.45 : belly ? 0.7 : 0.75, hz: vac ? 0.55 : jack ? 1.0 : foos ? 0.5 : belly ? 0.6 : 1.35, x, z, loop: vac, spinT: 0, spitT: 0 };
       ob.cycle = vac ? len / ob.speed : 2 * (len / ob.speed + ob.wait);
     } else if (kind === 'button' || kind === 'plate') {
       ob = { x, z, c, r, rad: kind === 'button' ? 1.05 : 0.95, opens: o.opens || [], pressed: false, pressT: -9, by: null, cable: o.cable || null };
@@ -111,10 +119,13 @@ export function buildObjects(world, def) {
       ob.reach = ob.span / 2;
     } else if (kind === 'glove') {
       const [fc, fr] = o.from || [c, r], d = O_DIRS[o.dir || 'e'];
-      // the plate is pw tiles wide (across x); drivers' routes keep off it
-      ob = { x, z, gx: OM(fc), gz: OM(fr), dx: Math.sin(d), dz: Math.cos(d), reach: o.reach || 3, fireAt: -9, armed: true, pw: (o.pw || 1) * OT / 2 };
+      // the plate is pw tiles wide (across x); drivers' routes keep off it (a clocked glove has no plate)
+      ob = { x, z, gx: OM(fc), gz: OM(fr), dx: Math.sin(d), dz: Math.cos(d), reach: o.reach || 3, fireAt: -9, armed: !o.every, pw: (o.pw || 1) * OT / 2, every: o.every || 0, delay: o.delay || 0, look: o.look || 'glove' };
+      if (ob.every) { ob.pw = 0; ob.x = ob.gx; ob.z = ob.gz; }
+      else {
       for (let cc = Math.round(c - ((o.pw || 1) - 1) / 2); cc <= Math.round(c + ((o.pw || 1) - 1) / 2); cc++) world.block[Math.floor(z / OT) * world.cols + cc] = 1;
       (world.noGo || (world.noGo = [])).push({ x, z, hx: ob.pw + 0.25, hz: 1.5 });
+      }
     } else if (kind === 'barrier') {
       const c1 = o.c1 ?? c, r1 = o.r1 ?? r;
       // a wall across the way: as wide as its tiles, thin the other way (the drivers' route treats all its tiles as shut)
@@ -122,6 +133,14 @@ export function buildObjects(world, def) {
       ob = { color: o.color || 'red', c0: c, r0: r, c1, r1, x: (c + c1 + 1) / 2 * OT, z: (r + r1 + 1) / 2 * OT, wide, hx: wide ? (c1 - c + 1) * OT / 2 - 0.05 : 0.3, hz: wide ? 0.3 : (r1 - r + 1) * OT / 2 - 0.05, rise: 0 };
       ob.solid = addSolid(world, { x: ob.x, z: ob.z, r: 0, hx: ob.hx, hz: ob.hz, type: 'barrier', on: true, barrier: ob });
       world.barriers.push(ob);
+    } else if (kind === 'flame' || kind === 'bonus') {
+      const c1 = o.c1 ?? c, r1 = o.r1 ?? r;
+      ob = { c0: c, r0: r, c1, r1, x: (c + c1 + 1) / 2 * OT, z: (r + r1 + 1) / 2 * OT, hx: (c1 - c + 1) * OT / 2, hz: (r1 - r + 1) * OT / 2, period: o.period || 2.5, on: o.on || 1, phase: o.phase || 0, lead: 0.6, stunt: o.stunt || 'golazo', paid: false };
+      ob.reach = Math.max(ob.hx, ob.hz);
+    } else if (kind === 'cleavers') {
+      const ax = (o.across || 'x') === 'x';
+      ob = { x, z, ax: ax ? 1 : 0, az: ax ? 0 : 1, n: o.n || 5, gap: o.gap || 1.3, period: o.period || 2.6, down: o.down || 0.35, step: o.step || 0.25, phase: o.phase || 0 };
+      ob.reach = ob.n * ob.gap / 2;
     } else if (kind === 'chaser') {
       ob = { x, z, sx: x, sz: z, speed: o.speed || 10.8, R: o.radius || 1.7, active: false, s: 0, path: null, t0: 0, done: false };
       world.chaser = ob;
@@ -244,9 +263,15 @@ export function scissorState(ob, t) {
 }
 // How far a boxing glove is out at time t (0..1).
 export function gloveReach(ob, t) {
-  const u = t - ob.fireAt;
+  const u = t - lastFire(ob, t);
   return u < 0 || u > 0.75 ? 0 : u < 0.12 ? u / 0.12 : u < 0.4 ? 1 : 1 - (u - 0.4) / 0.35;
 }
+// A grill strip: 0 off, 1 shimmering (it is about to burst), 2 burning.
+export function flameState(ob, t) { const u = ((t / ob.period + ob.phase) % 1 + 1) % 1 * ob.period; return u < ob.on ? 2 : u > ob.period - ob.lead ? 1 : 0; }
+// Cleaver i of a row: 0 up, 1 the 'shing' wind-up (0.3 s), 2 down.
+export function cleaverState(ob, t, i) { const u = (((t - i * ob.step) / ob.period + ob.phase) % 1 + 1) % 1 * ob.period; return u < ob.down ? 2 : u > ob.period - 0.3 ? 1 : 0; }
+// A clocked glove (a gym cushion) fired last at this time.
+function lastFire(ob, t) { return ob.every ? Math.floor((t - ob.delay) / ob.every) * ob.every + ob.delay : ob.fireAt; }
 const segDist = (px, pz, ax, az, bx, bz) => { const vx = bx - ax, vz = bz - az, l2 = vx * vx + vz * vz || 1, t = Math.max(0, Math.min(1, ((px - ax) * vx + (pz - az) * vz) / l2)); return Math.hypot(px - ax - vx * t, pz - az - vz * t); };
 function setGateBlock(world, g, v) {
   for (let r = g.r0; r <= g.r1; r++) for (let c = g.c0; c <= g.c1; c++) world.block[r * world.cols + c] = v;
@@ -299,7 +324,14 @@ const PIT = { kind: 'pit', fx: 'wipe' };
 // ---- the two questions ------------------------------------------------------------------------------------
 // Is (x, z) dangerous at time t? pad widens the object (a cart's radius).
 export function dangerAt(ob, x, z, t, pad = 0) {
-  if (ob.kind === 'sign') {
+  if (ob.kind === 'flame') return Math.abs(x - ob.x) < ob.hx + pad && Math.abs(z - ob.z) < ob.hz + pad && flameState(ob, t) === 2;
+  if (ob.kind === 'cleavers') {
+    const dx = x - ob.x, dz = z - ob.z, lat = dx * ob.ax + dz * ob.az, along = dx * ob.az - dz * ob.ax;
+    if (Math.abs(along) > 0.35 + pad || Math.abs(lat) > ob.reach + pad) return false;
+    for (let i = 0; i < ob.n; i++) if (Math.abs(lat - (i - (ob.n - 1) / 2) * ob.gap) < ob.gap / 2 + pad && cleaverState(ob, t, i) === 2) return true;
+    return false;
+  }
+  if (ob.kind === 'sign' || ob.kind === 'bag') {
     const dx = x - ob.x, dz = z - ob.z, lat = dx * ob.ax + dz * ob.az, along = dx * ob.az - dz * ob.ax;
     if (Math.abs(along) > SIGN.THICK + pad || Math.abs(lat) > ob.reach + pad) return false;
     const th = signAngle(ob, t);
@@ -370,6 +402,7 @@ export function passDelay(ob, x0, z0, x1, z1, v, t, pad = 0.55, limit = 4, v0) {
 function extent(ob) {
   if (ob.kind === 'patrol') { let a = 1e9, b = -1e9, c = 1e9, d = -1e9; for (const [px, pz] of ob.pts) { a = Math.min(a, px); b = Math.max(b, px); c = Math.min(c, pz); d = Math.max(d, pz); } return [(a + b) / 2, (c + d) / 2, Math.max(b - a, d - c) / 2 + 2.5]; }
   if (ob.kind === 'tiles' || ob.kind === 'panels') return [ob.x, ob.z, (ob.nc + ob.nr) * OT / 2 + 1];
+  if (ob.kind === 'flame' || ob.kind === 'bonus') return [ob.x, ob.z, Math.max(ob.hx, ob.hz) + 1];
   if (ob.kind === 'glove') return [(ob.gx + ob.x) / 2, (ob.gz + ob.z) / 2, ob.reach + 2];
   if (ob.kind === 'chaser') return ob.active ? [ob.x, ob.z, 200] : [ob.x, ob.z, 0];
   return [ob.x, ob.z, (ob.reach || 3) + 2];
@@ -420,10 +453,17 @@ export function stepObjects(sim, dt) {
     for (const ob of world.objs) {
       const dx = k.x - ob.x, dz = k.z - ob.z;
       switch (ob.kind) {
-        case 'sign':
+        case 'sign': case 'bag': case 'flame': case 'cleavers':
           if (!ground || k.immuneT > 0 || Math.abs(dx) > ob.reach + 3 || Math.abs(dz) > ob.reach + 3) break;
           // nose and tail circles of the cart
-          if (dangerAt(ob, k.x + hx * CFG.noseAt, k.z + hz * CFG.noseAt, t, CFG.noseR * 0.85) || dangerAt(ob, k.x + hx * CFG.tailAt, k.z + hz * CFG.tailAt, t, CFG.tailR * 0.85)) sim.wipeout(k, ob);
+          if (dangerAt(ob, k.x + hx * CFG.noseAt, k.z + hz * CFG.noseAt, t, CFG.noseR * 0.85) || dangerAt(ob, k.x + hx * CFG.tailAt, k.z + hz * CFG.tailAt, t, CFG.tailR * 0.85)) {
+            if (ob.kind !== 'bag') { sim.wipeout(k, ob); break; }
+            const w = Math.cos(2 * Math.PI * (t / ob.period + ob.phase)) >= 0 ? 1 : -1;      // a punching bag knocks the cart the way it swings
+            sim.shove(k, ob, ob.ax * w, ob.az * w);
+          }
+          break;
+        case 'bonus':
+          if (k.player && !ob.paid && Math.abs(dx) < ob.hx && Math.abs(dz) < ob.hz) { ob.paid = true; sim.stunt(k, ob.stunt, k.x, k.z); sim.emit('bonus', k, 0, ob); }
           break;
         case 'panels': {
           if (!ground || k.immuneT > 0) break;
@@ -445,8 +485,8 @@ export function stepObjects(sim, dt) {
           break;
         }
         case 'glove': {
-          if (ob.armed && ground && Math.abs(dx) < ob.pw && Math.abs(dz) < 1.0) { ob.armed = false; ob.fireAt = t + 0.3; sim.emit('plate', k, 0, ob); }
-          if (!ob.armed && t > ob.fireAt + 1.2) ob.armed = true;
+          if (ob.armed && ground && !ob.every && Math.abs(dx) < ob.pw && Math.abs(dz) < 1.0) { ob.armed = false; ob.fireAt = t + 0.3; sim.emit('plate', k, 0, ob); }
+          if (!ob.armed && !ob.every && t > ob.fireAt + 1.2) ob.armed = true;
           if (gloveReach(ob, t) > 0.3 && dangerAt(ob, k.x, k.z, t, CFG.CART_R * 0.8)) sim.shove(k, ob, ob.dx, ob.dz);
           break;
         }
@@ -462,7 +502,7 @@ export function stepObjects(sim, dt) {
           const ex = k.x - OP.x, ez = k.z - OP.z, s = Math.sin(OP.h), c = Math.cos(OP.h), lx = ex * c - ez * s, lz = ex * s + ez * c;
           const ox = ob.hx + CFG.CART_R - Math.abs(lx), oz = ob.hz + CFG.CART_R - Math.abs(lz);
           if (ox <= 0 || oz <= 0) break;
-          if (ob.loop && (k.dashT > 0 || k.madT > 0) && ob.spitT <= t) { ob.spitT = t + 4; ob.spinT = t + 1.2; sim.spit(ob, OP.x, OP.z); break; }
+          if ((ob.loop || ob.type === 'belly') && (k.dashT > 0 || k.madT > 0) && ob.spitT <= t) { ob.spitT = t + 4; ob.spinT = t + 1.2; sim.spit(ob, OP.x, OP.z); break; }
           if (ob.loop) {
             // a robot vacuum stops when it bumps into a cart and the cart is nudged off it; only a cart that drives into
             // it fast is knocked back (and loses the top of its tower)
@@ -496,7 +536,7 @@ export function stepObjects(sim, dt) {
           break;
         case 'pitcheck': break;
         case 'cp': {
-          if (ob.index <= k.cp) break;
+          if (sim.def.cpAny ? ob.index === k.cp : ob.index <= k.cp) break;
           const lat = dx * ob.ax + dz * ob.az, along = dx * ob.dx + dz * ob.dz;
           if (Math.abs(lat) < ob.w && along > -0.4 && along < 1.6) sim.checkpoint(k, ob);
           break;
@@ -514,7 +554,7 @@ export function stepObjects(sim, dt) {
   for (const s of sim.shoppers) {
     if (s.state < 0 || s.state === 5 || s.safeT > t) continue;
     for (const ob of world.objs) {
-      if (ob.kind !== 'sign' && ob.kind !== 'patrol' && ob.kind !== 'chaser' && ob.kind !== 'laser') continue;
+      if (ob.kind !== 'sign' && ob.kind !== 'patrol' && ob.kind !== 'chaser' && ob.kind !== 'laser' && ob.kind !== 'cleavers' && ob.kind !== 'flame') continue;
       if (Math.abs(s.x - ob.x) > 12 || Math.abs(s.z - ob.z) > 12) continue;
       if (dangerAt(ob, s.x, s.z, t, 0.25)) { s.state = 5; s.t = 1.4; s.safeT = t + 5; s.vx = s.vz = 0; sim.emit('pancake', null, 0, s); break; }
     }

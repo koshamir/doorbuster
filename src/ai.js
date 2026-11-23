@@ -270,7 +270,7 @@ export function drive(sim, k, dt) {
   const calm = !k.player || !world.barriers.some((b) => Math.hypot(b.x - k.x, b.z - k.z) < 14);
   let rack = null;
   if (!field && k.player && sim.mode === 'list') { rack = nextRack(sim, k); if (rack) field = rackField(world, rack); }
-  if (!field && p.roam) field = roamField(sim, k, ai, p.roam);
+  if (!field && p.roam && !(sim.def.roamUntil && sim.t > sim.def.roamUntil)) field = roamField(sim, k, ai, p.roam);
   // the way to the checkouts is shut (a gate): first to the nearest switch nobody has pressed yet
   if (!field && navDistAt(world, k.x, k.z) > 1e8) {
     let best = 1e8;
@@ -524,7 +524,9 @@ function zoneDist(ob, x0, z0, x1, z1) {
   return -1;
 }
 export function inZone(ob, x, z, pad) {
-  if (ob.kind === 'sign') { const ddx = x - ob.x, ddz = z - ob.z, lat = ddx * ob.ax + ddz * ob.az, along = ddx * ob.az - ddz * ob.ax; return Math.abs(along) < 0.15 + pad && Math.abs(lat) < ob.reach + pad; }
+  if (ob.kind === 'flame' || ob.kind === 'bonus') return Math.abs(x - ob.x) < ob.hx + pad && Math.abs(z - ob.z) < ob.hz + pad;
+  if (ob.kind === 'cleavers') { const ddx = x - ob.x, ddz = z - ob.z, lat = ddx * ob.ax + ddz * ob.az, along = ddx * ob.az - ddz * ob.ax; return Math.abs(along) < 0.35 + pad && Math.abs(lat) < ob.reach + pad; }
+  if (ob.kind === 'sign' || ob.kind === 'bag') { const ddx = x - ob.x, ddz = z - ob.z, lat = ddx * ob.ax + ddz * ob.az, along = ddx * ob.az - ddz * ob.ax; return Math.abs(along) < 0.15 + pad && Math.abs(lat) < ob.reach + pad; }
   if (ob.kind === 'turnstile') return Math.hypot(x - ob.x, z - ob.z) < ob.R + pad;
   if (ob.kind === 'laser') return Math.hypot(x - ob.x, z - ob.z) < ob.L + Math.min(pad, 1);
   if (ob.kind === 'scissors') { const ddx = x - ob.x, ddz = z - ob.z, lat = ddx * ob.ax + ddz * ob.az, along = ddx * ob.az - ddz * ob.ax; return Math.abs(along) < 0.3 + pad && Math.abs(lat) < ob.span / 2 + pad; }

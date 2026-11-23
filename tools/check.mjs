@@ -142,7 +142,7 @@ const { LEVELS } = await import('../src/levels.js');
     if (lost) fail('levels', `${tag}: ${lost} floor tiles cannot reach a checkout`);
     // checkpoints in route order: each one nearer the checkout than the one before
     const cps = w.checkpoints || [];
-    for (let i = 1; i < cps.length; i++) if (!(cps[i].nav < cps[i - 1].nav)) fail('levels', `${tag}: checkpoint ${i + 1} is not after checkpoint ${i} on the route`);
+    if (!def.cpAny) for (let i = 1; i < cps.length; i++) if (!(cps[i].nav < cps[i - 1].nav)) fail('levels', `${tag}: checkpoint ${i + 1} is not after checkpoint ${i} on the route`);
     // a button or plate lies before what it opens (its own route distance is larger)
     for (const s of w.switches || []) if (s.target && !(s.nav > s.target.nav)) fail('levels', `${tag}: switch at ${s.c},${s.r} comes after what it opens`);
     if (def.v3) for (const rule of levelRules(w)) fail('levels', `${tag}: ${rule}`);

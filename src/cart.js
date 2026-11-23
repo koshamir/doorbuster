@@ -226,9 +226,10 @@ export function stepCart(k, inp, sim, dt) {
     if (!k.over && collide(world, k.x, k.z, 0.3, false, true)) k.over = true;     // something low is passing underneath
     if (k.air <= 0) sim.onLand(k, k.over);
   } else for (const rp of world.ramps) {
-    if (Math.abs(k.x - rp.x) > 1 || Math.abs(k.z - rp.z) > 1 || k.vx * rp.dx + k.vz * rp.dz < CFG.jumpSpeed) continue;
+    if (Math.abs(k.x - rp.x) > 1 || Math.abs(k.z - rp.z) > 1 || k.vx * rp.dx + k.vz * rp.dz < (rp.tramp ? 3 : CFG.jumpSpeed)) continue;
     if (k.drift) endDrift(k, top0, sim, false);
-    k.air = k.airT = CFG.jumpTime; k.over = false;
+    k.air = k.airT = rp.tramp ? 1.05 : CFG.jumpTime; k.over = false;
+    if (rp.tramp) { const v = Math.max(9.5, Math.hypot(k.vx, k.vz)); k.vx = rp.dx * v; k.vz = rp.dz * v; k.h = Math.atan2(rp.dx, rp.dz); }      // the mat throws it 10 m along itself
     sim.emit('jump', k);
     break;
   }

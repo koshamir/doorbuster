@@ -171,6 +171,12 @@ export const GOODS = [
   { id: 'purse',     size: 'M', w: 2, price: 70,  dims: [0.6, 0.5, 0.34] },
   { id: 'coat',      size: 'L', w: 4, price: 160, dims: [0.7, 1.0, 0.5] },
   { id: 'goldbag',   size: 'H', w: 8, price: 650, dims: [1.0, 0.9, 0.5] },
+  { id: 'basketball', size: 'M', w: 2, price: 40, dims: [0.6, 0.6, 0.6] },
+  { id: 'dumbbell',  size: 'M', w: 3, price: 55,  dims: [0.8, 0.36, 0.36] },
+  { id: 'swimring',  size: 'M', w: 2, price: 30,  dims: [0.9, 0.3, 0.9] },
+  { id: 'goalgloves', size: 'S', w: 1, price: 35, dims: [0.5, 0.36, 0.4] },
+  { id: 'shaker',    size: 'S', w: 1, price: 12,  dims: [0.3, 0.5, 0.3] },
+  { id: 'trainers',  size: 'M', w: 2, price: 65,  dims: [0.7, 0.36, 0.46] },
 ];
 export const GOOD = {};            // id -> index into GOODS
 GOODS.forEach((g, i) => { GOOD[g.id] = i; g.slots = g.size === 'S' ? 1 : g.size === 'M' ? 2 : g.size === 'L' ? 4 : 8; });
@@ -180,6 +186,7 @@ export const POOLS = {
   market: { S: ['can', 'soda', 'chips', 'cereal', 'roll'], M: ['melon', 'pizza', 'toaster'], L: ['frozenpizza', 'icecream'] },
   bulk: { S: ['can', 'soda', 'chips'], M: ['toaster', 'pizza', 'headset'], L: ['microwave', 'speaker'] },
   gadget: { S: ['phone', 'game', 'soda'], M: ['headset', 'toaster', 'shoes'], L: ['speaker', 'microwave'] },
+  sports: { S: ['shaker', 'goalgloves'], M: ['trainers', 'basketball'], L: ['speaker', 'suitcase'] },
   boutique: { S: ['scarf', 'perfume'], M: ['purse', 'shoes'], L: ['coat', 'suitcase'] },
   atrium: { S: ['chips', 'soda', 'roll', 'game'], M: ['shoes', 'pizza', 'melon'], L: ['suitcase', 'speaker'] },
 };
@@ -189,6 +196,7 @@ export const CROWD_MIX = {
   supermarket: ['walkerGranny', 'strollerMom', 'staff', 'caneGrandpa', 'toddler', 'phoneTeen', 'bellyBro', 'jogger', 'mascot'],
   warehouse: ['staff', 'bellyBro', 'gymBro', 'caneGrandpa', 'phoneTeen', 'strollerMom', 'jogger', 'gamer', 'scooterElder'],
   electronics: ['gamer', 'phoneTeen', 'staff', 'gymBro', 'toddler', 'jogger', 'bellyBro', 'strollerMom', 'gamer'],
+  sports: ['gymBro', 'jogger', 'gymBro', 'phoneTeen', 'jogger', 'staff', 'toddler', 'bellyBro', 'mascot'],
   boutique: ['fashionista', 'walkerGranny', 'phoneTeen', 'strollerMom', 'fashionista', 'staff', 'caneGrandpa', 'toddler', 'jogger'],
 };
 
