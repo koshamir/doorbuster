@@ -124,7 +124,7 @@ export const PRODUCTS = [
 const LOOK = { can: [4, 5, 6], soda: [8, 9, 10, 11, 12], chips: [13, 14, 15, 16], roll: [25], cereal: [0, 1, 2], phone: [31, 32], game: [33], toaster: [34],
   melon: [27, 28], pizza: [26], headset: [36], shoes: [38, 39], microwave: [45], speaker: [46, 40], suitcase: [41], frozenpizza: [47], icecream: [48, 49] };
 // What a store stocks on its shelves as decor (product indices).
-export const STORE_STOCK = { supermarket: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 27, 28, 29, 30] };
+export const STORE_STOCK = { warehouse: [4, 5, 6, 7, 0, 1, 2, 36, 37, 45, 46, 43, 44], supermarket: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 27, 28, 29, 30] };
 export function productSize(i) { return PRODUCTS[i][3]; }
 export function variantAt(x, z) { return Math.abs(Math.floor(x * 7.31 + z * 3.17) * 2654435761) >>> 0; }
 

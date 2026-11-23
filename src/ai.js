@@ -87,6 +87,12 @@ function findGoods(sim, k, ai) {
     consider(k, fx, fz, d.list ? 18 : range, d.list ? 6 : wide, d.x, d.z, d.list ? 400 : GOODS[d.good].price);   // a list item glows: seen from afar
     if (goal.score > before) { shelf = null; goal.list = !!d.list; }
   }
+  if (k.player) for (const ob of world.objs) {
+    if (ob.kind !== 'watch' || ob.taken) continue;
+    const before = goal.score;
+    consider(k, fx, fz, 20, 6, ob.x, ob.z, 400);
+    if (goal.score > before) { shelf = null; goal.list = true; }      // (as keen as on a list item)
+  }
   if (goal.score <= 0.4 || navDistAt(world, goal.x, goal.z) > here + 1) return false;
   if (shelf) {
     // Run parallel to the shelf: push the aim point along the shelf in the direction of travel.
@@ -120,7 +126,8 @@ function findTarget(sim, k, ai) {
     // Whether to go for a piece is decided once, on first sight: a driver that passes on it steers round it.
     if (!ai.wants.has(q)) ai.wants.set(q, sim.rng() < (hot ? 0.5 + p.dash * 0.5 : p.dash));
     if (!ai.wants.get(q)) continue;
-    if (see(q.x, q.z, hot ? (p.char === 'queen' ? 44 : 26) : 13, hot ? (p.char === 'queen' ? 30 : 8) : 1.5)) { mark.piece = q; mark.cart = null; }
+    const cans = sim.mode === 'smash' && (q.type === 'pyramid' || q.type === 'mega');
+    if (see(q.x, q.z, hot ? (p.char === 'queen' ? 44 : 26) : cans ? 24 : 13, hot ? (p.char === 'queen' ? 30 : 8) : cans ? 9 : 1.5)) { mark.piece = q; mark.cart = null; }
   }
   // A huddle of shoppers is a set of bowling pins: a dash through the middle is a STRIKE. The driver
   // lines up first: until the cart is on the huddle's axis it aims at a point 5 m short of the head pin.
@@ -257,7 +264,7 @@ export function drive(sim, k, dt) {
   let busy = ai.drifting;
   for (const ob of world.objs) if ((ob.fx === 'wipe' || ob.fx === 'push') && inZone(ob, k.x, k.z, ob.fx === 'wipe' ? 6 : 2.5)) { busy = true; break; }
   const listed = !busy && findGoods(sim, k, ai) && goal.list;         // a list item ahead comes before any target
-  const hunting = !listed && !busy && p.dash > 0 && ai.greed > 0 && k.dashCd <= 0.4 && k.stunT <= 0 && findTarget(sim, k, ai);
+  const hunting = !listed && !busy && p.dash > 0 && ai.g > 0 && k.dashCd <= 0.4 && k.stunT <= 0 && findTarget(sim, k, ai);
   const shopping = listed || (!hunting && !busy && findGoods(sim, k, ai));
   if (hunting) { tx = mark.x; tz = mark.z; } else if (shopping) { tx = goal.x; tz = goal.z; }
   const err = wrapAngle(Math.atan2(tx - k.x, tz - k.z) - k.h) + ai.wobble;

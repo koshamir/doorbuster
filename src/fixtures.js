@@ -60,7 +60,7 @@ export function buildStore(view, sim, kit, shadow) {
   const stock = STORE_STOCK[kit.id] || STORE_STOCK.supermarket;
   world.shelves.forEach((s, i) => {
     const style = (kit.shelves || {})[s.kind] || 'gondola';
-    if (style === 'produce') produceRun(B, s, F, view, stock); else if (style === 'freezer') freezerRun(B, s, F, view, stock); else gondolaRun(B, s, F, view, stock, i, kit);
+    if (style === 'produce') produceRun(B, s, F, view, stock); else if (style === 'freezer') freezerRun(B, s, F, view, stock); else if (style === 'rack') rackRun(B, s, F, view, stock); else gondolaRun(B, s, F, view, stock, i, kit);
     shadow(s.x, s.z, s.hx + 0.25, s.hz + 0.25, 0);
   });
   // static single-tile pieces
@@ -92,7 +92,7 @@ export function buildStore(view, sim, kit, shadow) {
   dmesh.renderOrder = 1;
   return { mat };
 }
-export const LOOSE = { pyramid: 1, gifts: 1, stand: 1, podium: 1, glass: 1, table: 1, boxes: 1, mannequin: 1 };
+export const LOOSE = { pyramid: 1, mega: 1, gifts: 1, stand: 1, podium: 1, glass: 1, table: 1, boxes: 1, mannequin: 1 };
 
 // Floor decals blend over the floor (alpha from the atlas) and never write the glow mask.
 const DECAL_VS = 'attribute vec4 tex; varying vec2 vUv; varying vec4 vTex; varying vec3 vColor; void main() { vUv = uv; vTex = tex; vColor = color; gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0); }';
@@ -209,6 +209,26 @@ function produceRun(B, s, F, view, stock) {
 }
 
 // Freezers: a white chest with a frosted lid (the goods stand on it) and, along a closed side, tall glass doors lit from inside.
+// A pallet rack: blue uprights, orange beams at three levels, the goods on the bottom level, pallets of cartons
+// and shrink-wrapped stacks above.
+function rackRun(B, s, F, view, stock) {
+  const along = s.horiz ? s.hx * 2 : s.hz * 2, depth = s.horiz ? s.hz * 2 : s.hx * 2;
+  const P = runFrame(s), ry = s.horiz ? 0 : Math.PI / 2, put = (u, y, w) => at(B, ...P(u, y, w), ry);
+  const bays = Math.max(1, Math.round(along / 2));
+  bind(B, 0, PL(0.3));
+  for (let b = 0; b <= bays; b++) for (const w of [-1, 1]) { put(-along / 2 + b * along / bays, 0, w * (depth / 2 - 0.08)); box(B, 0.1, 3.2, 0.1, F.body, { bevel: 0.1 }); }
+  for (const y of [0.32, 1.5, 2.6]) for (const w of [-1, 1]) { put(0, y, w * (depth / 2 - 0.08)); box(B, along, 0.12, 0.08, F.accent, { bevel: 0.1 }); }
+  bind(B, 0, PL(0.1));
+  for (const y of [0.32, 1.5, 2.6]) { put(0, y + 0.06, 0); box(B, along - 0.1, 0.04, depth - 0.2, 0xA9B0BE, { bevel: 0 }); }
+  // the upper levels: pallets of cartons or shrink-wrapped stacks
+  for (let b = 0; b < bays; b++) for (const [k, y] of [[0, 1.56], [1, 2.66]]) {
+    const u = -along / 2 + (b + 0.5) * along / bays, h = fhash(s.x + b * 3 + k, s.z + k * 5) % 3;
+    put(u, y, 0); box(B, along / bays - 0.3, 0.1, depth - 0.35, 0xC98A5B, { bevel: 0.05 });
+    if (h === 0) { put(u, y + 0.1, 0); box(B, along / bays - 0.4, 0.75, depth - 0.45, 0xE8EEF6, { bevel: 0.12, top: 0xF6FAFF }); }   // shrink-wrap
+    else for (let j = 0; j < 3; j++) { put(u - 0.45 + j * 0.45, y + 0.1, 0); box(B, 0.4, 0.35 + ((b + j + k) % 2) * 0.25, depth - 0.5, [0xD9B98A, 0xC9A574, 0xE4C99B][j], { bevel: 0.04 }); }
+  }
+  void view; void stock;
+}
 function freezerRun(B, s, F, view, stock) {
   const along = s.horiz ? s.hx * 2 : s.hz * 2, depth = s.horiz ? s.hz * 2 : s.hx * 2, both = s.sides[0] && s.sides[1];
   const P = runFrame(s), ry = s.horiz ? 0 : Math.PI / 2, put = (u, y, w) => at(B, ...P(u, y, w), ry);
@@ -244,6 +264,12 @@ function overstock(W, x, z, dc, dr, ry, seed, kit) {
 // ---- static single pieces -------------------------------------------------------------------------------------
 function staticPiece(B, p, F, view, stock, world) {
   const x = p.x, z = p.z;
+  if (p.type === 'lowwall') {             // a waist-high wall of crates with a hazard-striped rail
+    bind(B, 0, PL(0.1));
+    for (let i = 0; i < 4; i++) { at(B, x - 0.75 + (i % 2) * 1.5 - 0.0, 0, z - 0.5 + Math.floor(i / 2) * 1.0); box(B, 0.95, 0.85 + (i % 3) * 0.08, 0.9, [0xD9B98A, 0xC9A574, 0xE4C99B][i % 3], { bevel: 0.04 }); }
+    bind(B, 0, PL(0.4)); at(B, x, 1.0, z); box(B, 2.0, 0.1, 0.12, 0xFFC800, { bevel: 0 });
+    return;
+  }
   if (p.type === 'counter') {             // a checkout counter: belt, scanner, register, candy rack
     bind(B, 0, PL(0.1)); at(B, x, 0, z); box(B, 1.3, 0.9, 2.0, F.body, { bevel: 0.08, top: F.dark });
     bind(B, 0, KW(KIT.belt, 0.3)); at(B, x, 0.9, z - 0.15); box(B, 0.9, 0.05, 1.5, 0x2E2A3A, { bevel: 0.1, lid: KW(KIT.belt, 0.3), uvs: [1, 3] });
@@ -297,7 +323,7 @@ export function pieceMesh(type, kit) {
   if (!g) {
     const B = builder();
     PIECE[type](B, kit.fixture);
-    g = { geo: toGeometry(B, {}), labels: type === 'pyramid' };
+    g = { geo: toGeometry(B, {}), labels: type === 'pyramid' || type === 'mega' };
     pieceCache.set(type + kit.id, g);
   }
   const mats = g.labels ? (pieceMats.L || (pieceMats.L = [celMaterial({ mapB: labelAtlas(), rim: 0.3, creases: false }), hullMaterial(2.5)])) : (pieceMats.K || (pieceMats.K = [celMaterial({ mapB: kitAtlas(kit), rim: 0.3, creases: false }), hullMaterial(2.5)]));
@@ -313,6 +339,13 @@ const PIECE = {
       bind(B, 0, [4, lbl, 0.35, 0]);
       at(B, (i - (2 - row) / 2) * 0.44, 0.12 + row * 0.44, (j - (2 - row) / 2) * 0.44); cyl(B, 0.2, 0.2, 0.42, 0xFFFFFF, { seg: 12, top: false, side: [4, lbl, 0.35, 0], uRep: 2 });
       bind(B, 0, PL(0.9)); at(B, (i - (2 - row) / 2) * 0.44, 0.54 + row * 0.44, (j - (2 - row) / 2) * 0.44); cyl(B, 0.19, 0.19, 0.02, 0xDDE3EA, { seg: 12 });
+    }
+  },
+  mega(B) {                             // the MEGA PYRAMID: five tiers of gold cans on a double pallet
+    bind(B, 0, KW(KIT.wood)); box(B, 2.7, 0.18, 2.7, 0xC98A5B, { bevel: 0.1 });
+    for (let row = 0; row < 5; row++) for (let i = 0; i < 5 - row; i++) for (let j = 0; j < 5 - row; j++) {
+      bind(B, 0, [5, 0, 0.9, 0.15]);
+      at(B, (i - (4 - row) / 2) * 0.5, 0.18 + row * 0.5, (j - (4 - row) / 2) * 0.5); cyl(B, 0.23, 0.23, 0.48, 0xFFC93C, { seg: 12, top: 0xFFE28A });
     }
   },
   gifts(B) {

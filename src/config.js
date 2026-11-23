@@ -159,6 +159,7 @@ GOODS.forEach((g, i) => { GOOD[g.id] = i; g.slots = g.size === 'S' ? 1 : g.size 
 // Which goods a store zone stocks on its shelves, by shelf letter (S, M, L) and for floor trails.
 export const POOLS = {
   market: { S: ['can', 'soda', 'chips', 'cereal', 'roll'], M: ['melon', 'pizza', 'toaster'], L: ['frozenpizza', 'icecream'] },
+  bulk: { S: ['can', 'soda', 'chips'], M: ['toaster', 'pizza', 'headset'], L: ['microwave', 'speaker'] },
   gadget: { S: ['phone', 'game', 'soda'], M: ['headset', 'toaster', 'shoes'], L: ['speaker', 'microwave'] },
   atrium: { S: ['chips', 'soda', 'roll', 'game'], M: ['shoes', 'pizza', 'melon'], L: ['suitcase', 'speaker'] },
 };

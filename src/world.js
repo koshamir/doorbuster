@@ -12,7 +12,7 @@
 //   o  floor item      1 2 3  shopping-list item     @  player start     r  rival start
 //   c  checkout lane (finish)   k  closed checkout lane (red lamp, barred)   C  checkout counter
 //   O round display  P can pyramid  Q MEGA PYRAMID  G gift pile  K cardboard stand  H hot item behind a ribbon
-//   W glass window  F fountain  X Christmas tree
+//   W glass window  F fountain  X Christmas tree  # low wall of crates (a ramp jumps it)
 //   t table  b boxes  m mannequin (light, fly away)   p plant  n bench (solid decor)
 //   > < ^ v travelator   ~ wet floor   R ramp   f flash-sale podium (dormant until the sale)
 //   g  huddle of six shoppers (a dash through the middle is a STRIKE)
@@ -29,6 +29,7 @@ export const PIECES = {
   O: { type: 'display', r: 0.9, nav: 1 },
   P: { type: 'pyramid', r: 0.9, dash: 1, nav: 1, cans: 21 },
   Q: { type: 'mega', r: 1.6, dash: 1, nav: 1, cans: 55 },
+  '#': { type: 'lowwall', hx: 1, hz: 1, low: 1, nav: 1 },        // a low wall of crates: blocks the way, a jump clears it
   G: { type: 'gifts', r: 0.9, dash: 1, nav: 1 },
   K: { type: 'stand', r: 0.7, dash: 1, nav: 1 },
   H: { type: 'podium', r: 0.85, dash: 1, nav: 1 },
@@ -172,6 +173,9 @@ export function buildWorld(def, rng) {
       const v = world.nav[(rp.r + dr) * cols + rp.c + dc];
       if (v < best) { best = v; rp.dx = dc; rp.dz = dr; }
     }
+    // a level may point a ramp itself (a jump over a low wall that the route field does not see)
+    const od = def.rampDir && def.rampDir[rp.c + ',' + rp.r];
+    if (od) [rp.dx, rp.dz] = { n: [0, -1], s: [0, 1], e: [1, 0], w: [-1, 0] }[od];
   }
   return world;
 }

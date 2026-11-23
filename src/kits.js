@@ -24,6 +24,20 @@ export const KITS = {
     hot: 'cheese',
     crowd: ['walkerGranny', 'strollerMom', 'staff', 'caneGrandpa', 'toddler', 'phoneTeen', 'bellyBro', 'jogger'],
   },
+  // CAN-DEMONIUM: concrete with yellow safety lines, blue pallet racks with orange beams, red roller doors, a
+  // cool key with warm pools under caged lamps; the can pyramids are the colour.
+  warehouse: {
+    id: 'warehouse', name: 'CAN-DEMONIUM', palette: { a: '#D9D2C5', b: '#FFC800', c: '#E63946', d: '#3A6EA5' }, sign: '#2B2F3A', top: '#5A6274',
+    signs: ['BULK', 'CANS', 'BEANS', 'SOUP', 'PALLETS', 'LOADING', 'AISLE 9', 'OVERSTOCK'],
+    shelves: { S: 'rack', M: 'rack', L: 'rack' }, fixture: { body: 0x3A6EA5, accent: 0xFF8A1E, trim: 0xFFC800, dark: 0x2B2F3A },
+    floor: { a: 0xD6CFC2, b: 0xCBC3B4, grout: 0xA69D8D, checker: 1, paint: 0xFFC800, arrow: 0x2B2F3A, vary: 0.07, wet: 0x7CC6FE, lines: 0xFFC800 },
+    walls: { face: 0xC9C2B4, band: 0x3A6EA5, stripe: 0xFFC800, top: 0x5A6274, base: 0x8E8676 },
+    pools: { grid: 12, r: 3.4, warm: [1.0, 0.88, 0.66], k: 0.15 },
+    grade: { shade: [0.52, 0.6, 0.8], key: [0.9, 0.96, 1.0], light: [0.34, 0.84, 0.42], sat: 1.05, contrast: 1.07, lift: [0.0, 0.01, 0.035], gain: [0.98, 1, 1.02], vignette: 0.24, bloom: 1, halftone: 0.18 },
+    void: 0x1E2230,
+    hot: 'goldcan',
+    crowd: ['staff', 'bellyBro', 'gymBro', 'caneGrandpa', 'phoneTeen', 'strollerMom', 'jogger', 'gamer'],
+  },
 };
 export function kitOf(def) { return KITS[def.kit || 'supermarket'] || KITS.supermarket; }
 
@@ -38,7 +52,7 @@ const FLOOR_FS = `
 ${CEL_COMMON}
 uniform sampler2D uMap; uniform vec2 uMapSize; uniform float uTile; uniform float uTime;
 uniform vec3 uA; uniform vec3 uB; uniform vec3 uGrout; uniform vec3 uPaint; uniform vec3 uArrow; uniform vec3 uWet; uniform vec3 uBelt; uniform vec3 uClosed; uniform vec3 uHatch;
-uniform float uChecker; uniform float uVary; uniform float uPoolGrid; uniform float uPoolR; uniform vec3 uPoolC; uniform float uPoolK;
+uniform float uChecker; uniform float uVary; uniform float uPoolGrid; uniform float uPoolR; uniform vec3 uPoolC; uniform float uPoolK; uniform float uLines; uniform vec3 uLineC;
 varying vec3 vW; varying vec4 vSh;
 ${MRT_OUT}
 vec4 tileAt(vec2 id) { return texture2D(uMap, (id + 0.5) / uMapSize); }
@@ -91,6 +105,15 @@ void main() {
     float rail = step(abs(abs(q.y - 0.5) - 0.25), 0.045), tie = step(0.55, fract(q.x * 3.0)) * step(abs(q.y - 0.5), 0.38);
     c = mix(c, uInk, max(rail * 0.85, tie * 0.42) * far + 0.07);
   }
+  // painted safety lines a hand's width out from every wall (warehouse floors)
+  if (uLines > 0.5) {
+    float ln = 0.0;
+    ln = max(ln, (1.0 - tileAt(id + vec2(-1.0, 0.0)).a) * smoothstep(0.1, 0.1 + w.x, f.x) * (1.0 - smoothstep(0.16, 0.16 + w.x, f.x)));
+    ln = max(ln, (1.0 - tileAt(id + vec2(1.0, 0.0)).a) * smoothstep(0.1, 0.1 + w.x, 1.0 - f.x) * (1.0 - smoothstep(0.16, 0.16 + w.x, 1.0 - f.x)));
+    ln = max(ln, (1.0 - tileAt(id + vec2(0.0, -1.0)).a) * smoothstep(0.1, 0.1 + w.y, f.y) * (1.0 - smoothstep(0.16, 0.16 + w.y, f.y)));
+    ln = max(ln, (1.0 - tileAt(id + vec2(0.0, 1.0)).a) * smoothstep(0.1, 0.1 + w.y, 1.0 - f.y) * (1.0 - smoothstep(0.16, 0.16 + w.y, 1.0 - f.y)));
+    c = mix(c, uLineC, ln * 0.92);
+  }
   // light pools under the ceiling lamps: two hard-edged bands, warm
   vec2 pc = vW.xz / uPoolGrid; vec2 pq = (fract(pc) - 0.5) * uPoolGrid; float pr = length(pq);
   float pool = (1.0 - smoothstep(uPoolR - 0.03, uPoolR + 0.03, pr)) * 0.55 + (1.0 - smoothstep(uPoolR * 0.62 - 0.03, uPoolR * 0.62 + 0.03, pr)) * 0.45;
@@ -118,7 +141,7 @@ export function floorMaterial(kit) {
       uMap: { value: null }, uMapSize: { value: new T.Vector2(1, 1) }, uTile: { value: CFG.TILE },
       uA: { value: v3(F.a) }, uB: { value: v3(F.b) }, uGrout: { value: v3(F.grout) }, uPaint: { value: v3(F.paint) }, uArrow: { value: v3(F.arrow) },
       uWet: { value: v3(F.wet) }, uBelt: { value: v3(0x4A3D66) }, uClosed: { value: v3(PAL.danger) }, uHatch: { value: v3(PAL.sale) },
-      uChecker: { value: F.checker }, uVary: { value: F.vary }, uPoolGrid: { value: P.grid }, uPoolR: { value: P.r }, uPoolC: { value: new T.Vector3(...P.warm) }, uPoolK: { value: P.k },
+      uChecker: { value: F.checker }, uVary: { value: F.vary }, uLines: { value: F.lines ? 1 : 0 }, uLineC: { value: v3(F.lines || 0) }, uPoolGrid: { value: P.grid }, uPoolR: { value: P.r }, uPoolC: { value: new T.Vector3(...P.warm) }, uPoolK: { value: P.k },
     },
   });
 }
