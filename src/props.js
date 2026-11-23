@@ -249,7 +249,7 @@ function barrierModel(view, ob, mesh, atlas, hull) {
   view.root.add(g, strip);
   return { ob, g, panel, mat, col, strip: sm, up: ob.solid.on ? 1 : 0 };
 }
-const RING_FS = `uniform float uTime; varying vec2 vUv; ${MRT_OUT}
+const REACH_FS = `uniform float uTime; varying vec2 vUv; ${MRT_OUT}
 void main() { float d = step(0.5, fract(atan(vUv.y - 0.5, vUv.x - 0.5) * 7.0 / 3.14159 + uTime * 0.4)); float a = 0.35 + 0.35 * d; gl_FragColor = vec4(vec3(1.0, 0.31, 0.85) * a, a * 0.5); ${AUX_NONE} }`;
 // A turnstile display: a column in the store's colours turning three chrome arms, a TV at the end of each (on its
 // own channel, both faces) and a tray of phones half way out; it never stops.
@@ -276,7 +276,7 @@ function turnstileModel(view, ob, mesh, atlas) {
   const sm = screenMaterial(atlas); view.own.push(sm);
   const sc = new THREE.Mesh(toGeometry(S, { groups: false, hull: false }), sm); sc.frustumCulled = false; g.add(sc);
   // its reach painted on the floor: a dashed magenta circle
-  const rm = blendMaterial(new THREE.ShaderMaterial({ vertexShader: STRIP_VS, fragmentShader: RING_FS, uniforms: { uTime: R.u.uTime }, depthWrite: false }), true, true);
+  const rm = blendMaterial(new THREE.ShaderMaterial({ vertexShader: STRIP_VS, fragmentShader: REACH_FS, uniforms: { uTime: R.u.uTime }, depthWrite: false }), true, true);
   view.own.push(rm);
   const rg = new THREE.RingGeometry(R2 + 0.05, R2 + 0.3, 64, 1).rotateX(-Math.PI / 2); rg.setAttribute('along', new THREE.Float32BufferAttribute(new Float32Array(rg.attributes.position.count), 1));
   const ringMesh = new THREE.Mesh(rg, rm); ringMesh.position.set(ob.x, 0.02, ob.z); ringMesh.renderOrder = 1; ringMesh.frustumCulled = false;
