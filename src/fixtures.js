@@ -443,13 +443,14 @@ function staticPiece(B, p, F, view, stock, world) {
     bind(B, 0, PL(0.4)); at(B, x, 1.0, z); box(B, 2.0, 0.1, 0.12, 0xFFC800, { bevel: 0 });
     return;
   }
-  if (p.type === 'counter') {             // a checkout counter: belt, scanner, register, candy rack
-    bind(B, 0, PL(0.1)); at(B, x, 0, z); box(B, 1.3, 0.9, 2.0, F.body, { bevel: 0.08, top: F.dark });
-    bind(B, 0, KW(KIT.belt, 0.3)); at(B, x, 0.9, z - 0.15); box(B, 0.9, 0.05, 1.5, 0x2E2A3A, { bevel: 0.1, lid: KW(KIT.belt, 0.3), uvs: [1, 3] });
-    bind(B, 0, PL(0.9, 0.8)); at(B, x, 0.94, z + 0.68); box(B, 0.7, 0.04, 0.3, 0xE63946, { bevel: 0.2 });
-    bind(B, 0, PL(0.4)); at(B, x + 0.3, 0.9, z + 0.75); box(B, 0.4, 0.32, 0.36, 0xDDE3EA, { bevel: 0.2 });
-    bind(B, 0, PL(0.6, 0.7)); at(B, x + 0.3, 1.24, z + 0.75, 0, -0.5); box(B, 0.34, 0.24, 0.04, 0x00E5FF, { bevel: 0.2, mid: true });
-    for (let k = 0; k < 4; k++) putProduct(view.gv, [13, 14, 15, 16][k], x - 0.68, 0.25 + (k % 2) * 0.32, z - 0.6 + Math.floor(k / 2) * 0.5, -Math.PI / 2, 0.5);
+  if (p.type === 'counter') {             // a checkout counter: belt, scanner, register, candy rack (turned for east-west lanes)
+    const ry = p.ew ? Math.PI / 2 : 0, P = (dx, dz) => p.ew ? [x + dz, z - dx] : [x + dx, z + dz], A = (dx, y, dz, rx) => { const q = P(dx, dz); at(B, q[0], y, q[1], ry, rx || 0); };
+    bind(B, 0, PL(0.1)); A(0, 0, 0); box(B, 1.3, 0.9, 2.0, F.body, { bevel: 0.08, top: F.dark });
+    bind(B, 0, KW(KIT.belt, 0.3)); A(0, 0.9, -0.15); box(B, 0.9, 0.05, 1.5, 0x2E2A3A, { bevel: 0.1, lid: KW(KIT.belt, 0.3), uvs: [1, 3] });
+    bind(B, 0, PL(0.9, 0.8)); A(0, 0.94, 0.68); box(B, 0.7, 0.04, 0.3, 0xE63946, { bevel: 0.2 });
+    bind(B, 0, PL(0.4)); A(0.3, 0.9, 0.75); box(B, 0.4, 0.32, 0.36, 0xDDE3EA, { bevel: 0.2 });
+    bind(B, 0, PL(0.6, 0.7)); A(0.3, 1.24, 0.75, -0.5); box(B, 0.34, 0.24, 0.04, 0x00E5FF, { bevel: 0.2, mid: true });
+    for (let k = 0; k < 4; k++) { const q = P(-0.68, -0.6 + Math.floor(k / 2) * 0.5); putProduct(view.gv, [13, 14, 15, 16][k], q[0], 0.25 + (k % 2) * 0.32, q[1], -Math.PI / 2 + ry, 0.5); }
   } else if (p.type === 'display') {      // a round tiered promo stand with stock on every tier
     bind(B, 0, PL(0.2)); at(B, x, 0, z); cyl(B, 0.9, 0.9, 0.45, F.body, { seg: 20, top: F.accent });
     bind(B, 0, KW(KIT.price)); at(B, x, 0.3, z); cyl(B, 0.915, 0.915, 0.12, F.trim, { seg: 20, top: false, side: KW(KIT.price), uRep: 6 });

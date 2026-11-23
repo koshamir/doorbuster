@@ -10,7 +10,7 @@
 //   ' ' void (walls are generated around floor)      '.' floor
 //   S M L  shelf stocked with small / medium / large goods (runs merge into rows, short runs are islands)
 //   o  floor item      1 2 3 4  shopping-list item (a list rack in LIST mode: ram it)     @  player start     r  rival start
-//   c  checkout lane (finish)   k  closed checkout lane (red lamp, barred)   C  checkout counter
+//   c  checkout lane (finish)   k  closed checkout lane (red lamp, barred)   C  checkout counter (E: for lanes running east-west)
 //   O round display  P can pyramid  Q MEGA PYRAMID  G gift pile  K cardboard stand  H hot item behind a ribbon
 //   W glass window  F fountain  X Christmas tree  # low wall of crates (a ramp jumps it)  V hot item in a glass case
 //   _  pit (a clearance bin, the stockroom, the pool): rolling in is a wipeout unless in the air
@@ -45,6 +45,7 @@ export const PIECES = {
   F: { type: 'fountain', r: 2.8, low: 1, nav: 1 },
   X: { type: 'tree', r: 1.7, nav: 1 },
   C: { type: 'counter', hx: 0.7, hz: 1, nav: 1 },
+  E: { type: 'counter', hx: 1, hz: 0.7, nav: 1, ew: 1 },     // a counter turned for lanes that run east-west
   p: { type: 'plant', r: 0.5, nav: 1 },
   n: { type: 'bench', hx: 0.9, hz: 0.45, low: 1, nav: 1 },
   t: { type: 'table', r: 0.6, soft: 1 },
@@ -112,7 +113,7 @@ export function buildWorld(def, rng) {
       const p = PIECES[k];
       const piece = { type: p.type, x, z, c, r, alive: true, t: 0, solid: null, sale: !!p.sale, cans: p.cans || 0, full: p.cans || 0,
         good: (p.type === 'podium' || p.type === 'case') && !p.sale ? GOOD[def.hotGood || ['tv', 'bear', 'console', 'robovac'][rng.int(4)]] : -1 };   // the hot item on a podium
-      piece.hot = piece.good;
+      piece.hot = piece.good; if (p.ew) piece.ew = true;
       // Counters next to each other along z read as one long counter; keep each tile's own box.
       piece.solid = addSolid(world, { x, z, r: p.r || 0, hx: p.hx || 0, hz: p.hz || 0, type: p.type,
         on: !p.off, low: !!p.low, soft: !!p.soft, dash: !!p.dash, piece });

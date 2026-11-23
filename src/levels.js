@@ -432,9 +432,9 @@ export const LEVELS = [
     // back kitchen, boxes at both ends), south through the dessert court of flying tables, spilled soda and the cake
     // tower (or jump the crates from the court's corner), west down the home stretch to the checkouts. Gramps takes the
     // long safe line and never rubber-bands; Big Bubba eats his way up and down grill alley.
-    id: 'food', name: 'FOOD FIGHT', mode: 'race', kit: 'food', v3: true, timer: 90, author: 30, heading: Math.PI,
+    id: 'food', name: 'FOOD FIGHT', mode: 'race', kit: 'food', v3: true, timer: 90, author: 27, heading: Math.PI,
     rivals: ['gramps', 'bro'], racer: 'gramps', roam: { bro: [12, 4, 56, 12] }, crowd: 10, rush: 4, maxRams: 1, hotGood: 'console',
-    medals: [2500, 3300, 3600], rampDir: { '45,39': 'w' },
+    medals: [2500, 3300, 3800], rampDir: { '45,39': 'w' },
     zones: [{ pool: 'food', color: 0, name: 'FOOD FIGHT' }, { pool: 'food', rect: [1, 14, 12, 44], surface: 'warm' }, { pool: 'food', rect: [11, 0, 57, 13], surface: 'steel' }, { pool: 'food', rect: [45, 13, 59, 44], surface: 'dessert' }],
     objects: [
       ['cp', 18, 8, { across: 'z', w: 9 }],
@@ -494,13 +494,13 @@ export const LEVELS = [
       '  ..<<<<<..                   .............   ............. ',
       '  .........                   .............   ............. ',
       '  p........                   .............   ............. ',
-      '  ......... ............................................... ',
-      '  ......... p............O..................o..........o... ',
-      '  ......... .......................o....K......K........... ',
-      '  .r...r... ..................G...................o........ ',
-      '  ...@..... ..kCcCcCk...o............................G..... ',
-      '  ......... ..kCcCcCk...............O...................... ',
-      '  ........p ..       ...................................... ',
+      '  ......... kk............................................. ',
+      '  ......... EE......t....O..................o..........o... ',
+      '  ......... cc.....................o....K......K........... ',
+      '  .r...r... EE...~~...........G...................o........ ',
+      '  ...@..... cc...~~.....o............................G..... ',
+      '  ......... EE.......t..............O...................... ',
+      '  ........p kk............................................. ',
       '                                                            ',
     ],
   },

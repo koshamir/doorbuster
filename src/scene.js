@@ -380,7 +380,8 @@ function syncCart(view, c, sim, alpha, dt) {
     if (lane) {
       const v = clamp((view.time - view.doneAt - 0.5 - (n - 1 - i) * 0.07) / 0.4, 0, 1);
       if (v >= 1) continue;
-      wx = lerp(wx, lane.x + 1.6, v); wz = lerp(wz, lane.z, v); wy = lerp(wy, 1.1, v) + Math.sin(v * Math.PI) * 1.4; scale *= 1 - v * v * 0.7;
+      const deep = lane.bar.hz >= lane.bar.hx;                // the counter beside the lane: east of a north-south lane, north of an east-west one
+      wx = lerp(wx, lane.x + (deep ? 1.6 : 0), v); wz = lerp(wz, lane.z - (deep ? 0 : 1.6), v); wy = lerp(wy, 1.1, v) + Math.sin(v * Math.PI) * 1.4; scale *= 1 - v * v * 0.7;
     }
     putGood(view.gv, e.good, e.v ?? i * 7, wx, wy, wz, h + yawShow + towYaw[i], scale, c.swayZ * 0.8, -c.swayX * 0.8, view.hot);
   }
