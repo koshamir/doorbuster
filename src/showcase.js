@@ -305,6 +305,7 @@ export function makeTitle(kit) {
     // at cart height, a slow sway; the cast fills the middle band of the frame between the logo and START
     const cam = R.camera, sway = Math.sin(show.t * 0.35);
     cam.position.set(sway * 0.25, 2.05 - e * 0.2, 5.15 - e * 1.6); cam.lookAt(sway * 0.08, 1.02, -2.0);
+    if (R.cam.near) { cam.position.set(0.04, 1.6, 0.5); cam.lookAt(0, 1.4, -0.9); }       // the icon: Penny behind the glass, close
     if (cam.fov !== 40) { cam.fov = 40; cam.updateProjectionMatrix(); }
   };
   show.dispose = () => { R.scene.remove(root); root.traverse((m) => { if (m.geometry) m.geometry.dispose(); }); disposeCrowd(show.crowd); };

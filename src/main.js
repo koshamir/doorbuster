@@ -508,7 +508,9 @@ async function boot() {
   });
   addEventListener('keyup', (e) => { const k = KEYS[e.code]; if (k) game.inq.push({ name: k, down: false, t: e.timeStamp }); });
   // Losing focus pauses a run.
-  addEventListener('blur', () => { game.keys = {}; game.inq.length = 0; if (game.state === 'play' && !game.manual && !game.bot) pause(true); });
+  const away = () => { game.keys = {}; game.inq.length = 0; if (game.state === 'play' && !game.manual && !game.bot) pause(true); };
+  addEventListener('blur', away);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) away(); });   // a phone switching apps may never send blur
   if (game.debug) {
     initDebug(document.getElementById('ui'), {
       tuneRaw: platform.tuneRaw, changed: resizeRender,

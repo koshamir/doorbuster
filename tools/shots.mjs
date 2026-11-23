@@ -30,7 +30,7 @@ function plan(t) {
   if (kind === 'ui') return [scene('title', 'title=1', { at: 1.2 }), scene('directory', 'title=1&screen=directory', { at: 1.2 }), scene('customs', 'title=1&screen=customs', { at: 1.2 }),
     scene('intro', 'level=1&screen=intro', { at: 0.4 }), { name: 'receipt', level: 1, only: 'receipt' }, scene('phone', 'level=1&seed=1&autoplay=expert', { size: [390, 844], at: 6, touch: true })];
   if (kind === 'cover') return [scene('cover16x9', 'title=1&cover=1', { size: [1200, 675], at: 1.2 }), scene('cover1x1', 'title=1&cover=1', { size: [1000, 1000], at: 1.2 }),
-    scene('start1', 'level=1&seed=1&cover=1&screen=start', { at: 0.2 })];
+    scene('start1', 'level=1&seed=1&cover=1&screen=start', { at: 0.2 }), scene('icon256', 'title=1&icon=1', { size: [256, 256], at: 1.2 })];
   if (kind === 'release') return [scene('title', 'title=1', { at: 1.2 }), ...[1, 3, 4, 5, 6].map((n) => ({ name: 'moment' + n, level: n, only: 'moment' }))];
   throw new Error('unknown target ' + t);
 }
