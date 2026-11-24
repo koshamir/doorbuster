@@ -112,7 +112,7 @@ export const SETS = {
     { name: 'checkout', query: 'level=1&seed=3&autoplay=expert', strip: { around: 'finish', before: 0.2, frames: 8, dt: 0.55, within: 60 } },
     // a person's first seconds: the opening swoop, the key hints (drive, then dash before the pyramid)
     { name: 'hints', query: 'level=1&seed=3', script: [[0, 'gas', true]], shots: [-2.2, -1.2, 0.6, 2.2] },
-    { name: 'video', query: 'level=1&seed=3&autoplay=confident', video: 28 },
+    { name: 'video', query: 'level=1&seed=3&autoplay=confident', video: 30 },
     // sound: a real click unlocks the audio context; twelve seconds of a bot run, then the state of the synth
     { name: 'audio', query: 'level=1&seed=3&autoplay=confident&debug=1', plain: 0.3, click: [640, 360], wait: 12,
       after: "(() => { const a = window.__db.audio; return { state: a.ctx && a.ctx.state, voices: a.voices, steps: a.step, bpm: +a.bpm.toFixed(1), level: a.level }; })()" },
@@ -120,13 +120,16 @@ export const SETS = {
     { name: 'cards', query: 'level=2&seed=3', plain: 1.2, storage: { doorbuster_progress: '{"best":{"doors":4321},"medals":{"doors":2},"unlocked":2,"seen":{"drive":true}}' } },
     { name: 'pause', query: 'level=1&seed=3&autoplay=expert', shots: [3], after: "(() => { window.__db.pause(true); return document.querySelector('.screen').className; })()", last: true },
     { name: 'phone', query: 'level=2&seed=3', viewport: [844, 390], touch: true, plain: 1.0, tap: [422, 300], script: [] },
-    // the mix, measured: a scripted 24 s of music, continuous noises and every kind of event rendered
-    // offline through the game's own audio graph; reports peak, loudness, clipped samples and silent seconds
+    // the mix, measured: a scripted 24 s of music, continuous noises and every kind of event (a burst of
+    // twenty takes in a second, shoppers and a train nearby) rendered offline through the game's own audio
+    // graph; reports the peak and loudness after the limiter, the peak before it and the share of time it is
+    // over full scale, hard edges (the signal going from under 0.02 to over 0.2 within a millisecond, or the
+    // other way round: what a click is; every voice here fades in over 3 ms or more), clipped and silent seconds
     { name: 'mix', query: 'level=1&seed=3&debug=1', plain: 0.5, after: `(async () => {
         const d = window.__db, api = d.audioApi, sr = 44100, secs = 24;
         d.game.manual = true;                             // the page's own loop stays out of it
         const p = { x: 10, z: 10, id: 0, char: 'player', spd: 11, drift: 0, tier: 0, load: 45, mad: 0, madT: 0 }, rival = { x: 12, z: 12, id: 1, char: 'dad' };
-        const sim = { player: p, shoppers: [], t: 30, timer: 72, closing: false, phase: 'run' };
+        const sim = { player: p, shoppers: Array.from({ length: 12 }, () => ({ state: 0, x: 12, z: 12 })), trains: [{ x: 18, z: 10, wait: 0 }], t: 30, timer: 72, closing: false, phase: 'run' };
         const ctx = new OfflineAudioContext(2, sr * secs, sr);
         api.unlockAudio(ctx);
         const ev = (type, value, ref, cart) => ({ type, cart: cart || p, value: value || 0, ref });
@@ -135,7 +138,9 @@ export const SETS = {
           [6.5, ev('drift', 1)], [7, ev('drift', 2)], [7.5, ev('boost', 2)], [8.5, ev('crash', 10, null)], [8.6, ev('spill', 6, { lost: 300 })], [9.5, ev('warn', 0, p, rival)],
           [10, ev('ram', 0, p, rival)], [11, ev('dash')], [11.2, ev('ram', 0, rival)], [11.6, ev('stunt', 200, { name: 'takedown' })], [12.5, ev('hot', 0, spot)],
           [13.5, ev('madmode', 1)], [14, ev('bowl', 1, spot)], [14.1, ev('bowl', 1, spot)], [14.3, ev('stunt', 150, { name: 'strike' })], [15.5, ev('flash')],
-          [17, ev('madmode', 0)], [17.5, ev('closing')], [18.5, ev('lanewarn')], [19.5, ev('laneclose')], [20, ev('glass', 0, spot)], [20.5, ev('bonk')], [21, ev('finish', 5000)], [23, ev('timeup')]];
+          [17, ev('madmode', 0)], [17.5, ev('closing')], [18.5, ev('lanewarn')], [19.5, ev('laneclose')], [20, ev('glass', 0, spot)], [20.5, ev('bonk')], [21, ev('finish', 5000)], [23, ev('timeup')],
+          [16, ev('wet')], [16.3, ev('jump')], [16.9, ev('land')], [15.9, ev('selfie', 0, null, rival)], [9, ev('stunt', 40, { name: 'dodge' })], [12, ev('shout', 0, spot, rival)]];
+        for (let i = 0; i < 20; i++) script.push([3.6 + i * 0.05, ev('take', 10, item)]);
         for (let i = 0; i < 24; i++) script.push([2 + i * 0.11, ev('take', 10, i % 7 === 6 ? big : item)]);
         const cues = [[0.1, 'count'], [0.4, 'count'], [0.7, 'count'], [21.4, 'scan', 0], [21.6, 'scan', 1], [21.8, 'scan', 2], [22, 'scan', 3], [22.2, 'kaching'], [22.5, 'stamp']];
         for (let t = 0.05; t < secs - 0.05; t += 0.05) ctx.suspend(t).then(() => {
@@ -146,32 +151,21 @@ export const SETS = {
           ctx.resume();
         });
         const buf = await ctx.startRendering();
-        let peak = 0, sum = 0, clipped = 0, quiet = 0, loud = 0;
-        const a = buf.getChannelData(0);
-        for (let i = 0; i < a.length; i++) { const v = Math.abs(a[i]); if (v > peak) peak = v; sum += v * v; if (v >= 0.99) clipped++; }
-        for (let s = 0; s < secs; s++) { let m = 0, q = 0; for (let i = s * sr; i < (s + 1) * sr; i++) { m = Math.max(m, Math.abs(a[i])); q += a[i] * a[i]; } if (m < 0.01) quiet++; loud = Math.max(loud, Math.sqrt(q / sr)); }
-        return { seconds: secs, peak: +peak.toFixed(3), rms: +Math.sqrt(sum / a.length).toFixed(3), loudestSecondRms: +loud.toFixed(3), clippedSamples: clipped, silentSeconds: quiet, voicesLeft: d.audio.voices };
-      })()` },
-    // each store's band (ART.md section 8): 12 s of the groove per kit, the layers building to MADNESS and closing time
-    { name: 'bands', query: 'level=1&seed=3&debug=1', plain: 0.5, after: `(async () => {
-        const d = window.__db, api = d.audioApi, sr = 44100, secs = 12, out = {};
-        d.game.manual = true;
-        for (const kit of ['supermarket', 'warehouse', 'electronics', 'boutique', 'sports', 'food']) {
-          const p = { x: 10, z: 10, id: 0, char: 'player', spd: 8, drift: 0, tier: 0, load: 10, mad: 0, madT: 0 };
-          const sim = { player: p, shoppers: [], t: 30, timer: 72, closing: false, phase: 'run', def: { kit } };
-          const ctx = new OfflineAudioContext(2, sr * secs, sr);
-          d.audio.ctx = null; d.audio.step = 0; d.audio.nextT = 0; api.unlockAudio(ctx);
-          for (let t = 0.05; t < secs - 0.05; t += 0.05) ctx.suspend(t).then(() => {
-            p.mad = Math.min(3.9, t / 2.2); p.madT = t > 8 && t < 10 ? 1 : 0; sim.closing = t > 10;
-            api.audioFrame(sim, 0.05, t < 1.5 ? 'title' : 'play'); ctx.resume();
-          });
-          const a = (await ctx.startRendering()).getChannelData(0);
-          let peak = 0, sum = 0, clipped = 0, quiet = 0;
-          for (let i = 0; i < a.length; i++) { const v = Math.abs(a[i]); if (v > peak) peak = v; sum += v * v; if (v >= 0.99) clipped++; }
-          for (let s = 0; s < secs; s++) { let m = 0; for (let i = s * sr; i < (s + 1) * sr; i++) m = Math.max(m, Math.abs(a[i])); if (m < 0.01) quiet++; }
-          out[kit] = { peak: +peak.toFixed(2), rms: +Math.sqrt(sum / a.length).toFixed(3), clipped, silentSeconds: quiet, style: d.audio.style, bpm: +d.audio.bpm.toFixed(0) };
+        let peak = 0, sum = 0, clipped = 0, quiet = 0, loud = 0, raw = 0, over = 0, edges = 0, calm = 0, hot = 0;
+        const a = buf.getChannelData(0), b = buf.getChannelData(1);
+        let calmEnd = -1e9, calmStart = 0, lastHot = -1e9;
+        for (let i = 0; i < a.length; i++) {
+          const v = Math.abs(a[i]), r = Math.abs(b[i]);
+          if (v > peak) peak = v; sum += v * v; if (v >= 0.99) clipped++;
+          if (r > raw) raw = r; if (r > 1) over++;
+          // calm = samples in a row under 0.02, hot = samples since the last one over 0.2
+          if (v > 0.2) { if (calm >= 400 && i - calmEnd <= 44) edges++; hot = 0; } else hot++;
+          if (v < 0.02) { if (calm === 0) calmStart = i; calm++; if (calm === 400 && calmStart - lastHot <= 44) edges++; } else { if (calm >= 400) calmEnd = i; calm = 0; }
+          if (v > 0.2) lastHot = i;
         }
-        return out;
+        for (let s = 0; s < secs; s++) { let m = 0, q = 0; for (let i = s * sr; i < (s + 1) * sr; i++) { m = Math.max(m, Math.abs(a[i])); q += a[i] * a[i]; } if (m < 0.01) quiet++; loud = Math.max(loud, Math.sqrt(q / sr)); }
+        return { seconds: secs, peak: +peak.toFixed(3), rms: +Math.sqrt(sum / a.length).toFixed(3), loudestSecondRms: +loud.toFixed(3), clippedSamples: clipped, silentSeconds: quiet,
+          peakBeforeLimiter: +raw.toFixed(3), overFullScaleBeforeLimiter: +(over / a.length * 100).toFixed(2) + '%', hardEdges: edges, voicesLeft: d.audio.voices };
       })()` },
     // touch input: a finger starts the run, then holds the left pad; the cart must accelerate by itself and steer
     { name: 'touch', query: 'level=1&seed=3&debug=1', viewport: [844, 390], touch: true, plain: 1.0, tap: [422, 300],
@@ -181,7 +175,18 @@ export const SETS = {
         const out = { touch: d.game.touch, left: !!d.game.keys.left, steer: +d.game.sim.player.steer.toFixed(2), gas: d.game.sim.player.input.gas, speed: +d.game.sim.player.spd.toFixed(1) };
         pad.dispatchEvent(new PointerEvent('pointerup', { pointerId: 7, pointerType: 'touch', bubbles: true }));
         await new Promise((r) => setTimeout(r, 200));
-        out.released = !d.game.keys.left; return out; })()` },
+        out.released = !d.game.keys.left;
+        // two thumbs at once: steer held, then DASH pressed
+        const dash = document.querySelector('.pad.r1');
+        pad.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 7, pointerType: 'touch', bubbles: true }));
+        dash.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 8, pointerType: 'touch', bubbles: true }));
+        await new Promise((r) => setTimeout(r, 150));
+        out.twoThumbs = !!d.game.keys.left && d.game.sim.player.dashCd > 0;
+        for (const [el, id] of [[pad, 7], [dash, 8]]) el.dispatchEvent(new PointerEvent('pointerup', { pointerId: id, pointerType: 'touch', bubbles: true }));
+        return out; })()` },
+    // how Levels 2 and 3 open (a person holding the accelerator): onto the travelator; over the bench off the ramp, then the dash hint before the pyramid
+    { name: 'l2_open', query: 'level=2&seed=3', storage: { doorbuster_progress: '{"seen":{"drive":true},"unlocked":3}' }, script: [[0, 'gas', true]], strip: { from: 0.2, frames: 8, dt: 0.35 } },
+    { name: 'l3_open', query: 'level=3&seed=3', storage: { doorbuster_progress: '{"seen":{"drive":true},"unlocked":3}' }, script: [[0, 'gas', true]], strip: { from: 0.5, frames: 8, dt: 0.35 } },
   ],
   // The handoff package's media (tools/package.mjs): reference frames with their numbers, cover, card, icon, a recording.
   handoff: [
@@ -213,9 +218,12 @@ export const SETS = {
         key('Enter'); await wait(3300); out.started = d.game.state + ' at ' + d.game.sim.t.toFixed(1) + ' s';
         key('KeyW'); await wait(1600); out.speed = +d.game.sim.player.spd.toFixed(1);
         key('KeyP'); await wait(300); out.paused = d.game.paused; key('KeyP'); await wait(300); out.resumed = !d.game.paused;
+        window.dispatchEvent(new Event('blur')); await wait(200); out.blurPauses = d.game.paused; key('KeyP'); await wait(200);
         key('KeyM'); await wait(100); out.muted = !d.audio.on; key('KeyM');
         key('KeyR'); await wait(400); out.restartedAt = +d.game.sim.t.toFixed(1);
         key('KeyW', 'keyup'); return out; })()` },
+    { name: 'wide', query: 'level=1&seed=3&autoplay=confident', viewport: [1920, 620], shots: [9, 26] },      // odd window shapes: nothing may fall off or overlap
+    { name: 'tall', query: 'level=1&seed=3&autoplay=confident', viewport: [520, 900], shots: [9, 26] },
     { name: 'realtime_l2', query: 'level=2&seed=3&autoplay=expert', realtime: 10 },
     { name: 'realtime_l3', query: 'level=3&seed=3&autoplay=expert', realtime: 10 },
   ],

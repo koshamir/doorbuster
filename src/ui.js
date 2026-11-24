@@ -4,7 +4,7 @@
 //          arrow to the current event, the ram warning, key hints, countdown), touch controls, the
 //          title with the loyalty card, receipt, "store closed" and pause screens, and the debug
 //          panel (?debug=1). It only shows state; decisions stay in main.js.
-// Exports: initUI, ui, money, updateHud, resetHud, popWord, announce, floatText, sticker, updateStickers, bubble, emote, chainText, setList, setArrow, setWarn,
+// Exports: initUI, ui, money, updateHud, popWord, announce, floatText, chainText, setList, setArrow, setWarn,
 //          setHint, showTouch, showTitle, showReceipt, showClosed, showPause, hideScreens, hurryUI,
 //          initDebug, updateDebug
 // Depends on: config.js, audio.js (interface sounds). Browser only. All styles live in index.html.
@@ -14,7 +14,7 @@ import { audioCue } from './audio.js';
 
 export const ui = { root: null, hud: null, timer: null, total: null, pop: null, count: null, chain: null, floats: [], screen: null,
   popT: 0, popQ: [], popKind: '', tally: null, meter: null, segs: [], mult: null, place: null, list: [], news: null, newsT: 0, arrow: null, warn: null,
-  hint: null, hintKey: '', touch: null, em: 16, onPause: null, stickers: [], bubbles: [], emotes: [] };
+  hint: null, hintKey: '', touch: null, em: 16, onPause: null };
 
 function el(tag, cls, text, parent) {
   const e = document.createElement(tag);
@@ -57,22 +57,13 @@ export function initUI(root) {
   el('i', '', undefined, ui.arrow); el('b', '', '', ui.arrow);
   ui.warn = el('div', 'float warn', '!', ui.hud);
   ui.hint = el('div', 'hint-keys', undefined, ui.hud);
-  ui.ramTag = el('div', 'ramtag', undefined, ui.hud);
   ui.chain = el('div', 'float chain', '', ui.hud);
   for (let i = 0; i < 14; i++) ui.floats.push({ e: el('div', 'float', '', ui.hud), t: 0, x: 0, y: 0 });
-  for (let i = 0; i < 3; i++) { const e = el('canvas', 'sticker', undefined, ui.hud); e.width = 300; e.height = 190; ui.stickers.push({ e, t: 9, x: 0, y: 0, z: 0, word: '' }); }
-  for (let i = 0; i < 2; i++) { const e = el('div', 'bubble', undefined, ui.hud), pop = el('span', 'pop', undefined, e); el('b', '', '', pop); ui.bubbles.push({ e, pop, t: 0, pos: null, hero: false }); }
-  for (let i = 0; i < 4; i++) { const e = el('canvas', 'emote', undefined, ui.hud); e.width = e.height = 72; ui.emotes.push({ e, t: 0, pos: null, kind: '' }); }
   ui.screen = el('div', 'screen', undefined, root);
 }
 
 // Called every frame with the simulation; cheap string work only when something changed.
 let lastSec = -1, lastTotal = -1, lastCount = '', lastMult = '', lastPlace = '', lastMad = -1, lastGot = -1;
-// A new run starts from a clean HUD: no number of the last run may linger on the receipt tag.
-export function resetHud() {
-  lastSec = lastTotal = lastMad = lastGot = -1; lastCount = lastMult = lastPlace = '';
-  if (ui.total) ui.total.textContent = '$0';
-}
 export function updateHud(sim, dt) {
   const p = sim.player, left = Math.max(0, Math.ceil(sim.timer - Math.max(0, sim.t)));
   if (left !== lastSec) {
@@ -80,7 +71,7 @@ export function updateHud(sim, dt) {
     ui.timer.textContent = Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0');
     ui.timer.parentNode.classList.toggle('hot', left <= 15);
   }
-  const total = Math.round(p.value + p.stunts + (sim.mode === 'smash' ? p.smash : 0));      // SMASH: the smash money counts as it happens
+  const total = Math.round(p.value + p.stunts);
   if (total !== lastTotal) {
     const up = total > lastTotal;
     lastTotal = total;
@@ -140,112 +131,6 @@ export function updateHud(sim, dt) {
   }
 }
 
-// ---- onomatopoeia stickers (ART.md section 7) -------------------------------------------------------------
-// BAM!, CRASH!, BONK!, KA-CHING!... a burst with halftone dots and a thick ink outline, anchored to the spot in
-// the world where it happened. It pops in 120 ms and is gone by 0.6 s; at most three are up (the oldest gives way).
-const STICK = { bam: ['#FFD23F', '#FF9F1C'], crash: ['#FF5A4E', '#C8323C'], bonk: ['#7CC6FE', '#3A86FF'], kaching: ['#FFE45C', '#E9B949'], splat: ['#8EE3C8', '#2EC4B6'] };
-export function sticker(word, kind, x, y, z) {
-  let s = ui.stickers[0];
-  for (const c of ui.stickers) if (c.t > s.t) s = c;
-  s.t = 0; s.x = x; s.y = y; s.z = z;
-  if (s.word !== word + kind) { s.word = word + kind; drawSticker(s.e, word, kind); }
-}
-function drawSticker(cv, word, kind) {
-  const g = cv.getContext('2d'), W = cv.width, H = cv.height, [base, dot] = STICK[kind] || STICK.bam, INK = '#2A1A3A';
-  g.clearRect(0, 0, W, H);
-  g.save(); g.translate(W / 2, H / 2); g.rotate(-0.1);
-  const burst = () => { g.beginPath(); for (let i = 0; i < 26; i++) { const a = i / 26 * Math.PI * 2, r = (i % 2 ? 0.33 : 0.46) * (0.92 + ((i * 37) % 9) / 60); g.lineTo(Math.cos(a) * r * W, Math.sin(a) * r * H * 1.08); } g.closePath(); };
-  burst(); g.fillStyle = base; g.fill();
-  g.save(); burst(); g.clip(); g.fillStyle = dot;              // halftone: dots grow toward the lower right
-  for (let yy = -H / 2; yy < H / 2; yy += 11) for (let xx = -W / 2; xx < W / 2; xx += 11) {
-    const k = (xx / W + yy / H) + 0.35, r = k * 6;
-    if (r > 0.6) { g.beginPath(); g.arc(xx + ((yy / 11) & 1 ? 5.5 : 0), yy, Math.min(r, 5.5), 0, 7); g.fill(); }
-  }
-  g.restore();
-  burst(); g.lineWidth = 9; g.lineJoin = 'round'; g.strokeStyle = INK; g.stroke();
-  let size = 76; const font = () => { g.font = '900 ' + size + 'px "Arial Black", Impact, sans-serif'; };
-  font(); while (g.measureText(word).width > W * 0.74 && size > 28) { size -= 3; font(); }
-  g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
-  g.fillStyle = INK; g.fillText(word, 5, 8);
-  g.lineWidth = 12; g.strokeStyle = INK; g.strokeText(word, 0, 2);
-  g.fillStyle = '#FFFFFF'; g.fillText(word, 0, 2);
-  g.restore();
-}
-// ---- speech bubbles and emotes (ART.md section 7) ------------------------------------------------------------
-// A bubble follows its speaker (pos() gives the world point above the head) for 1.6 s. Two at most: the hero's
-// line takes the place of the oldest other one; anyone else waits for a free one.
-let tilt = 0;
-export function bubble(text, pos, hero) {
-  let s = ui.bubbles.find((b) => b.t <= 0);
-  if (!s && hero) { for (const b of ui.bubbles) if (!b.hero && (!s || b.t < s.t)) s = b; }
-  if (!s) return false;
-  s.t = 1.6; s.pos = pos; s.hero = hero;
-  s.pop.firstChild.textContent = text;
-  s.e.style.setProperty('--tilt', (tilt++ % 2 ? 2.5 : -2.5) + 'deg');
-  s.e.classList.remove('in'); void s.e.offsetWidth; s.e.classList.add('in');
-  return true;
-}
-// An emote over a head for a second: 'vein' (anger), 'sweat', 'heart', 'bang' (!), 'what' (?).
-export function emote(kind, pos) {
-  let s = ui.emotes[0];
-  for (const c of ui.emotes) if (c.t < s.t) s = c;
-  s.t = 1; s.pos = pos;
-  if (s.kind !== kind) { s.kind = kind; drawEmote(s.e, kind); }
-}
-function drawEmote(cv, kind) {
-  const g = cv.getContext('2d'), INK = '#2A1A3A';
-  g.clearRect(0, 0, 72, 72); g.lineJoin = 'round'; g.lineCap = 'round';
-  if (kind === 'vein') {
-    g.strokeStyle = INK; g.lineWidth = 13;
-    const arcs = () => { for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2 + Math.PI / 4; g.beginPath(); g.arc(36 + Math.cos(a) * 15, 36 + Math.sin(a) * 15, 11, a + 2.2, a + 4.1); g.stroke(); } };
-    arcs(); g.strokeStyle = '#E63946'; g.lineWidth = 7; arcs();
-  } else if (kind === 'sweat') {
-    g.beginPath(); g.moveTo(36, 8); g.quadraticCurveTo(60, 42, 50, 54); g.arc(36, 50, 15, 0.3, Math.PI - 0.3); g.quadraticCurveTo(12, 42, 36, 8); g.closePath();
-    g.fillStyle = '#7CC6FE'; g.fill(); g.lineWidth = 5; g.strokeStyle = INK; g.stroke();
-    g.fillStyle = '#FFFFFF'; g.beginPath(); g.ellipse(30, 44, 4, 7, -0.4, 0, 7); g.fill();
-  } else if (kind === 'heart') {
-    g.beginPath(); g.moveTo(36, 62); g.bezierCurveTo(4, 40, 10, 8, 36, 22); g.bezierCurveTo(62, 8, 68, 40, 36, 62); g.closePath();
-    g.fillStyle = '#FF4FA3'; g.fill(); g.lineWidth = 5; g.strokeStyle = INK; g.stroke();
-    g.fillStyle = 'rgba(255,255,255,0.7)'; g.beginPath(); g.ellipse(24, 26, 5, 8, -0.6, 0, 7); g.fill();
-  } else {
-    g.fillStyle = kind === 'bang' ? '#FFD23F' : '#FFFFFF'; g.beginPath(); g.arc(36, 36, 27, 0, 7); g.fill(); g.lineWidth = 5; g.strokeStyle = INK; g.stroke();
-    g.fillStyle = INK; g.font = '900 40px "Arial Black", Impact, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(kind === 'bang' ? '!' : '?', 36, 38);
-  }
-}
-function updateTalk(dt, project) {
-  for (const s of ui.bubbles) {
-    if (s.t <= 0) continue;
-    s.t -= dt;
-    const [x, y, z] = s.pos(), p = project(x, y, z);
-    if (s.t <= 0 || p.z > 1) { s.e.classList.remove('in'); s.t = Math.min(s.t, 0); continue; }
-    // kept on screen: a speaker beyond the edge talks from the edge
-    const bx = Math.max(innerWidth * 0.09, Math.min(innerWidth * 0.91, p.x)), by = Math.max(innerHeight * 0.2, Math.min(innerHeight * 0.95, p.y));
-    s.e.style.transform = 'translate(' + bx.toFixed(0) + 'px, ' + by.toFixed(0) + 'px)';
-    s.e.style.opacity = s.t < 0.2 ? (s.t / 0.2).toFixed(2) : '';
-  }
-  for (const s of ui.emotes) {
-    if (s.t <= 0) continue;
-    s.t -= dt;
-    const [x, y, z] = s.pos(), p = project(x, y, z), age = 1 - s.t, sc = age < 0.1 ? 0.4 + age * 7 : 1.1 - Math.min(0.1, (age - 0.1) * 0.5);
-    s.e.style.opacity = s.t <= 0 || p.z > 1 ? 0 : (s.t < 0.25 ? s.t / 0.25 : 1).toFixed(2);
-    s.e.style.transform = 'translate(' + (p.x + 26).toFixed(0) + 'px, ' + (p.y - 18 - age * 18).toFixed(0) + 'px) scale(' + sc.toFixed(2) + ')';
-  }
-}
-
-// Called every frame with a world-to-screen function (returns { x, y, z }, z > 1 behind the camera).
-export function updateStickers(dt, project) {
-  updateTalk(dt, project);
-  for (const s of ui.stickers) {
-    if (s.t >= 0.6) continue;
-    s.t += dt;
-    const p = project(s.x, s.y, s.z), t = s.t;
-    if (t >= 0.6 || p.z > 1) { s.e.style.opacity = 0; continue; }
-    const sc = t < 0.08 ? 0.35 + t / 0.08 * 0.95 : t < 0.14 ? 1.3 - (t - 0.08) / 0.06 * 0.3 : 1 + (t - 0.14) * 0.25;
-    s.e.style.opacity = (t < 0.36 ? 1 : 1 - (t - 0.36) / 0.24).toFixed(2);
-    s.e.style.transform = 'translate(' + p.x.toFixed(0) + 'px, ' + (p.y - t * 50).toFixed(0) + 'px) scale(' + sc.toFixed(3) + ')';
-  }
-}
-
 function showPop([text, kind]) {
   ui.pop.textContent = text;
   ui.pop.className = 'hud-pop ' + (kind || '');
@@ -290,11 +175,6 @@ export function setWarn(on, x, y) {
   if (on) ui.warn.style.transform = `translate(${x.toFixed(0)}px, ${y.toFixed(0)}px)`;
 }
 // Teaching without text: key caps beside the cart (keys = ['A', 'D'] ...), or nothing (null).
-// The ram invitation: a price tag over a loaded rival in dash range (text null hides it).
-export function setRamTag(text, x, y) {
-  if (text !== ui.ramText) { ui.ramText = text; if (text) ui.ramTag.textContent = text; ui.ramTag.classList.toggle('in', !!text); }
-  if (text) ui.ramTag.style.transform = `translate(${x.toFixed(0)}px, ${y.toFixed(0)}px)`;
-}
 export function setHint(keys, x, y) {
   const key = keys ? keys.join(' ') : '';
   if (key !== ui.hintKey) {
@@ -363,7 +243,7 @@ export function hurryUI() { if (ui.tally) ui.tally.fast = true; }
 // The first thing a player sees: the name and one button; the cart stays visible in the middle.
 // cards (optional, once the first level has been finished) is the loyalty card: one stamp per level
 // [{ name, medal 0-4, best, locked, on }], and pick(index) chooses a level.
-export function showTitle(levelName, onStart, cards, pick, more) {
+export function showTitle(levelName, onStart, cards, pick) {
   hideScreens();
   ui.hud.classList.add('off');
   ui.screen.className = 'screen title on';
@@ -381,7 +261,6 @@ export function showTitle(levelName, onStart, cards, pick, more) {
     });
   }
   button('btn big', 'START', low, onStart);
-  if (more) { const r = el('div', 'btn-row', undefined, low); button('btn small', 'MALL DIRECTORY', r, more.directory); button('btn small', 'CART CUSTOMS', r, more.customs); }
   el('div', 'hint', navigator.maxTouchPoints > 0 && !matchMedia('(pointer: fine)').matches ? 'Steer with the left thumb · DASH and DRIFT under the right · the cart rolls by itself'
     : 'Arrows or WASD to drive · Space to drift · Shift to dash · P to pause', low);
 }
@@ -391,7 +270,7 @@ export function showTitle(levelName, onStart, cards, pick, more) {
 // when the table is due (main.js plays the rest of the race out at that moment); best = { value, isNew };
 // medal 1-4; onNext is absent on the last level; onMenu (optional) goes back to the loyalty card;
 // goal (optional) = { medal, at }: the next medal and the receipt it takes.
-export function showReceipt(rc, tableOf, best, storeName, medal, onRetry, onNext, onMenu, goal, purse) {
+export function showReceipt(rc, tableOf, best, storeName, medal, onRetry, onNext, onMenu, goal) {
   hideScreens();
   ui.hud.classList.add('off');
   ui.screen.className = 'screen receipt on';
@@ -407,26 +286,21 @@ export function showReceipt(rc, tableOf, best, storeName, medal, onRetry, onNext
     steps.push(() => { row.classList.add('in'); out.textContent = value; audioCue(cls === 'total' ? 'kaching' : 'scan', k); });
     return row;
   };
-  // the lines of the mode (DESIGN.md section 2): RUSH items, stunts, time; SMASH adds the smash money
   line('ITEMS x' + rc.count, money(rc.items));
-  if (rc.mode === 'smash') line('SMASH', money(rc.smash));
-  if (rc.list) line('LIST', money(rc.list));
-  if (rc.mode === 'race') line('RACE ' + (rc.won ? 'WON ' : '') + '★'.repeat(rc.stars), money(rc.race));      // a star for each checkpoint led
+  line('LIST', money(rc.list));
   line('STUNTS', money(rc.stunts));
   line('TIME ' + rc.left + ' s', money(rc.time));
   const total = line('TOTAL', money(rc.total), 'total');
   const row = el('div', 'btn-row', undefined, ui.screen);
-  const again = button('btn', 'RETRY  (R)', row, onRetry), next = onNext ? button('btn go' + (purse && purse.afford ? ' pulse' : ''), 'CART CUSTOMS', row, onNext) : null, menu = onMenu ? button('btn', 'MALL DIRECTORY', row, onMenu) : null;
+  const again = button('btn', 'RETRY  (R)', row, onRetry), next = onNext ? button('btn go', 'NEXT  (Enter)', row, onNext) : null, menu = onMenu ? button('btn', 'STORES', row, onMenu) : null;
   steps.push(() => { el('div', 'stamp m' + medal, MEDAL[medal], total); audioCue('stamp'); });
-  if (rc.badge) steps.push(() => { el('div', 'stamp new', rc.badge, total); audioCue('stamp'); });
   steps.push(() => {
-    tableOf().forEach((r, i) => line((i + 1) + '. ' + r.name, rc.mode === 'race' ? (r.time < 0 ? 'still shopping' : r.time.toFixed(1) + ' s') : r.total < 0 ? 'still shopping' : money(r.total), 'rank' + (r.me ? ' me' : '')));
+    tableOf().forEach((r, i) => line((i + 1) + '. ' + r.name, r.total < 0 ? 'still shopping' : money(r.total), 'rank' + (r.me ? ' me' : '')));
     const bestRow = line('BEST', money(best.value), 'rank best');
     if (goal) line(MEDAL[goal.medal] + ' AT', money(goal.at), 'rank next');       // what the next medal takes
-    if (purse) line('WALLET', money(purse.wallet), 'rank wallet');
     steps.push(() => {
       if (best.isNew) el('div', 'stamp new', 'NEW BEST!', bestRow);
-
+      if (!onNext) el('div', 'paper-sub end', 'that was the last store. thank you for shopping!', paper);
       for (const b of [again, next, menu]) if (b) b.classList.add('in');
     });
   });
@@ -463,7 +337,6 @@ export function showPause(s, on) {
   slider('MUSIC', s.music, on.music);
   slider('EFFECTS', s.sfx, on.sfx);
   toggle('SCREEN SHAKE', s.shake, on.shake);
-  toggle('IMPACT FLASH', s.impact, on.impact);
   const row = el('div', 'btn-row', undefined, ui.screen);
   button('btn in go', 'RESUME  (P)', row, on.resume);
   button('btn in', 'RESTART  (R)', row, on.restart);
@@ -510,7 +383,7 @@ export function initDebug(root, hooks) {
   };
 }
 
-// info: { sim, stats (R.stats), logicMs, objects, level, scale, bot }
+// info: { sim, stats (gfx.stats), logicMs, objects, level, scale, bot }
 export function updateDebug(info, frameMs) {
   if (!panel) return;
   frames++;

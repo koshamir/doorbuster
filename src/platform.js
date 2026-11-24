@@ -106,15 +106,14 @@ export const platform = {
   // Saves the progress object. Called on events (a finish, a setting change), never per frame.
   save() {
     const m = mb();
-    // a REVISION_CONFLICT or AUTH_CHANGED refusal: load the key again (the platform's rule), then save once more
-    if (m && m.save) m.save(SAVE_KEY, this.progress).catch(() => m.load(SAVE_KEY).then(() => m.save(SAVE_KEY, this.progress)).catch(() => {}));
+    if (m && m.save) m.save(SAVE_KEY, this.progress).catch(() => {});
     else localSet(SAVE_KEY, this.progress);
   },
 
   // Leaderboards: higher is better. One metric per level ('receipt_l1' ...) and one overall ('receipt_total').
   submit(metric, value, label) {
     const m = mb();
-    if (m && m.leaderboard) { m.leaderboard.submit(metric, value, { lower: false, label: String(label).slice(0, 60) }).catch(() => {}); return; }
+    if (m && m.leaderboard) { m.leaderboard.submit(metric, value, { label }).catch(() => {}); return; }
     const best = localGet('lb_' + metric);
     if (best === null || value > best) localSet('lb_' + metric, value);
   },

@@ -14,7 +14,7 @@
 // stepCart(cart, input, sim, dt) expects sim = { world, emit(type, cart, value, ref),
 // onCrash(cart, speedInto, solid), onSmash(cart, solid), onKnock(cart, solid), onLand(cart, over) }.
 
-import { TUNE, CFG, CHARS, clamp, lerp, wrapAngle, approach, cartMods } from './config.js';
+import { TUNE, CFG, CHARS, clamp, lerp, wrapAngle, approach } from './config.js';
 import { collide } from './world.js';
 
 export function makeInput() {
@@ -41,14 +41,13 @@ export function makeCart(id, charId, x, z, h) {
     grudge: null, grudgeT: 0,                 // who rammed this cart, remembered for five seconds
     dashKnocks: 0, shaveT: 0, crashes: 0, fullSaid: false,     // shoppers bowled over in this dash; close-shave throttle; crash count
     done: false, doneT: 0, lane: -1, place: 1, prog: 0, receipt: null,
-    cp: -1, home: null, wipeT: 0, wipes: 0, padT: 0, popT: 0, popped: false, shoveT: 0, smash: 0, toppleT: 0, bumpT: 0,
-    input: makeInput(), ai: null, mod: cartMods(),
+    input: makeInput(), ai: null,
   };
 }
 
 // 0 while the load is inside the free share, rising to 1 at a full cart (weight is capped there).
 export function loadFactor(k) {
-  const share = Math.min(1, k.load / (TUNE.loadfull * k.mod.cap));
+  const share = Math.min(1, k.load / TUNE.loadfull);
   return clamp((share - TUNE.loadfree) / (1 - TUNE.loadfree), 0, 1);
 }
 
@@ -212,7 +211,7 @@ export function stepCart(k, inp, sim, dt) {
 
   const mad = k.madT > 0;
   const lf = mad ? 0 : loadFactor(k);
-  const top0 = TUNE.maxspeed * k.mod.top * (1 - TUNE.loadtop * lf);
+  const top0 = TUNE.maxspeed * (1 - TUNE.loadtop * lf);
   const top = top0 * (k.boostT > 0 ? k.boostMul : k.sagT > 0 && k.dashT <= 0 ? CFG.dashSag : 1);
 
   // ---- the floor under the cart: a travelator carries it, a wet patch takes the grip for a second,
@@ -226,11 +225,10 @@ export function stepCart(k, inp, sim, dt) {
     if (!k.over && collide(world, k.x, k.z, 0.3, false, true)) k.over = true;     // something low is passing underneath
     if (k.air <= 0) sim.onLand(k, k.over);
   } else for (const rp of world.ramps) {
-    if (Math.abs(k.x - rp.x) > 1 || Math.abs(k.z - rp.z) > 1 || k.vx * rp.dx + k.vz * rp.dz < (rp.tramp ? 3 : CFG.jumpSpeed)) continue;
+    if (Math.abs(k.x - rp.x) > 1 || Math.abs(k.z - rp.z) > 1 || k.vx * rp.dx + k.vz * rp.dz < CFG.jumpSpeed) continue;
     if (k.drift) endDrift(k, top0, sim, false);
-    k.air = k.airT = rp.tramp ? 1.05 : CFG.jumpTime; k.over = false;
-    if (rp.tramp) { const v = Math.max(9.5, Math.hypot(k.vx, k.vz)); k.vx = rp.dx * v; k.vz = rp.dz * v; k.h = Math.atan2(rp.dx, rp.dz); }      // the mat throws it 10 m along itself
-    sim.emit('jump', k, 0, rp);
+    k.air = k.airT = CFG.jumpTime; k.over = false;
+    sim.emit('jump', k);
     break;
   }
   const backing = k.backT > 0;
@@ -247,7 +245,7 @@ export function stepCart(k, inp, sim, dt) {
     k.dashBuf -= dt;
     if (k.dashCd <= 0 && free) {
       if (k.drift) endDrift(k, top0, sim, true);    // a dash out of a drift keeps the earned boost
-      k.dashBuf = 0; k.dashT = CFG.dashTime; k.dashCd = TUNE.dashcooldown * k.mod.cd; k.dashHits = 0; k.dashKnocks = 0; k.sagT = 0;
+      k.dashBuf = 0; k.dashT = CFG.dashTime; k.dashCd = TUNE.dashcooldown; k.dashHits = 0; k.dashKnocks = 0; k.sagT = 0;
       const v = Math.max(Math.hypot(k.vx, k.vz) + TUNE.dashspeed, top0 * 0.65);
       k.vx = Math.sin(k.h) * v; k.vz = Math.cos(k.h) * v;
       sim.emit('dash', k);
@@ -309,7 +307,7 @@ export function stepCart(k, inp, sim, dt) {
   slip -= Math.sin(slip) * (1 - Math.exp(-grip * dt));
 
   // ---- speed along the travel direction
-  const acc = TUNE.accel * k.mod.acc * (1 - TUNE.loadaccel * lf) * (k.boostT > 0 ? CFG.boostAccel : 1);
+  const acc = TUNE.accel * (1 - TUNE.loadaccel * lf) * (k.boostT > 0 ? CFG.boostAccel : 1);
   if (backing) {
     v = -CFG.backSpeed; slip = 0;
   } else if (!free || k.dashT > 0) {
@@ -336,7 +334,6 @@ export function stepCart(k, inp, sim, dt) {
   k.slip = back ? 0 : slip;
 
   // ---- move and collide
-  world.forPlayer = k.player;
   k.x += (k.vx + k.convX) * dt; k.z += (k.vz + k.convZ) * dt;
   let crashed = false, touched = 0, sumX = 0, sumZ = 0;
   const v0x = k.vx, v0z = k.vz, speed0 = Math.hypot(v0x, v0z);
@@ -350,10 +347,7 @@ export function stepCart(k, inp, sim, dt) {
     if (c && c.depth > depth) { s = c.solid; nx = c.nx; nz = c.nz; depth = c.depth; nose = false; }
     if (!s) break;
     if (s.soft) { s.on = false; sim.onKnock(k, s); continue; }
-    if (s.type === 'listrack' && k.player && s.piece.good >= 0 && (k.dashT > 0 || -(k.vx * nx + k.vz * nz) > 2.5)) sim.onList(k, s.piece);
-    const pyr = s.piece && (s.type === 'pyramid' || s.type === 'mega'), into0 = -(k.vx * nx + k.vz * nz);
-    if (s.dash && (k.dashT > 0 || mad || (pyr && into0 > CFG.smashSpeed && s.type === 'pyramid'))) { s.on = false; sim.onSmash(k, s); continue; }
-    if (pyr && into0 > 2 && sim.onTopple) sim.onTopple(k, s, into0);
+    if (s.dash && (k.dashT > 0 || mad)) { s.on = false; sim.onSmash(k, s); continue; }
     k.x += nx * depth; k.z += nz * depth;
     const vn = k.vx * nx + k.vz * nz;
     if (vn >= 0) continue;

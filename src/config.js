@@ -2,7 +2,7 @@
 // Purpose: every shared constant in one place: tune defaults (a mirror of tune.json), fixed
 //          constants that do not fit in the 40 platform values, the palette, the goods catalogue,
 //          the characters, small math helpers and the seeded random generator.
-// Exports: TUNE, applyTune, CFG, PAL, rgb, mix, GOODS, GOOD, POOLS, CROWD_MIX, CHARS, makeRng, clamp, lerp,
+// Exports: TUNE, applyTune, CFG, PAL, rgb, mix, GOODS, GOOD, POOLS, CHARS, makeRng, clamp, lerp,
 //          wrapAngle, approach
 // Depends on: nothing. Safe to import from Node (no DOM, no THREE).
 
@@ -78,18 +78,8 @@ export const CFG = {
   pinYaw: 4.5,            // how fast a cart pinned nose-first swings along the wall, rad/s
   pinPatience: 0.3,       // seconds of pushing with no movement before the cart backs out by itself
   backTime: 0.32, backSpeed: 3.5, backYaw: 2.8,   // the automatic back-out: seconds, m/s, rad/s
-  // level objects (LEVELS.md section 4)
-  wipeTime: 1.1,          // seconds from a wipeout to the respawn at the last checkpoint
-  respawnImmune: 1.2,     // seconds a respawned cart cannot be wiped out or rammed
-  popTime: 0.75,          // seconds in the air after a pop-up tile
-  padBoost: 6, padTime: 0.8,   // boost arrows: m/s over the top speed, seconds
-  watchTime: 5,           // seconds a stopwatch adds
-  smashSpeed: 8,          // a plain hit this fast (m/s into it) smashes a can pyramid; slower ones topple a third
-  canPrice: 10, megaCan: 40,   // SMASH: dollars per can (times the multiplier), per golden can of the MEGA PYRAMID
-  bumpKnock: 5,           // a plain bump this hard (m/s) knocks the top goods off a rival
-  closingTime: 15,        // CLOSING TIME: the last seconds on the clock
   // mall kit
-  beltSpeed: 4,           // a conveyor carries a cart this fast, m/s (with it: faster; against it: about half speed)
+  beltSpeed: 5,           // a travelator carries a cart this fast, m/s (with it: faster; against it: about half speed)
   jumpSpeed: 7,           // speed along a ramp needed to take off, m/s
   jumpTime: 0.9,          // seconds in the air (at top speed that is 10.8 m)
   jumpHeight: 1.7,        // how high the arc looks, metres
@@ -102,23 +92,9 @@ export const CFG = {
   madTake: { S: 0.04, M: 0.09, L: 0.2, H: 0.5 },   // gain per item taken, by size (a chain of takes adds up to half as much again)
   madDrift: 0.3,          // gain per spark tier when a drift is released into its boost
   // scoring
-  listBonus: 200,         // dollars for bringing all three list items to the checkout (v2)
-  listItem: 250, listAll: 500,   // LIST mode: dollars per list item and for the whole list (DESIGN.md section 2)
-  raceCp: 500, raceWin: 1000,    // RACE mode: dollars per checkpoint reached first and for finishing first
+  listBonus: 200,         // dollars for bringing all three list items to the checkout
   stunts: { cleansweep: 50, strike: 150, ram: 75, takedown: 200, shave: 10, smash: 25, jump: 250, dodge: 40, selfie: 150, glass: 100 },
 };
-
-// ---- Cart upgrades (DESIGN.md section 8): what each tier does to the player's cart (levels are tuned without them).
-export const UPGRADE_FX = {
-  wheels: { top: [0.04, 0.08, 0.12], acc: [0.05, 0.1, 0.15] },     // top speed and acceleration
-  basket: { cap: [0.2, 0.4, 0.6] },                                  // capacity (the tower sways less too)
-  bumper: { cd: [0.15, 0.3, 0.45] },                                 // dash cooldown
-  magnet: { mag: [0.25, 0.5, 0.8], sweep: [0.1, 0.2, 0.3] },         // pickup radius, sweep distance (m)
-};
-export function cartMods(up = {}) {
-  const t = (k) => Math.max(0, Math.min(3, up[k] | 0)), f = (k, e) => t(k) ? UPGRADE_FX[k][e][t(k) - 1] : 0;
-  return { top: 1 + f('wheels', 'top'), acc: 1 + f('wheels', 'acc'), cap: 1 + f('basket', 'cap'), cd: 1 - f('bumper', 'cd'), mag: 1 + f('magnet', 'mag'), sweep: f('magnet', 'sweep') };
-}
 
 // ---- Palette (ART.md section 3). Stored as sRGB hex; rgb() converts to 0..1 floats. ----------
 export const PAL = {
@@ -164,46 +140,15 @@ export const GOODS = [
   { id: 'bear',      size: 'H', w: 6, price: 250, dims: [0.96, 1.10, 0.90] },
   { id: 'console',   size: 'H', w: 7, price: 450, dims: [1.00, 0.56, 0.84] },
   { id: 'robovac',   size: 'H', w: 8, price: 560, dims: [1.04, 0.40, 1.04] },
-  { id: 'frozenpizza', size: 'L', w: 4, price: 95, dims: [0.86, 0.36, 0.66] },
-  { id: 'icecream',  size: 'L', w: 4, price: 85,  dims: [0.62, 0.62, 0.62] },
-  { id: 'scarf',     size: 'S', w: 1, price: 14,  dims: [0.46, 0.26, 0.4] },
-  { id: 'perfume',   size: 'S', w: 1, price: 22,  dims: [0.3, 0.46, 0.3] },
-  { id: 'purse',     size: 'M', w: 2, price: 70,  dims: [0.6, 0.5, 0.34] },
-  { id: 'coat',      size: 'L', w: 4, price: 160, dims: [0.7, 1.0, 0.5] },
-  { id: 'goldbag',   size: 'H', w: 8, price: 650, dims: [1.0, 0.9, 0.5] },
-  { id: 'basketball', size: 'M', w: 2, price: 40, dims: [0.6, 0.6, 0.6] },
-  { id: 'dumbbell',  size: 'M', w: 3, price: 55,  dims: [0.8, 0.36, 0.36] },
-  { id: 'swimring',  size: 'M', w: 2, price: 30,  dims: [0.9, 0.3, 0.9] },
-  { id: 'goalgloves', size: 'S', w: 1, price: 35, dims: [0.5, 0.36, 0.4] },
-  { id: 'shaker',    size: 'S', w: 1, price: 12,  dims: [0.3, 0.5, 0.3] },
-  { id: 'trainers',  size: 'M', w: 2, price: 65,  dims: [0.7, 0.36, 0.46] },
-  { id: 'sushi',     size: 'S', w: 1, price: 9,   dims: [0.46, 0.22, 0.34] },
-  { id: 'burger',    size: 'S', w: 1, price: 11,  dims: [0.46, 0.4, 0.46] },
-  { id: 'fries',     size: 'S', w: 1, price: 7,   dims: [0.34, 0.5, 0.26] },
-  { id: 'cakeslice', size: 'M', w: 2, price: 24,  dims: [0.5, 0.42, 0.5] },
 ];
 export const GOOD = {};            // id -> index into GOODS
 GOODS.forEach((g, i) => { GOOD[g.id] = i; g.slots = g.size === 'S' ? 1 : g.size === 'M' ? 2 : g.size === 'L' ? 4 : 8; });
 
 // Which goods a store zone stocks on its shelves, by shelf letter (S, M, L) and for floor trails.
 export const POOLS = {
-  market: { S: ['can', 'soda', 'chips', 'cereal', 'roll'], M: ['melon', 'pizza', 'toaster'], L: ['frozenpizza', 'icecream'] },
-  bulk: { S: ['can', 'soda', 'chips'], M: ['toaster', 'pizza', 'headset'], L: ['microwave', 'speaker'] },
+  market: { S: ['can', 'soda', 'chips', 'cereal', 'roll'], M: ['melon', 'pizza', 'toaster'], L: ['microwave'] },
   gadget: { S: ['phone', 'game', 'soda'], M: ['headset', 'toaster', 'shoes'], L: ['speaker', 'microwave'] },
-  food: { S: ['sushi', 'burger', 'fries'], M: ['cakeslice', 'pizza'], L: ['frozenpizza', 'icecream'] },
-  sports: { S: ['shaker', 'goalgloves'], M: ['trainers', 'basketball'], L: ['speaker', 'suitcase'] },
-  boutique: { S: ['scarf', 'perfume'], M: ['purse', 'shoes'], L: ['coat', 'suitcase'] },
   atrium: { S: ['chips', 'soda', 'roll', 'game'], M: ['shoes', 'pizza', 'melon'], L: ['suitcase', 'speaker'] },
-};
-
-// ---- The crowd mix of each store (DESIGN.md section 6): every shopper gets an archetype from it. ----
-export const CROWD_MIX = {
-  supermarket: ['walkerGranny', 'strollerMom', 'staff', 'caneGrandpa', 'toddler', 'phoneTeen', 'bellyBro', 'jogger', 'mascot'],
-  warehouse: ['staff', 'bellyBro', 'gymBro', 'caneGrandpa', 'phoneTeen', 'strollerMom', 'jogger', 'gamer', 'scooterElder'],
-  electronics: ['gamer', 'phoneTeen', 'staff', 'gymBro', 'toddler', 'jogger', 'bellyBro', 'strollerMom', 'gamer'],
-  food: ['bellyBro', 'strollerMom', 'mascot', 'toddler', 'walkerGranny', 'phoneTeen', 'bellyBro', 'staff', 'caneGrandpa'],
-  sports: ['gymBro', 'jogger', 'gymBro', 'phoneTeen', 'jogger', 'staff', 'toddler', 'bellyBro', 'mascot'],
-  boutique: ['fashionista', 'walkerGranny', 'phoneTeen', 'strollerMom', 'fashionista', 'staff', 'caneGrandpa', 'toddler', 'jogger'],
 };
 
 // ---- Characters. One silhouette, one colour, one behaviour each (GDD 5.6). ---------------------
@@ -211,12 +156,11 @@ export const CROWD_MIX = {
 // aggro = appetite for ramming.
 export const CHARS = {
   player: { name: 'You',          color: PAL.player,    skill: 1,    pace: 1,    greed: 1,    aggro: 1 },
-  granny: { name: 'Granny Tank',  color: PAL.rivals[0], skill: 0.6,  pace: 0.84, greed: 1,    aggro: 0.1, mass: 2 },
+  granny: { name: 'Granny Tank',  color: PAL.rivals[0], skill: 0.6,  pace: 0.84, greed: 1,    aggro: 0.1 },
   selfie: { name: 'Selfie Star',  color: PAL.rivals[1], skill: 0.7,  pace: 0.95, greed: 0.85, aggro: 0.3 },
   queen:  { name: 'Coupon Queen', color: PAL.rivals[2], skill: 0.8,  pace: 0.96, greed: 1,    aggro: 0.4 },
   dad:    { name: 'Sprint Dad',   color: PAL.rivals[3], skill: 0.95, pace: 1,    greed: 0.9,  aggro: 0.6 },
-  bro:    { name: 'Big Bubba',    color: PAL.rivals[4], skill: 0.65, pace: 0.92, greed: 0.9,  aggro: 0.9, mass: 3 },
-  gramps: { name: 'Turbo Gramps', color: 0xE63946,      skill: 0.96, pace: 1,    greed: 0.15, aggro: 0.05, mass: 2 },
+  bro:    { name: 'Bulk Bro',     color: PAL.rivals[4], skill: 0.65, pace: 0.92, greed: 0.9,  aggro: 0.9 },
 };
 
 // ---- Math helpers --------------------------------------------------------------------------------

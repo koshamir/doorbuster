@@ -3,18 +3,18 @@
 //          stars, puffs, streaks, confetti) drawn in a single instanced draw call, plus the emitters
 //          that turn simulation events and cart state into particles. Never touches the simulation.
 // Exports: initFx, clearFx, spark, burst, cartFx, eventFx, updateFx, TIER_COLORS
-// Depends on: config.js, render.js and the global THREE (inside functions only).
+// Depends on: config.js, gfx.js and the global THREE (inside functions only).
 //
 // Particles are camera-facing quads; the fragment shader cuts the shape (0 diamond, 1 round puff,
 // 2 four-point star, 3 square, 4 plain sliver) and draws a dark rim, so they match the outlined look (ART.md 4).
 
 import { CFG, PAL, rgb } from './config.js';
-import { R, MRT_OUT, AUX_NONE } from './render.js';
+import { gfx } from './gfx.js';
 
 const FX_CAP = 700, FX_STRIDE = 16;
 // per particle: x y z  vx vy vz  life ttl  size0 size1  rot spin  grav drag  shape colorIndex
 const fxData = new Float32Array(FX_CAP * FX_STRIDE);
-let fxClock = 0, fxCount = 0, fxMesh = null, fxPos = null, fxParam = null, fxColor = null, fxSeed = 12345;
+let fxCount = 0, fxMesh = null, fxPos = null, fxParam = null, fxColor = null, fxSeed = 12345;
 export const TIER_COLORS = PAL.tiers;
 const FX_COLORS = [PAL.white, PAL.sale, PAL.orange, PAL.player, PAL.danger, PAL.steel, PAL.list, PAL.hot, PAL.sky, PAL.mint, PAL.outline, PAL.red];
 const FX_RGB = FX_COLORS.map(rgb);
@@ -36,7 +36,6 @@ void main() {
 }`;
 const FX_FS = `
 uniform vec3 uRimColor;
-${MRT_OUT}
 varying vec2 vUv; varying vec3 vColor; varying float vShape;
 void main() {
   vec2 p = abs(vUv);
@@ -46,8 +45,7 @@ void main() {
   else if (vShape < 2.5) d = pow(pow(p.x, 0.55) + pow(p.y, 0.55), 1.8); // four-point star
   else d = max(p.x, p.y);                                            // square
   if (d > 1.0) discard;
-  gl_FragColor = vec4(d > 0.8 && vShape < 3.5 && (vShape < 0.5 || vShape > 1.5) ? uRimColor : vColor, 0.0);   // puffs and slivers have no rim
-  ${AUX_NONE}
+  gl_FragColor = vec4(d > 0.8 && vShape < 3.5 && (vShape < 0.5 || vShape > 1.5) ? uRimColor : vColor, 1.0);   // puffs and slivers have no rim
 }`;
 
 export function initFx() {
@@ -63,7 +61,7 @@ export function initFx() {
   fxMesh = new THREE.Mesh(g, mat);
   fxMesh.frustumCulled = false;
   fxMesh.renderOrder = 5;
-  R.scene.add(fxMesh);
+  gfx.scene.add(fxMesh);
 }
 
 export function clearFx() { fxCount = 0; if (fxMesh) fxMesh.geometry.instanceCount = 0; }
@@ -106,14 +104,6 @@ export function cartFx(k, x, z, h, dt) {
       fxOpt.ttl = 0.22 + fxRnd() * 0.2; fxOpt.grav = k.tier > 0 ? 7 : -1; fxOpt.drag = 2; fxOpt.spin = undefined; fxOpt.rot = undefined; fxOpt.aspect = 0;
       fxOpt.vx = -fx * speed * 0.35 + rx * side * (1 + fxRnd() * 2.5); fxOpt.vz = -fz * speed * 0.35 + rz * side * (1 + fxRnd() * 2.5); fxOpt.vy = 1 + fxRnd() * 2.2;
       spark(x - fx * 0.55 + rx * side * 0.45, 0.12, z - fz * 0.55 + rz * side * 0.45, fxOpt);
-    }
-  }
-  if (k.stunT > 0.05 || k.spinT > 0.05) {      // circling stars over a dazed head
-    const t = (fxClock += dt * 0.5), hx = x - fx * 1.3, hz = z - fz * 1.3;
-    for (let i = 0; i < 3; i++) {
-      const a = t * 9 + i * 2.094;
-      fxOpt.color = PAL.sale; fxOpt.shape = 2; fxOpt.size = 0.32; fxOpt.end = 0.32; fxOpt.ttl = 0.05; fxOpt.grav = 0; fxOpt.drag = 0; fxOpt.spin = 0; fxOpt.rot = a; fxOpt.aspect = 0; fxOpt.vx = fxOpt.vy = fxOpt.vz = 0;
-      spark(hx + Math.cos(a) * 0.38, 1.95 + Math.sin(a * 2) * 0.05, hz + Math.sin(a) * 0.38, fxOpt);
     }
   }
   if (k.madT > 0) {

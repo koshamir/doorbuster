@@ -1,0 +1,362 @@
+  196  index.html
+  477  src\ai.js
+  288  src\audio.js
+  403  src\cart.js
+  193  src\config.js
+  234  src\fx.js
+  343  src\gfx.js
+  234  src\levels.js
+  444  src\main.js
+  414  src\models.js
+  133  src\platform.js
+  600  src\scene.js
+  584  src\sim.js
+  404  src\ui.js
+  450  src\world.js
+shipped: 15 files, 5397 lines (limit 15 files / 8000 lines, target about 6000)
+tune.json: 38 entries (limit 40)
+level 0 "gauntlet": 46x22 tiles, route 273 m, timer 90 s, goods 130 units (3.3 carts), longest empty stretch 98 m
+level 1 "doors": 39x41 tiles, route 416 m, timer 80 s, goods 312 units (7.8 carts), longest empty stretch 9 m
+level 2 "gadget": 51x41 tiles, route 408 m, timer 76 s, goods 332 units (8.3 carts), longest empty stretch 10 m
+level 3 "atrium": 49x51 tiles, route 361 m, timer 70 s, goods 335 units (8.4 carts), longest empty stretch 12 m
+size without three.js: 318 KB (limit 1536 KB)
+sound: 41 event types emitted by the simulation, 40 with a case in audio.js (silent on purpose: gone)
+
+all checks pass
+
+
+Basics — launch, stop, full-lock circle at top speed
+  load   top m/s  0-95% s  dist m  stop s  stop m  turn radius m  yaw rad/s  slip deg  speed in turn
+  -----  -------  -------  ------  ------  ------  -------------  ---------  --------  -------------
+  empty  12       1.04     6.74    0.61    3.55    8.00           1.50       3.95      12.00        
+  half   11.66    1.20     7.53    0.64    3.67    8.01           1.45       3.84      11.65        
+  full   10.80    2.08     12.08   0.80    4.12    8.18           1.32       3.48      10.80        
+
+Drift in the open — steer + drift at top speed, then release (path radius = distance / change of travel direction)
+  case                  hold s  tier  slip deg  path radius m  path turned deg  boost peak m/s  boost s
+  --------------------  ------  ----  --------  -------------  ---------------  --------------  -------
+  empty, stick in       0.70    1     29.95     6.86           70.07            14.40           0.92   
+  empty, stick in       1.30    2     32.40     6.37           140.17           16.80           1.50   
+  empty, stick in       2.10    3     33.50     6.17           233.65           19.20           2.17   
+  empty, stick neutral  0.70    1     20.66     9.61           50.04            14.40           0.92   
+  empty, stick neutral  1.30    2     21.45     9.26           96.41            16.80           1.50   
+  empty, stick neutral  2.10    3     21.81     9.11           158.25           19.20           2.10   
+  empty, stick out      0.70    1     14.55     13.51          35.59            14.40           0.92   
+  empty, stick out      1.30    2     12.74     15.37          58.11            16.80           1.50   
+  empty, stick out      2.10    3     11.94     16.37          88.12            19.20           2.17   
+  full, stick in        0.70    1     23.40     7.71           56.09            12.96           0.90   
+  full, stick in        1.30    2     25.29     7.16           112.26           15.12           1.45   
+  full, stick in        2.10    3     26.13     6.93           187.15           17.28           1.49   
+
+Drift against geometry — 10 m corridor, turn-in point scanned in 0.5 m steps, drift released when the path points down the exit
+  geometry        stick    best tier, no crash  tier 1+ window m  tier 2+ window m  tier 3 window m  no-crash share  speed 1.5 s after exit
+  --------------  -------  -------------------  ----------------  ----------------  ---------------  --------------  ----------------------
+  90-degree bend  in       1                    16                0                 0                89%             12.00                 
+  90-degree bend  neutral  3                    18                6                 5.50             100%            13.54                 
+  90-degree bend  out      3                    18                13.50             5                100%            13.95                 
+  hairpin         in       2                    16.50             10.50             0                89%             12.00                 
+  hairpin         neutral  3                    13                12.50             10               70%             14.26                 
+  hairpin         out      3                    9                 9                 9                49%             14.13                 
+
+Dash (a dash that hits nothing sags to 82% top speed for 0.7 s)
+  case          speed after 1 step  peak m/s  s above top  slowest after  metres gained in 2 s
+  ------------  ------------------  --------  -----------  -------------  --------------------
+  from rest     7.80                12        0            7.94           2.32                
+  at top speed  18                  18        0.59         9.84           1.68                
+  mashing dash for 6 s at top speed: 4 dashes (cooldown 1.5 s), 6.7 m against plain driving (9.3%)
+
+Response (one 60 Hz frame = 2 steps)
+  throttle: speed 0.117 m/s after 1 step, 0.233 after 2
+  steering at top speed: yaw 0.112 rad/s after 1 step; heading changed 0.161 deg after 2 steps, 1.13 deg after 50 ms; full yaw 1.50 rad/s within 0.25 s
+  (the visible response on the first frame is the body lean and yaw in scene.js, driven by the raw input)
+
+Walls — hit a wall at an angle to its surface, holding gas, no steering
+  load   angle deg  result  speed in  speed +0.5 s  min speed 2 s  near-zero s  s back to 75% top  no-control s
+  -----  ---------  ------  --------  ------------  -------------  -----------  -----------------  ------------
+  empty  10         slide   12        11.89         11.08          0            0.06               0           
+  empty  20         slide   12        10.78         9.74           0            0.05               0           
+  empty  30         slide   12        9.73          8.23           0            0.36               0           
+  empty  45         slide   12        9.33          7.74           0            0.44               0           
+  empty  60         slide   12        7.78          5.93           0            0.69               0           
+  empty  75         CRASH   12        7.62          6.43           0            0.64               0.40        
+  empty  90         CRASH   12        7.23          6.08           0            0.68               0.40        
+  full   45         slide   10.80     6.55          6.20           0            0.96               0           
+  full   90         CRASH   10.80     5.88          5.55           0            0.97               0.40        
+
+Walls with the wheel held — moving east and into the north wall; wheel over 0.2 s before the hit, let go 0.3 s after
+  angle deg  steering       result  slowest in 1.5 s  metres east in 1.5 s  afterwards          fastest body turn deg/s
+  ---------  -------------  ------  ----------------  --------------------  ------------------  -----------------------
+  50         into the wall  slide   4.70              12.0                  carried on          224                    
+  50         away from it   slide   99                0.0                   left the wall       0                      
+  65         into the wall  CRASH   6.35              14.0                  carried on          458                    
+  65         away from it   slide   8.16              16.1                  carried on          436                    
+  80         into the wall  CRASH   6.09              13.8                  carried on          458                    
+  80         away from it   slide   6.50              15.3                  carried on          493                    
+  90         into the wall  CRASH   6.38              -14.1                 followed the wheel  458                    
+  90         away from it   CRASH   6.38              14.1                  carried on          458                    
+
+Pinned — gas held, no steering
+  case                        load   s to 1 m/s   s to 3 m/s  longest near-zero s  automatic back-outs 
+  --------------------------  -----  -----------  ----------  -------------------  --------------------
+  wall, nose-first            empty  0.15         0.43        0.14                 0                   
+  inside corner at top speed  empty  slowest 0.0  -           0.12                 0 (crashes 1)       
+  notch between two displays  empty  -            -           0.12                 0 (did not get past)
+  wall, nose-first            full   0.35         0.89        0.34                 0                   
+  inside corner at top speed  full   slowest 2.6  -           0                    0 (crashes 1)       
+  notch between two displays  full   -            -           0                    0 (did not get past)
+
+Outside corner — drive at a wall corner, centre offset from the edge line in metres (negative = more of the cart hits the face)
+  offset  crashes  bumps  near-zero s  slowest m/s
+  ------  -------  -----  -----------  -----------
+  -0.50   1        0      0.07         6.29       
+  -0.25   0        1      0.07         10.35      
+  0       0        1      0.07         10.57      
+  0.25    0        1      0.07         10.24      
+  0.50    0        1      0.07         10.01      
+
+Seams — rubbing along a surface for 4 s while steering slightly into it
+  surface           min speed  x reached  crashes
+  ----------------  ---------  ---------  -------
+  one wall          11.22      67.14      0      
+  30 counter boxes  11.18      67.00      0      
+
+Tunnelling — a 0.3 m wall (x 59.85 to 60.15) hit at fixed speeds, 40 start offsets within one step
+  speed m/s  metres per step  touched the wall  stayed in front  furthest centre x
+  ---------  ---------------  ----------------  ---------------  -----------------
+  12         0.100            40/40             40/40            59.15            
+  18         0.150            40/40             40/40            59.13            
+  24         0.200            40/40             40/40            59.28            
+  30         0.250            40/40             40/40            59.21            
+
+Gap — straight at two displays at full speed, no steering (beyond 0.54 m off-centre the cart must touch)
+  lateral offset m  gap m  crashes  bumps  result  speed after
+  ----------------  -----  -------  -----  ------  -----------
+  0                 2.20   0        0      passed  12         
+  0.30              2.20   0        0      passed  12         
+  0.50              2.20   0        0      passed  12         
+  0.60              2.20   0        1      passed  12.00      
+  0.80              2.20   0        1      passed  12.00      
+
+Sweeping — goods taken from a 20 m shelf while driving parallel to it (sweepgap 0.6 m)
+  speed m/s  gap 0 (touching)  gap 0.2  gap 0.4  gap 0.6  gap 0.8  gap 1.0
+  ---------  ----------------  -------  -------  -------  -------  -------
+  6          30/30             30/30    30/30    30/30    26/30    24/30  
+  12         30/30             30/30    30/30    30/30    25/30    22/30  
+  19         30/30             30/30    30/30    30/30    24/30    21/30  
+
+Spill — a head-on crash at top speed: what the first hit costs (limit 40% in goods and in dollars), and what a chase of 4 s brings back
+  goods before  load units  spilled  share of goods  dollars lost   share of dollars  recovered
+  ------------  ----------  -------  --------------  -------------  ----------------  ---------
+  4             9           1        25%             $14 of $219    6%                0        
+  10            23          3        30%             $255 of $663   38%               3        
+  18            42          7        39%             $427 of $1210  35%               4        
+  28            64          11       39%             $700 of $1770  40%               0        
+
+Beginner drift — random sloppy attempts at a 90-degree corner in a 10 m corridor (hold 0.3-1.8 s, stick 50-100%, turn-in spread 12 m)
+  load   attempts  boost, no crash  within two tries  same if held long enough  boost and exit within 30 deg  best tier 0/1/2/3    crashed
+  -----  --------  ---------------  ----------------  ------------------------  ----------------------------  -------------------  -------
+  empty  300       65%              88%               76%                       45%                           46 / 122 / 123 / 9   18%    
+  full   300       78%              95%               90%                       45%                           45 / 120 / 121 / 14  7%     
+
+Frame rate — the same 8 s key script through the real frame loop, keys sampled once per frame (before)
+  Hz   steps run  x      z      heading deg  speed
+  ---  ---------  -----  -----  -----------  -----
+  30   960        56.20  78.43  14.85        12.00
+  60   960        56.20  78.43  14.85        12.00
+  144  960        56.20  78.43  14.85        12.00
+  240  960        56.49  78.09  15.57        12   
+  largest distance between any two rates after 8 s: 0.452 m
+
+Frame rate — the same 8 s key script through the real frame loop, keys applied on their own step (now)
+  Hz   steps run  x      z      heading deg  speed
+  ---  ---------  -----  -----  -----------  -----
+  30   960        56.49  78.09  15.57        12   
+  60   960        56.49  78.09  15.57        12   
+  144  960        56.49  78.09  15.57        12   
+  240  960        56.49  78.09  15.57        12   
+  largest distance between any two rates after 8 s: 0.000 m
+
+
+Level 0 "GAUNTLET" — 20 runs per bot, timer 90 s, route 273 m
+  bot                    finish  time   slowest  of timer  spare s (worst)  avg m/s  near-zero  longest standstill s  max no-control s  stuck/run  crashes/run
+  ---------------------  ------  -----  -------  --------  ---------------  -------  ---------  --------------------  ----------------  ---------  -----------
+  beginner               100%    30.19  31.85    34%       58.15            8.13     0%         0.16                  0                 0          0          
+  confident              100%    24.10  24.77    27%       65.23            10.12    0%         0.03                  0.40              0          0.05       
+  expert                 100%    22.92  23.97    25%       66.03            10.66    0%         0.03                  0                 0          0          
+  sloppy                 100%    24.64  31.87    27%       58.13            10.75    0%         0.18                  0.40              0          0.75       
+  expert, no collecting  100%    21.93  21.97    24%       68.03            11.39    0%         0.03                  0                 0          0          
+
+  obstacles — clean passes (no crash, no stuck) and median seconds for the stretch
+  bot                    slalom     doorway    hairpin right  aisle      notch      shelf end  hairpin left  chicane    checkout 
+  ---------------------  ---------  ---------  -------------  ---------  ---------  ---------  ------------  ---------  ---------
+  beginner               100% 7.4s  100% 1.4s  100% 2.1s      100% 2.9s  100% 1.2s  100% 1.9s  100% 3.1s     100% 4.3s  100% 4.5s
+  confident              95% 6.2s   100% 1.3s  100% 1.8s      100% 2.1s  100% 0.9s  100% 1.5s  100% 2.8s     100% 3.5s  100% 3.3s
+  expert                 100% 5.7s  100% 1.3s  100% 1.9s      100% 2.1s  100% 0.8s  100% 1.4s  100% 2.7s     100% 3.3s  100% 3.0s
+  sloppy                 90% 6.0s   70% 1.2s   100% 1.9s      100% 1.8s  100% 0.9s  95% 1.5s   100% 2.9s     90% 3.4s   100% 3.2s
+  expert, no collecting  100% 5.7s  100% 1.3s  100% 1.9s      100% 2.0s  100% 0.8s  100% 1.4s  100% 2.6s     100% 2.6s  100% 2.9s
+  logic cost: 3.0 microseconds per step, 0.006 ms per 60 Hz frame (budget 6 ms)
+
+  receipts and loot
+  bot                    median $  best $  items $  time $  stunts $  list done  taken  spilled  load x full  first shelf avg  10+ off first shelf  worst crash loss ($ share)  medals bronze/silver/gold/black
+  ---------------------  --------  ------  -------  ------  --------  ---------  -----  -------  -----------  ---------------  -------------------  --------------------------  -------------------------------
+  beginner               1308      1635    389.35   891     27.50     0%         26.45  0        0.76         12.55            70%                  0%                          20/0/0/0                       
+  confident              1348      1779    404.95   978.75  22.50     0%         24.10  0        0.69         10.75            55%                  0%                          20/0/0/0                       
+  expert                 1543      1864    448.35   1002    35        0%         25.05  0        0.70         14.35            75%                  0%                          20/0/0/0                       
+  sloppy                 1331      1927    404.50   971.25  7.50      0%         23.30  1.50     0.59         11.30            70%                  40%                         20/0/0/0                       
+  expert, no collecting  1326      1362    300.30   1020    0         0%         21.15  0        0.53         2.55             0%                   0%                          20/0/0/0                       
+
+
+Level 1 "DOORS OPEN" — 200 runs per bot, timer 80 s, route 416 m
+  bot                    finish  time   slowest  of timer  spare s (worst)  avg m/s  near-zero  longest standstill s  max no-control s  stuck/run  crashes/run
+  ---------------------  ------  -----  -------  --------  ---------------  -------  ---------  --------------------  ----------------  ---------  -----------
+  beginner               100%    52.64  57.85    66%       22.15            7.49     0%         1.10                  0.77              0.01       0.09       
+  confident              100%    44.83  54.45    56%       25.55            8.79     1%         0.63                  0.81              0.03       0.28       
+  expert                 100%    41.69  50.72    52%       29.28            9.35     0%         1.09                  0.80              0.03       0.34       
+  sloppy                 100%    43.96  54.69    55%       25.31            9.58     1%         0.83                  0.64              0.04       1.72       
+  expert, no collecting  100%    37.49  43.07    47%       36.93            10.18    0%         0.69                  0.74              0.01       0.91       
+  logic cost: 10.6 microseconds per step, 0.021 ms per 60 Hz frame (budget 6 ms)
+
+  receipts and loot
+  bot                    median $  best $  items $  time $  stunts $  list done  taken  spilled  load x full  first shelf avg  10+ off first shelf  worst crash loss ($ share)  medals bronze/silver/gold/black
+  ---------------------  --------  ------  -------  ------  --------  ---------  -----  -------  -----------  ---------------  -------------------  --------------------------  -------------------------------
+  beginner               3263      6279    2568.74  402.07  131.55    98%        53.80  2.37     1.50         16.39            75%                  40%                         130/70/0/0                     
+  confident              5887      11219   5181.94  520.27  380.98    93%        60.53  3.94     1.63         16.94            67%                  40%                         11/115/60/14                   
+  expert                 7508      9884    6030.78  567.15  351.88    89%        53.38  3.29     1.70         12.50            45%                  40%                         7/63/113/17                    
+  sloppy                 5598      10103   4650.53  532.95  325.38    94%        64.55  15.85    1.42         12.94            57%                  40%                         29/113/49/9                    
+  expert, no collecting  866       1974    263.90   630.83  22.50     2%         17.65  2.87     0.45         3.53             0%                   40%                         200/0/0/0                      
+
+  the player's run (Madness, rams, crowd, rhythm) — per run
+  bot                    x2 by 20 s  x2 at (median s)  modes  1-2 modes  rammed  rammed max  rams  takedowns  strikes  shaves  sweeps  smashes  hot   bowled  longest quiet s (median run)  runs with 5 s quiet  longest quiet s (worst)  places 1st/2nd/..
+  ---------------------  ----------  ----------------  -----  ---------  ------  ----------  ----  ---------  -------  ------  ------  -------  ----  ------  ----------------------------  -------------------  -----------------------  -----------------
+  beginner               95%         2.48              0.43   42%        0.18    2           0.45  0.14       0.07     1.26    0.69    0.11     1.66  2.58    5.27                          60%                  9.22                     7/44/61/88       
+  confident              99%         1.90              1.22   96%        0.21    2           2.04  0.57       0.06     1.10    1.01    0.59     1.95  1.77    4.25                          28%                  8.62                     112/65/16/7      
+  expert                 99%         1.42              1.22   97%        0.22    2           1.80  0.54       0.12     1.35    0.78    0.68     1.99  2.13    4.33                          28%                  7.44                     165/22/11/2      
+  sloppy                 99%         1.92              1.38   93%        0.14    1           1.72  0.47       0.14     1.45    0.50    0.92     1.89  2.88    3.30                          9%                   7.62                     102/60/20/18     
+  expert, no collecting  43%         15.31             0.01   1%         0.12    2           0     0          0        1.50    0.03    0        1.23  1.13    6.54                          63%                  9.76                     0/0/0/200        
+
+  fairness and the finale
+  bot                    ram loss median  ram loss worst  shed loss worst  sheds/run  time overloaded  dodges  sale taken: player / rival  3 s of closing time  closing time seen s (median)  closed-lane hits/run  badge = final place  a rival in the picture
+  ---------------------  ---------------  --------------  ---------------  ---------  ---------------  ------  --------------------------  -------------------  ----------------------------  --------------------  -------------------  ----------------------
+  beginner               39%              40%             7%               0.03       58%              0.21    41% / 26%                   100%                 17.92                         0.01                  100%                 78%                   
+  confident              37%              40%             18%              0.12       64%              0.72    76% / 20%                   100%                 10.84                         0.02                  99%                  74%                   
+  expert                 39%              40%             21%              0.04       63%              0.56    92% / 7%                    100%                 8.25                          0.01                  100%                 52%                   
+  sloppy                 28%              40%             33%              2.63       57%              0.47    60% / 29%                   100%                 10.16                         0.04                  97%                  64%                   
+  expert, no collecting  21%              40%             -                0          0%               0.15    0% / 23%                    100%                 7.13                          0                     100%                 44%                   
+
+  rivals — over 1000 runs
+  rival         finish  time   median $  items  stuck/run  rams/run  crashes/run
+  ------------  ------  -----  --------  -----  ---------  --------  -----------
+  Granny Tank   100%    48.07  3696      25.07  0.00       0.52      0.14       
+  Sprint Dad    100%    44.63  4098      32.57  0          1.59      0.26       
+  Coupon Queen  100%    44.13  4194      31.35  0          1.39      0.27       
+  rivals finishing: 100% (target 98%+), push-outs 15 in 1000 runs, stuck events 0.001 per run (target < 0.05)
+  receipts: average rival $4127 = 55% of the expert bot's median $7508 (target 60-85%); best rival (median) $5609 = 95% of the confident bot's $5887 (target 85-105%)
+  rival rams on rivals: 3.32 per run, in 93% of runs (target: at least one per run); rival crashes 0.68 per run, seen in 50% of runs
+  rival top speed 24.2 m/s against the player's cart 23.4 m/s (same model; limit 25.2); back in the race after a hit: median 1.15 s, 98% within 2 s, worst 5.12 s (target under 2 s)
+  rivals within 22 m of the player: 74% of the time; median gap along the route 15.7 m (target 10-20 m)
+
+
+Level 2 "GADGET RUSH" — 200 runs per bot, timer 76 s, route 408 m
+  bot                    finish  time   slowest  of timer  spare s (worst)  avg m/s  near-zero  longest standstill s  max no-control s  stuck/run  crashes/run
+  ---------------------  ------  -----  -------  --------  ---------------  -------  ---------  --------------------  ----------------  ---------  -----------
+  beginner               100%    52.39  57.43    69%       18.57            7.94     0%         0.43                  0.60              0          0.01       
+  confident              100%    44.13  51.00    58%       25.00            9.65     0%         1.06                  0.80              0.01       0.17       
+  expert                 100%    40.71  49.83    54%       26.17            10.36    0%         0.58                  0.61              0.01       0.07       
+  sloppy                 100%    43.00  52.73    57%       23.27            10.14    0%         1.07                  0.76              0.01       0.72       
+  expert, no collecting  100%    32.35  35.52    43%       40.48            12.24    0%         0.28                  0.40              0.01       0.01       
+  logic cost: 14.5 microseconds per step, 0.029 ms per 60 Hz frame (budget 6 ms)
+
+  receipts and loot
+  bot                    median $  best $  items $  time $  stunts $  list done  taken  spilled  load x full  first shelf avg  10+ off first shelf  worst crash loss ($ share)  medals bronze/silver/gold/black
+  ---------------------  --------  ------  -------  ------  --------  ---------  -----  -------  -----------  ---------------  -------------------  --------------------------  -------------------------------
+  beginner               3769      7716    3203.34  346.57  98.33     100%       54.42  0.51     1.51         17.42            98%                  40%                         81/118/1/0                     
+  confident              5645      12017   4851.60  471.30  348.15    96%        57.42  3.60     1.51         15.55            97%                  40%                         18/146/32/4                    
+  expert                 8216      14296   6961.29  522     354.93    99%        54.02  2.07     1.63         15.04            95%                  40%                         7/70/90/33                     
+  sloppy                 6405      12050   5453.15  487.65  366.93    97%        56.26  7.24     1.48         13.88            92%                  40%                         23/108/54/15                   
+  expert, no collecting  979       1380    314.49   647.85  19.65     0%         12.12  0.03     0.31         1.86             0%                   40%                         200/0/0/0                      
+
+  the player's run (Madness, rams, crowd, rhythm) — per run
+  bot                    x2 by 20 s  x2 at (median s)  modes  1-2 modes  rammed  rammed max  rams  takedowns  strikes  shaves  sweeps  smashes  hot   bowled  longest quiet s (median run)  runs with 5 s quiet  longest quiet s (worst)  places 1st/2nd/..
+  ---------------------  ----------  ----------------  -----  ---------  ------  ----------  ----  ---------  -------  ------  ------  -------  ----  ------  ----------------------------  -------------------  -----------------------  -----------------
+  beginner               100%        1.87              0.21   21%        0.03    1           0.02  0          0.10     1.95    1.07    0.23     2.52  2.48    6.19                          84%                  9.04                     15/44/53/52/36   
+  confident              100%        1.53              1.00   85%        0.24    2           1.94  0.56       0.04     1.74    0.50    0.47     2.60  1.77    3.82                          24%                  9.86                     77/69/33/14/7    
+  expert                 100%        1.43              1.25   95%        0.20    2           2.15  0.51       0.01     1.72    0.67    0.54     2.92  1.53    3.32                          13%                  7.19                     151/32/11/5/1    
+  sloppy                 100%        1.62              1.14   86%        0.13    2           2.10  0.55       0.04     1.70    0.66    0.60     2.73  2.17    3.44                          9%                   7.17                     95/53/23/19/10   
+  expert, no collecting  99%         15.97             0      0%         0       0           0     0          0        1.97    0       0        2.00  1.34    3.64                          0%                   4.75                     0/0/0/9/191      
+
+  fairness and the finale
+  bot                    ram loss median  ram loss worst  shed loss worst  sheds/run  time overloaded  dodges  sale taken: player / rival  3 s of closing time  closing time seen s (median)  closed-lane hits/run  badge = final place  a rival in the picture
+  ---------------------  ---------------  --------------  ---------------  ---------  ---------------  ------  --------------------------  -------------------  ----------------------------  --------------------  -------------------  ----------------------
+  beginner               40%              40%             8%               0.04       57%              0.05    49% / 4%                    100%                 20.73                         0                     100%                 71%                   
+  confident              38%              40%             14%              0.06       50%              0.74    36% / 25%                   100%                 12.37                         0                     98%                  90%                   
+  expert                 36%              40%             17%              0.04       56%              0.71    50% / 42%                   100%                 8.38                          0.01                  99%                  64%                   
+  sloppy                 39%              40%             37%              0.97       50%              0.69    46% / 28%                   100%                 10.53                         0.01                  96%                  83%                   
+  expert, no collecting  -                -               -                0          0%               0       0% / 1%                     100%                 6.48                          0.01                  93%                  18%                   
+
+  rivals — over 1000 runs
+  rival         finish  time   median $  items  stuck/run  rams/run  crashes/run
+  ------------  ------  -----  --------  -----  ---------  --------  -----------
+  Sprint Dad    100%    41.21  4821      30.75  0          1.55      0.14       
+  Granny Tank   100%    45.30  3940      24.49  0.00       0.66      0.01       
+  Coupon Queen  100%    40.92  4211      27.50  0.00       1.26      0.18       
+  Selfie Star   100%    46.00  2824      31.49  0          1.02      0.05       
+  rivals finishing: 100% (target 98%+), push-outs 1 in 1000 runs, stuck events 0.002 per run (target < 0.05)
+  receipts: average rival $4035 = 49% of the expert bot's median $8216 (target 60-85%); best rival (median) $6071 = 108% of the confident bot's $5645 (target 85-105%)
+  rival rams on rivals: 4.38 per run, in 97% of runs (target: at least one per run); rival crashes 0.39 per run, seen in 32% of runs
+  rival top speed 22.7 m/s against the player's cart 22.8 m/s (same model; limit 25.2); back in the race after a hit: median 1.15 s, 98% within 2 s, worst 4.12 s (target under 2 s)
+  rivals within 22 m of the player: 61% of the time; median gap along the route 16.6 m (target 10-20 m)
+
+
+Level 3 "ATRIUM MAYHEM" — 200 runs per bot, timer 70 s, route 361 m
+  bot                    finish  time   slowest  of timer  spare s (worst)  avg m/s  near-zero  longest standstill s  max no-control s  stuck/run  crashes/run
+  ---------------------  ------  -----  -------  --------  ---------------  -------  ---------  --------------------  ----------------  ---------  -----------
+  beginner               100%    45.70  54.51    65%       15.49            7.74     1%         2.29                  0.77              0.01       0.41       
+  confident              100%    39.87  51.12    57%       18.88            9.07     1%         1.08                  0.70              0.01       0.23       
+  expert                 100%    36.97  45.92    53%       24.08            9.74     1%         1.02                  0.60              0.03       0.23       
+  sloppy                 100%    39.03  51.57    56%       18.43            9.77     1%         0.83                  0.71              0.04       1.38       
+  expert, no collecting  100%    34.51  42.41    49%       27.59            10.21    2%         0.87                  0.71              0.01       1.08       
+  logic cost: 17.5 microseconds per step, 0.035 ms per 60 Hz frame (budget 6 ms)
+
+  receipts and loot
+  bot                    median $  best $  items $  time $  stunts $  list done  taken  spilled  load x full  first shelf avg  10+ off first shelf  worst crash loss ($ share)  medals bronze/silver/gold/black
+  ---------------------  --------  ------  -------  ------  --------  ---------  -----  -------  -----------  ---------------  -------------------  --------------------------  -------------------------------
+  beginner               2414      7087    1933.93  357.23  132.45    96%        40.91  5.30     1.13         17.14            100%                 40%                         128/68/4/0                     
+  confident              4688      9095    3926.43  444.07  292.88    93%        49.63  4.61     1.46         15.10            100%                 40%                         16/122/56/6                    
+  expert                 6181      11958   5286.56  488.18  313.48    95%        48.71  3.17     1.58         15.16            100%                 40%                         5/68/91/36                     
+  sloppy                 4617      9693    4022.88  456.45  291.38    83%        54.75  13.38    1.34         15.14            94%                  40%                         24/111/50/15                   
+  expert, no collecting  640       2921    195.39   525     22.05     0%         5.71   0.58     0.19         1.22             0%                   40%                         199/1/0/0                      
+
+  the player's run (Madness, rams, crowd, rhythm) — per run
+  bot                    x2 by 20 s  x2 at (median s)  modes  1-2 modes  rammed  rammed max  rams  takedowns  strikes  shaves  sweeps  smashes  hot   bowled  longest quiet s (median run)  runs with 5 s quiet  longest quiet s (worst)  places 1st/2nd/..
+  ---------------------  ----------  ----------------  -----  ---------  ------  ----------  ----  ---------  -------  ------  ------  -------  ----  ------  ----------------------------  -------------------  -----------------------  -----------------
+  beginner               100%        1.92              0.13   13%        0.26    2           0.37  0.06       0.01     1.55    0.73    0.10     2.65  1.67    5.06                          51%                  10.50                    17/18/40/59/46/20
+  confident              100%        1.63              0.88   80%        0.24    2           1.61  0.32       0        1.38    0.49    0.24     2.77  1.13    3.86                          27%                  8.47                     96/45/35/18/6/0  
+  expert                 100%        1.52              1.21   94%        0.10    2           1.71  0.30       0.04     1.81    0.46    0.20     2.78  1.51    3.43                          14%                  10.05                    151/29/14/3/2/1  
+  sloppy                 100%        1.62              1.17   89%        0.09    1           1.58  0.30       0.04     1.64    0.56    0.37     2.74  1.90    3.27                          12%                  8.20                     93/48/32/15/12/0 
+  expert, no collecting  93%         8.68              0.01   1%         0.04    1           0     0          0        1.56    0       0        2.42  1.08    4.67                          13%                  7.70                     0/0/1/4/21/174   
+
+  fairness and the finale
+  bot                    ram loss median  ram loss worst  shed loss worst  sheds/run  time overloaded  dodges  sale taken: player / rival  3 s of closing time  closing time seen s (median)  closed-lane hits/run  badge = final place  a rival in the picture
+  ---------------------  ---------------  --------------  ---------------  ---------  ---------------  ------  --------------------------  -------------------  ----------------------------  --------------------  -------------------  ----------------------
+  beginner               27%              40%             13%              0.02       25%              0.41    30% / 47%                   100%                 19.02                         0                     100%                 91%                   
+  confident              38%              40%             25%              0.24       54%              0.56    49% / 44%                   100%                 12.96                         0.01                  96%                  88%                   
+  expert                 38%              40%             33%              0.35       58%              0.45    67% / 29%                   100%                 10.43                         0.01                  98%                  68%                   
+  sloppy                 26%              40%             31%              2.07       50%              0.43    56% / 33%                   100%                 12.64                         0.01                  97%                  76%                   
+  expert, no collecting  21%              29%             -                0          0%               0.13    0% / 56%                    100%                 9.13                          0                     93%                  67%                   
+
+  rivals — over 1000 runs
+  rival         finish  time   median $  items  stuck/run  rams/run  crashes/run
+  ------------  ------  -----  --------  -----  ---------  --------  -----------
+  Sprint Dad    100%    37.97  2804      26.20  0          1.55      0.32       
+  Coupon Queen  100%    36.74  2939      17.94  0          1.06      0.43       
+  Granny Tank   100%    41.66  3691      21.74  0          0.85      0.34       
+  Selfie Star   100%    43.66  1582      23.28  0          0.80      0.26       
+  Bulk Bro      100%    40.39  2149      28.17  0.00       1.81      0.34       
+  rivals finishing: 100% (target 98%+), push-outs 132 in 1000 runs, stuck events 0.001 per run (target < 0.05)
+  receipts: average rival $2796 = 45% of the expert bot's median $6181 (target 60-85%); best rival (median) $4622 = 99% of the confident bot's $4688 (target 85-105%)
+  rival rams on rivals: 5.92 per run, in 98% of runs (target: at least one per run); rival crashes 1.68 per run, seen in 80% of runs
+  rival top speed 23.8 m/s against the player's cart 24.1 m/s (same model; limit 25.2); back in the race after a hit: median 1.14 s, 96% within 2 s, worst 5.40 s (target under 2 s)
+  rivals within 22 m of the player: 73% of the time; median gap along the route 13.4 m (target 10-20 m)
+
+dist/index.html: 14 modules (config.js, levels.js, world.js, cart.js, ai.js, sim.js, platform.js, gfx.js, models.js, scene.js, fx.js, audio.js, ui.js, main.js), 311 KB
+

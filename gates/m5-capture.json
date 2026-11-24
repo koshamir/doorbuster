@@ -1,0 +1,361 @@
+{
+  "set": "m5",
+  "summary": [
+    {
+      "name": "l2",
+      "loadMs": 683,
+      "pink": {
+        "pinkPct": 0.94,
+        "ofVividPct": 15.8
+      },
+      "t": 45.53,
+      "phase": "done",
+      "items": 28,
+      "value": 5660,
+      "calls": 40,
+      "tris": 113636,
+      "gpu": "NVIDIA GeForce RTX 4060",
+      "cam": {
+        "cartX": [
+          -0.31,
+          0.03
+        ],
+        "cartY": [
+          -0.44,
+          -0.11
+        ],
+        "floorAheadSec": 1.78,
+        "yawRev": 0.5,
+        "lift": 1
+      }
+    },
+    {
+      "name": "l3",
+      "loadMs": 236,
+      "pink": {
+        "pinkPct": 1.39,
+        "ofVividPct": 23.1
+      },
+      "t": 45.5,
+      "phase": "done",
+      "items": 32,
+      "value": 4122,
+      "calls": 50,
+      "tris": 117276,
+      "gpu": "NVIDIA GeForce RTX 4060",
+      "cam": {
+        "cartX": [
+          -0.32,
+          0.02
+        ],
+        "cartY": [
+          -0.44,
+          -0.04
+        ],
+        "floorAheadSec": 1.5,
+        "yawRev": 0.63,
+        "lift": 1
+      }
+    },
+    {
+      "name": "jump",
+      "loadMs": 222,
+      "t": 2.8,
+      "phase": "run",
+      "items": 0,
+      "value": 0,
+      "calls": 17,
+      "tris": 12550,
+      "gpu": "NVIDIA GeForce RTX 4060",
+      "cam": {
+        "cartX": [
+          0,
+          0
+        ],
+        "cartY": [
+          -0.44,
+          -0.2
+        ],
+        "floorAheadSec": 2.47,
+        "yawRev": 0.19,
+        "lift": 0
+      }
+    },
+    {
+      "name": "belt",
+      "loadMs": 215,
+      "t": 3.4,
+      "phase": "run",
+      "items": 0,
+      "value": 0,
+      "calls": 15,
+      "tris": 11522,
+      "gpu": "NVIDIA GeForce RTX 4060",
+      "cam": {
+        "cartX": [
+          0,
+          0
+        ],
+        "cartY": [
+          -0.44,
+          -0.13
+        ],
+        "floorAheadSec": 1.97,
+        "yawRev": 0.34,
+        "lift": 0
+      }
+    },
+    {
+      "name": "train",
+      "loadMs": 248,
+      "t": 41.92,
+      "phase": "run",
+      "items": 27,
+      "value": 1061,
+      "calls": 77,
+      "tris": 149450,
+      "gpu": "NVIDIA GeForce RTX 4060",
+      "cam": {
+        "cartX": [
+          -0.02,
+          0.03
+        ],
+        "cartY": [
+          -0.44,
+          -0.21
+        ],
+        "floorAheadSec": 2.77,
+        "yawRev": 1.22,
+        "lift": 0
+      }
+    },
+    {
+      "name": "flow",
+      "loadMs": 223,
+      "t": 46.57,
+      "phase": "done",
+      "items": 17,
+      "value": 4514,
+      "calls": 49,
+      "tris": 99908,
+      "gpu": "NVIDIA GeForce RTX 4060",
+      "cam": {
+        "cartX": [
+          -0.31,
+          0.02
+        ],
+        "cartY": [
+          -0.44,
+          -0.11
+        ],
+        "floorAheadSec": 1.86,
+        "yawRev": 0.94,
+        "lift": 1
+      }
+    },
+    {
+      "name": "hint_drift",
+      "loadMs": 237,
+      "t": 2.7,
+      "phase": "run",
+      "items": 0,
+      "value": 0,
+      "calls": 58,
+      "tris": 141414,
+      "gpu": "NVIDIA GeForce RTX 4060",
+      "cam": {
+        "cartX": [
+          -0.01,
+          0
+        ],
+        "cartY": [
+          -0.44,
+          -0.19
+        ],
+        "floorAheadSec": 2.47,
+        "yawRev": 0,
+        "lift": 0
+      }
+    },
+    {
+      "name": "checkout",
+      "loadMs": 227,
+      "eventAt": 43.075,
+      "t": 46.57,
+      "phase": "done",
+      "items": 17,
+      "value": 4514,
+      "calls": 49,
+      "tris": 99908,
+      "gpu": "NVIDIA GeForce RTX 4060",
+      "cam": {
+        "cartX": [
+          -0.31,
+          0.02
+        ],
+        "cartY": [
+          -0.44,
+          -0.11
+        ],
+        "floorAheadSec": 1.86,
+        "yawRev": 1,
+        "lift": 1
+      }
+    },
+    {
+      "name": "hints",
+      "loadMs": 226,
+      "t": 2.2,
+      "phase": "run",
+      "items": 3,
+      "value": 27,
+      "calls": 63,
+      "tris": 128200,
+      "gpu": "NVIDIA GeForce RTX 4060",
+      "cam": {
+        "cartX": [
+          0,
+          0
+        ],
+        "cartY": [
+          -0.44,
+          -0.2
+        ],
+        "floorAheadSec": 2.48,
+        "yawRev": 0.43,
+        "lift": 0
+      }
+    },
+    {
+      "name": "video",
+      "video": "video.webm",
+      "seconds": 30
+    },
+    {
+      "name": "audio",
+      "loadMs": 238,
+      "after": {
+        "state": "running",
+        "voices": 6,
+        "steps": 90,
+        "bpm": 114,
+        "level": 2
+      }
+    },
+    {
+      "name": "title",
+      "loadMs": 243
+    },
+    {
+      "name": "cards",
+      "loadMs": 261
+    },
+    {
+      "name": "pause",
+      "loadMs": 219,
+      "after": "screen pause on",
+      "t": 2.61,
+      "phase": "run",
+      "items": 3,
+      "value": 340,
+      "calls": 67,
+      "tris": 128614,
+      "gpu": "NVIDIA GeForce RTX 4060",
+      "cam": {
+        "cartX": [
+          -0.01,
+          0.01
+        ],
+        "cartY": [
+          -0.44,
+          -0.13
+        ],
+        "floorAheadSec": 1.86,
+        "yawRev": 0.56,
+        "lift": 0
+      }
+    },
+    {
+      "name": "phone",
+      "loadMs": 245
+    },
+    {
+      "name": "mix",
+      "loadMs": 246,
+      "after": {
+        "seconds": 24,
+        "peak": 0.853,
+        "rms": 0.13,
+        "loudestSecondRms": 0.168,
+        "clippedSamples": 0,
+        "silentSeconds": 0,
+        "peakBeforeLimiter": 1.537,
+        "overFullScaleBeforeLimiter": "0.01%",
+        "hardEdges": 0,
+        "voicesLeft": 5
+      }
+    },
+    {
+      "name": "touch",
+      "loadMs": 240,
+      "after": {
+        "touch": true,
+        "left": true,
+        "steer": 1,
+        "gas": 1,
+        "speed": 11.8,
+        "released": true,
+        "twoThumbs": true
+      }
+    },
+    {
+      "name": "l2_open",
+      "loadMs": 219,
+      "t": 2.65,
+      "phase": "run",
+      "items": 0,
+      "value": 0,
+      "calls": 58,
+      "tris": 141414,
+      "gpu": "NVIDIA GeForce RTX 4060",
+      "cam": {
+        "cartX": [
+          -0.01,
+          0
+        ],
+        "cartY": [
+          -0.44,
+          -0.19
+        ],
+        "floorAheadSec": 2.47,
+        "yawRev": 0,
+        "lift": 0
+      }
+    },
+    {
+      "name": "l3_open",
+      "loadMs": 215,
+      "t": 2.87,
+      "phase": "run",
+      "items": 0,
+      "value": 0,
+      "calls": 58,
+      "tris": 152392,
+      "gpu": "NVIDIA GeForce RTX 4060",
+      "cam": {
+        "cartX": [
+          -0.02,
+          0.01
+        ],
+        "cartY": [
+          -0.44,
+          -0.2
+        ],
+        "floorAheadSec": 2.46,
+        "yawRev": 0.19,
+        "lift": 0
+      }
+    }
+  ],
+  "problems": []
+}

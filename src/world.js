@@ -3,19 +3,17 @@
 //          floor and zone grids, merged wall boxes, shelves with their goods, single-tile pieces,
 //          checkout lanes, start slots, a spatial grid of colliders and the navigation field.
 //          Also provides the collision and navigation queries.
-// Exports: buildWorld, addSolid, collide, blockedAt, clearPath, tileAt, navBuild, fieldFrom, navDistAt, navAim, PIECES
+// Exports: buildWorld, addSolid, collide, blockedAt, clearPath, tileAt, navBuild, navDistAt, navAim, PIECES
 // Depends on: config.js. No DOM, no THREE (runs in Node).
 //
 // Plan legend (one character = one 2 m tile):
 //   ' ' void (walls are generated around floor)      '.' floor
 //   S M L  shelf stocked with small / medium / large goods (runs merge into rows, short runs are islands)
-//   o  floor item      1 2 3 4  shopping-list item (a list rack in LIST mode: ram it)     @  player start     r  rival start
-//   c  checkout lane (finish)   k  closed checkout lane (red lamp, barred)   C  checkout counter (E: for lanes running east-west)
-//   O round display  P can pyramid  Q MEGA PYRAMID  G gift pile  K cardboard stand  H hot item behind a ribbon
-//   W glass window  F fountain  X Christmas tree  # low wall of crates (a ramp jumps it)  V hot item in a glass case
-//   _  pit (a clearance bin, the stockroom, the pool): rolling in is a wipeout unless in the air
-//   t table  b boxes  m mannequin  u hurdle  y cone (light, fly away)   p plant  n bench (solid decor)
-//   J trampoline (launches over a pool or a wall)  D delivery boxes (a dash opens the shortcut)  Y cake tower
+//   o  floor item      1 2 3  shopping-list item     @  player start     r  rival start
+//   c  checkout lane (finish)   C  checkout counter
+//   O round display  P can pyramid  G gift pile  K cardboard stand  H hot-item podium
+//   W glass window  F fountain  X Christmas tree
+//   t table  b boxes  m mannequin (light, fly away)   p plant  n bench (solid decor)
 //   > < ^ v travelator   ~ wet floor   R ramp   f flash-sale podium (dormant until the sale)
 //   g  huddle of six shoppers (a dash through the middle is a STRIKE)
 //   =  the cart train's track (floor; a straight run of these carries one train)
@@ -29,23 +27,15 @@ const T = CFG.TILE;
 // nav = blocks the navigation field (rivals route around it).
 export const PIECES = {
   O: { type: 'display', r: 0.9, nav: 1 },
-  P: { type: 'pyramid', r: 0.9, dash: 1, nav: 1, cans: 21 },
-  Q: { type: 'mega', r: 1.6, dash: 1, nav: 1, cans: 55 },
-  '#': { type: 'lowwall', hx: 1, hz: 1, low: 1, nav: 1 },        // a low wall of crates: blocks the way, a jump clears it
+  P: { type: 'pyramid', r: 0.9, dash: 1, nav: 1 },
   G: { type: 'gifts', r: 0.9, dash: 1, nav: 1 },
   K: { type: 'stand', r: 0.7, dash: 1, nav: 1 },
   H: { type: 'podium', r: 0.85, dash: 1, nav: 1 },
-  V: { type: 'case', r: 0.95, dash: 1, nav: 1 },               // a hot item in a glass case
   f: { type: 'podium', r: 0.85, dash: 1, nav: 0, off: 1, sale: 1 },
   W: { type: 'glass', hx: 1, hz: 1, dash: 1, nav: 1 },
-  D: { type: 'crates', hx: 1, hz: 1, dash: 1, nav: 1 },          // a stack of delivery boxes: a dash bursts through (a shortcut)
-  Y: { type: 'caketower', r: 0.9, dash: 1, nav: 1 },             // a cake tower: smash it for desserts
-  u: { type: 'hurdle', hx: 0.9, hz: 0.12, soft: 1 },             // a low hurdle (knocked flying)
-  y: { type: 'cone', r: 0.25, soft: 1 },
   F: { type: 'fountain', r: 2.8, low: 1, nav: 1 },
   X: { type: 'tree', r: 1.7, nav: 1 },
   C: { type: 'counter', hx: 0.7, hz: 1, nav: 1 },
-  E: { type: 'counter', hx: 1, hz: 0.7, nav: 1, ew: 1 },     // a counter turned for lanes that run east-west
   p: { type: 'plant', r: 0.5, nav: 1 },
   n: { type: 'bench', hx: 0.9, hz: 0.45, low: 1, nav: 1 },
   t: { type: 'table', r: 0.6, soft: 1 },
@@ -70,7 +60,6 @@ export function buildWorld(def, rng) {
     def, plan, cols, rows, w: cols * T, h: rows * T,
     floor: new Uint8Array(n),       // 1 = walkable area (anything that is not void)
     belt: new Uint8Array(n),        // travelator: 0 none, 1 east, 2 south, 3 west, 4 north
-    pit: new Uint8Array(n), pits: false,   // 1 = a pit
     wet: new Uint8Array(n),         // 1 = wet floor
     ramps: [], tracks: [],          // ramps { x, z, c, r, dx, dz }; train tracks { x0, z0, x1, z1, len }
     zone: new Uint8Array(n),        // index into def.zones (0 = first zone / corridor)
@@ -89,9 +78,8 @@ export function buildWorld(def, rng) {
   for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
     const k = plan[r][c], i = r * cols + c;
     world.floor[i] = k === ' ' ? 0 : 1;
-    world.block[i] = k === ' ' || 'SMLRJk'.includes(k) || (PIECES[k] && PIECES[k].nav) ? 1 : 0;   // drivers go round ramps: the jump is the player's
+    world.block[i] = k === ' ' || 'SMLR'.includes(k) || (PIECES[k] && PIECES[k].nav) ? 1 : 0;   // drivers go round ramps: the jump is the player's
     world.belt[i] = '>v<^'.indexOf(k) + 1;
-    if (k === '_') { world.pit[i] = 1; world.pits = true; world.block[i] = 1; }
     world.wet[i] = k === '~' ? 1 : 0;
   }
   (def.zones || []).forEach((zn, zi) => {
@@ -111,9 +99,8 @@ export function buildWorld(def, rng) {
     const pool = POOLS[zdef.pool || 'market'];
     if (PIECES[k]) {
       const p = PIECES[k];
-      const piece = { type: p.type, x, z, c, r, alive: true, t: 0, solid: null, sale: !!p.sale, cans: p.cans || 0, full: p.cans || 0,
-        good: (p.type === 'podium' || p.type === 'case') && !p.sale ? GOOD[def.hotGood || ['tv', 'bear', 'console', 'robovac'][rng.int(4)]] : -1 };   // the hot item on a podium
-      piece.hot = piece.good; if (p.ew) piece.ew = true;
+      const piece = { type: p.type, x, z, c, r, alive: true, t: 0, solid: null, sale: !!p.sale,
+        good: p.type === 'podium' && !p.sale ? GOOD[['tv', 'bear', 'console', 'robovac'][rng.int(4)]] : -1 };   // the hot item on a podium
       // Counters next to each other along z read as one long counter; keep each tile's own box.
       piece.solid = addSolid(world, { x, z, r: p.r || 0, hx: p.hx || 0, hz: p.hz || 0, type: p.type,
         on: !p.off, low: !!p.low, soft: !!p.soft, dash: !!p.dash, piece });
@@ -123,22 +110,18 @@ export function buildWorld(def, rng) {
       const id = pool.S[(dropKind++ >> 2) % pool.S.length];
       let ox = 0, oz = 0;
       for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if ('SML'.includes(ch(c + dc, r + dr))) { ox = dc * 0.7; oz = dr * 0.7; }
-      world.drops.push({ x: x + ox, z: z + oz, good: GOOD[id], ttl: -1, live: true, list: 0, arm: 0, home: world.belt[i] ? beltStart(world, plan, c, r) : null });
-    } else if (k === '1' || k === '2' || k === '3' || k === '4') {
+      world.drops.push({ x: x + ox, z: z + oz, good: GOOD[id], ttl: -1, live: true, list: 0, arm: 0 });
+    } else if (k === '1' || k === '2' || k === '3') {
       const id = (def.list || [])[Number(k) - 1];
-      if (id && def.mode === 'list') {       // a list rack: the item waits on it until the player rams it
-        const piece = { type: 'listrack', x, z, c, r, alive: true, t: 0, solid: null, sale: false, cans: 0, full: 0, good: GOOD[id], hot: GOOD[id], list: Number(k) };
-        piece.solid = addSolid(world, { x, z, r: 0.85, hx: 0, hz: 0, type: 'listrack', on: true, low: false, soft: false, dash: false, piece });
-        world.pieces.push(piece); world.block[i] = 1;
-      } else if (id) world.drops.push({ x, z, good: GOOD[id], ttl: -1, live: true, list: Number(k), arm: 0 });   // list = which item
+      if (id) world.drops.push({ x, z, good: GOOD[id], ttl: -1, live: true, list: Number(k), arm: 0 });   // list = which of the three
     } else if (k === '@') {
       world.start.x = x; world.start.z = z;
     } else if (k === 'r') {
       world.slots.push({ x, z });
     } else if (k === 'g') {
       world.huddles.push({ x, z, dx: 0, dz: 1, on: false });   // on and its axis (the way the route runs through it) are set when the crowd is placed
-    } else if (k === 'R' || k === 'J') {
-      world.ramps.push({ x, z, c, r, dx: 0, dz: 0, tramp: k === 'J' });
+    } else if (k === 'R') {
+      world.ramps.push({ x, z, c, r, dx: 0, dz: 0 });
     } else if (k === '=') {
       // A train track: one train per straight run (found at the run's first tile).
       for (const [dc, dr] of [[1, 0], [0, 1]]) {
@@ -147,9 +130,9 @@ export function buildWorld(def, rng) {
         while (ch(c + dc * (e + 1), r + dr * (e + 1)) === '=') e++;
         world.tracks.push({ x0: x, z0: z, x1: x + dc * e * T, z1: z + dr * e * T, len: e * T });
       }
-    } else if ((k === 'c' || k === 'k') && laneOf[i] < 0) {
-      // Flood-fill one checkout lane (k: closed for the whole run).
-      const lane = { id: world.lanes.length, tiles: [], x: 0, z: 0, open: k === 'c', closed: k === 'k', warned: false, bar: null };
+    } else if (k === 'c' && laneOf[i] < 0) {
+      // Flood-fill one checkout lane.
+      const lane = { id: world.lanes.length, tiles: [], x: 0, z: 0, open: true, warned: false, bar: null };
       let c0 = c, c1 = c, r0 = r, r1 = r;
       const stack = [[c, r]];
       laneOf[i] = lane.id;
@@ -160,13 +143,13 @@ export function buildWorld(def, rng) {
         c0 = Math.min(c0, cc); c1 = Math.max(c1, cc); r0 = Math.min(r0, rr); r1 = Math.max(r1, rr);
         for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
           const j = (rr + dr) * cols + cc + dc;
-          if (ch(cc + dc, rr + dr) === k && laneOf[j] < 0) { laneOf[j] = lane.id; stack.push([cc + dc, rr + dr]); }
+          if (ch(cc + dc, rr + dr) === 'c' && laneOf[j] < 0) { laneOf[j] = lane.id; stack.push([cc + dc, rr + dr]); }
         }
       }
       lane.x /= lane.tiles.length; lane.z /= lane.tiles.length;
       // A closed lane is a solid block (switched on at closing time).
       lane.bar = addSolid(world, { x: (c0 + c1 + 1) * T / 2, z: (r0 + r1 + 1) * T / 2, r: 0, hx: (c1 - c0 + 1) * T / 2, hz: (r1 - r0 + 1) * T / 2,
-        type: 'barrier', on: k === 'k' });
+        type: 'barrier', on: false });
       world.lanes.push(lane);
     }
     if (k === '.' || k === 'o') world.crowdTiles.push(i);
@@ -188,18 +171,8 @@ export function buildWorld(def, rng) {
       const v = world.nav[(rp.r + dr) * cols + rp.c + dc];
       if (v < best) { best = v; rp.dx = dc; rp.dz = dr; }
     }
-    // a level may point a ramp itself (a jump over a low wall that the route field does not see)
-    const od = def.rampDir && def.rampDir[rp.c + ',' + rp.r];
-    if (od) [rp.dx, rp.dz] = { n: [0, -1], s: [0, 1], e: [1, 0], w: [-1, 0] }[od];
   }
   return world;
-}
-
-// Where the conveyor under tile (c, r) begins: goods that ride off its end come back there.
-function beltStart(world, plan, c, r) {
-  const k = plan[r][c], dc = k === '>' ? -1 : k === '<' ? 1 : 0, dr = k === 'v' ? -1 : k === '^' ? 1 : 0;
-  while (plan[r + dr] && plan[r + dr][c + dc] === k) { c += dc; r += dr; }
-  return [(c + 0.5) * T, (r + 0.5) * T];
 }
 
 // ---- Walls: every void tile, merged greedily into as few boxes as possible. --------------------
@@ -330,7 +303,7 @@ export function collide(world, x, z, rad, air, skipSoft) {
     const cell = world.cells[r * world.cols + c];
     for (let k = 0; k < cell.length; k++) {
       const s = world.solids[cell[k]];
-      if (!s.on || (air && s.low) || (skipSoft && s.soft) || (s.playerOnly && !world.forPlayer)) continue;
+      if (!s.on || (air && s.low) || (skipSoft && s.soft)) continue;
       const dx = x - s.x, dz = z - s.z;
       let nx, nz, depth;
       if (s.r) {
@@ -382,15 +355,7 @@ export function clearPath(world, x0, z0, x1, z1, rad) {
 // ---- Navigation: distance to the nearest open checkout over the tile grid. ----------------------
 const NEIGH = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, 1.414], [1, -1, 1.414], [-1, 1, 1.414], [-1, -1, 1.414]];
 export function navBuild(world) {
-  const seeds = [];
-  for (const lane of world.lanes) if (lane.open) for (const i of lane.tiles) seeds.push(i, lane.warned ? 14 : 0);   // a lane about to close is worth a 14 m detour to another
-  fieldFrom(world, seeds, world.nav);
-  world.navVer = (world.navVer || 0) + 1;
-}
-// A distance field (metres) over the tiles from seed tiles (pairs of tile index and starting value), with the
-// route's costs: dear beside walls and near the checkouts, cheap with a conveyor, dear against it.
-export function fieldFrom(world, seeds, nav) {
-  const { cols, rows, block } = world;
+  const { cols, rows, nav, block } = world;
   const n = cols * rows;
   // A tile next to a blocked tile costs more, so paths prefer the middle of a corridor.
   const cost = new Float32Array(n);
@@ -404,7 +369,10 @@ export function fieldFrom(world, seeds, nav) {
   }
   nav.fill(1e9);
   const queue = [];
-  for (let s = 0; s < seeds.length; s += 2) { nav[seeds[s]] = seeds[s + 1]; queue.push(seeds[s]); }
+  for (const lane of world.lanes) {
+    if (!lane.open) continue;
+    for (const i of lane.tiles) { nav[i] = lane.warned ? 14 : 0; queue.push(i); }   // a lane about to close is worth a 14 m detour to another
+  }
   for (let head = 0; head < queue.length; head++) {
     const i = queue[head], c = i % cols, r = (i - c) / cols;
     for (const [dc, dr, w] of NEIGH) {
@@ -419,50 +387,29 @@ export function fieldFrom(world, seeds, nav) {
       if (d < nav[j] - 1e-4) { nav[j] = d; queue.push(j); }
     }
   }
-  return nav;
 }
 
-// Navigation distance at a world position (the tile's value, or its best neighbour if blocked); field: another
-// distance field than the route to the checkouts.
-export function navDistAt(world, x, z, field) {
-  const nav = field || world.nav;
+// Navigation distance at a world position (the tile's value, or its best neighbour if blocked).
+export function navDistAt(world, x, z) {
   const c = Math.min(world.cols - 1, Math.max(0, Math.floor(x / T)));
   const r = Math.min(world.rows - 1, Math.max(0, Math.floor(z / T)));
-  let best = nav[r * world.cols + c];
+  let best = world.nav[r * world.cols + c];
   if (best < 1e8) return best;
   for (const [dc, dr] of NEIGH) {
     const cc = c + dc, rr = r + dr;
     if (cc < 0 || rr < 0 || cc >= world.cols || rr >= world.rows) continue;
-    best = Math.min(best, nav[rr * world.cols + cc] + T);
+    best = Math.min(best, world.nav[rr * world.cols + cc] + T);
   }
   return best;
-}
-
-// True if the segment keeps clear of every no-go area (a turnstile's sweep, a glove's plate: discs r or boxes hx, hz)
-// and of the pits (with a cart's half width to spare): drivers never cut a corner through one.
-function clearOf(world, x0, z0, x1, z1) {
-  const discs = world.noGo, vx = x1 - x0, vz = z1 - z0, l2 = vx * vx + vz * vz || 1;
-  if (discs) for (const d of discs) {
-    const t = Math.max(0, Math.min(1, ((d.x - x0) * vx + (d.z - z0) * vz) / l2)), px = x0 + vx * t - d.x, pz = z0 + vz * t - d.z;
-    if (d.r ? Math.hypot(px, pz) < d.r : Math.abs(px) < d.hx && Math.abs(pz) < d.hz) return false;
-  }
-  if (world.pits) {
-    const l = Math.sqrt(l2), n = Math.ceil(l / 0.5), ox = -vz / l * 0.85, oz = vx / l * 0.85;
-    for (let i = 1; i <= n; i++) for (const s of [-1, 1]) {
-      const x = x0 + vx * i / n + ox * s, z = z0 + vz * i / n + oz * s, c = Math.floor(x / T), r = Math.floor(z / T);
-      if (c >= 0 && r >= 0 && c < world.cols && r < world.rows && world.pit[r * world.cols + c]) return false;
-    }
-  }
-  return true;
 }
 
 // Where to drive from (x, z): walks the field downhill for up to `steps` tiles and returns in `out`
 // the farthest point on that walk that is visible in a straight line and no more than `reach` metres
 // along it (out.x, out.z), the end of the walk (out.fx, out.fz) and the distance left (out.left).
 // A short reach keeps a driver on the path through narrow places; a long one cuts corners.
-// Returns false if there is no way. field: follow another distance field than the route to the checkouts.
-export function navAim(world, x, z, steps, rad, out, reach, field) {
-  const { cols, rows, block } = world, nav = field || world.nav;
+// Returns false if there is no way.
+export function navAim(world, x, z, steps, rad, out, reach) {
+  const { cols, rows, nav, block } = world;
   let c = Math.min(cols - 1, Math.max(0, Math.floor(x / T))), r = Math.min(rows - 1, Math.max(0, Math.floor(z / T)));
   if (nav[r * cols + c] >= 1e8) {               // standing on a blocked tile: hop to the best neighbour
     let best = 1e9, bc = c, br = r;
@@ -496,7 +443,7 @@ export function navAim(world, x, z, steps, rad, out, reach, field) {
     const px = (c + 0.5) * T, pz = (r + 0.5) * T;
     out.fx = px; out.fz = pz;
     // The next tile is always reachable; anything further must be in plain sight (never round a corner).
-    if (s < 1 || (len <= reach && clearPath(world, x, z, px, pz, rad) && clearOf(world, x, z, px, pz))) { out.x = px; out.z = pz; }
+    if (s < 1 || (len <= reach && clearPath(world, x, z, px, pz, rad))) { out.x = px; out.z = pz; }
   }
   return true;
 }
